@@ -99,6 +99,7 @@ const actionOptions = [
 const columns = [
   { name: 'id', label: 'ID', field: 'id', align: 'left' as const, sortable: true },
   { name: 'timestamp', label: 'Date/Heure', field: 'timestamp', align: 'left' as const, sortable: true },
+  { name: 'user_id', label: 'Utilisateur', field: 'user_id', align: 'left' as const, sortable: true },
   { name: 'action_type', label: 'Action', field: 'action_type', align: 'center' as const, sortable: true },
   { name: 'table_name', label: 'Table', field: 'table_name', align: 'left' as const, sortable: true },
   { name: 'record_id', label: 'Enregistrement', field: 'record_id', align: 'left' as const },
