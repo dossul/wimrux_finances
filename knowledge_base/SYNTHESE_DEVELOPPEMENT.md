@@ -102,6 +102,7 @@ et techniques pour guider le développement à 100%.
 | **Storage** | InsForge Storage — Upload/Download fichiers (logos, justificatifs) |
 | **Edge Functions** | InsForge Functions — Logique serveur (calculs fiscaux, MCF bridge) |
 | **IA** | OpenRouter API direct — Routage par tâche (6 tasks), tracking usage, modérations |
+| **Chatbot API** | Edge Function gateway — Auth par clé API, permissions granulaires, WhatsApp/Telegram/Email/API |
 | **Chiffrement** | AES-256 CBC (données sensibles : IFU, clés API, données MCF) |
 | **PDF** | Génération côté client ou Edge Function avec QR Code |
 | **Communication MCF** | Edge Function / API REST ↔ MCF (RS232 via agent local) |
