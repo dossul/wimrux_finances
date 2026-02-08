@@ -22,6 +22,7 @@ export interface Company {
   ai_fallback_model: string | null;
   ai_system_prompt: string | null;
   ai_enabled: boolean;
+  openrouter_api_key: string | null;
   created_at: string;
 }
 

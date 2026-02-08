@@ -98,14 +98,33 @@
         <q-card flat bordered>
           <q-card-section>
             <div class="text-subtitle1 text-weight-medium q-mb-md">Configuration IA de l'entreprise</div>
-            <q-banner class="bg-blue-1 text-blue-9 q-mb-md rounded-borders" dense>
-              <template v-slot:avatar><q-icon name="info" color="blue" /></template>
-              Les modèles IA sont fournis via InsForge (OpenRouter). Aucune clé API externe n'est requise.<br />
-              Chaque entreprise peut choisir son modèle principal et un modèle de secours (fallback).
+            <q-banner class="bg-amber-1 text-amber-9 q-mb-md rounded-borders" dense>
+              <template v-slot:avatar><q-icon name="vpn_key" color="amber" /></template>
+              L'assistant IA utilise votre <strong>clé API OpenRouter</strong> en direct.<br />
+              Obtenez votre clé sur <a href="https://openrouter.ai/keys" target="_blank" class="text-primary">openrouter.ai/keys</a> — Tous les modèles (OpenAI, Anthropic, Google, DeepSeek...) sont accessibles.
             </q-banner>
 
             <q-form @submit.prevent="saveAiConfig" class="q-gutter-md">
               <q-toggle v-model="aiForm.ai_enabled" label="Activer l'assistant IA" color="primary" />
+
+              <q-input
+                v-model="aiForm.openrouter_api_key"
+                label="Clé API OpenRouter"
+                filled
+                :type="showApiKey ? 'text' : 'password'"
+                :disable="!aiForm.ai_enabled"
+                :rules="[v => !aiForm.ai_enabled || !!v || 'Clé API requise pour utiliser l\'IA']"
+                hint="sk-or-v1-... (stockée de manière sécurisée)"
+              >
+                <template v-slot:prepend><q-icon name="vpn_key" /></template>
+                <template v-slot:append>
+                  <q-icon
+                    :name="showApiKey ? 'visibility_off' : 'visibility'"
+                    class="cursor-pointer"
+                    @click="showApiKey = !showApiKey"
+                  />
+                </template>
+              </q-input>
 
               <q-select
                 v-model="aiForm.ai_model"
@@ -251,11 +270,13 @@ const companyForm = ref({
   tax_office: '',
 });
 
+const showApiKey = ref(false);
 const aiForm = ref({
   ai_enabled: true,
   ai_model: 'anthropic/claude-sonnet-4.5',
   ai_fallback_model: 'openai/gpt-4o-mini',
   ai_system_prompt: '',
+  openrouter_api_key: '',
 });
 
 interface ModelOption { label: string; value: string; provider: string; hasImage: boolean }
@@ -324,6 +345,7 @@ function loadCompanyForm() {
       ai_model: c.ai_model || 'anthropic/claude-sonnet-4.5',
       ai_fallback_model: c.ai_fallback_model || 'openai/gpt-4o-mini',
       ai_system_prompt: c.ai_system_prompt || '',
+      openrouter_api_key: c.openrouter_api_key || '',
     };
   }
 }
@@ -336,6 +358,7 @@ async function saveAiConfig() {
       ai_model: aiForm.value.ai_model,
       ai_fallback_model: aiForm.value.ai_fallback_model,
       ai_system_prompt: aiForm.value.ai_system_prompt || null,
+      openrouter_api_key: aiForm.value.openrouter_api_key || null,
     });
     if (result?.error) {
       $q.notify({ type: 'negative', message: result.error.message });
