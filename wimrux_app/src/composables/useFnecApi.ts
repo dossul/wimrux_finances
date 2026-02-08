@@ -7,12 +7,9 @@ import type {
   FnecConfirmResponse,
   FnecErrorResponse,
   TaxGroupRates,
-  InvoiceType,
-  PaymentType,
 } from 'src/types';
 
 const MAX_RETRIES = 2;
-const TIMEOUT_MS = 3000;
 
 interface FnecResult<T> {
   data: T | null;

@@ -243,7 +243,7 @@ function confirmDelete(client: Client) {
     message: `Voulez-vous supprimer "${client.name}" ?`,
     cancel: true,
     persistent: true,
-  }).onOk(async () => {
+  }).onOk(() => void (async () => {
     const { error } = await insforge.database
       .from('clients')
       .delete()
@@ -255,7 +255,7 @@ function confirmDelete(client: Client) {
       $q.notify({ type: 'positive', message: 'Client supprimé' });
       await loadClients();
     }
-  });
+  })());
 }
 
 onMounted(loadClients);

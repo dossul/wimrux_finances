@@ -68,7 +68,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
-import type { Invoice, InvoiceType } from 'src/types';
+import type { Invoice } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();

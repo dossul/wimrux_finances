@@ -153,18 +153,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
-import { useAuthStore } from 'src/stores/auth-store';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useFnecApi } from 'src/composables/useFnecApi';
-import type { Invoice, InvoiceItem, Client, TaxGroup, PriceMode, ArticleType } from 'src/types';
+import type { Invoice, InvoiceItem, Client, TaxGroup, ArticleType } from 'src/types';
 
 const route = useRoute();
-const router = useRouter();
 const $q = useQuasar();
-const authStore = useAuthStore();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
 const fnecApi = useFnecApi();
 
@@ -223,11 +220,11 @@ const totals = computed(() => {
     items.value.map(i => ({
       price: i.price || 0,
       quantity: i.quantity || 1,
-      tax_group: (i.tax_group || 'B') as TaxGroup,
+      tax_group: i.tax_group || 'B',
       discount: i.discount || 0,
       specific_tax: i.specific_tax || 0,
     })),
-    (invoice.value.price_mode || 'TTC') as PriceMode,
+    invoice.value.price_mode || 'TTC',
   );
 });
 
@@ -267,8 +264,8 @@ function recalcItem(idx: number) {
   const result = calculateItemTax(
     item.price || 0,
     item.quantity || 1,
-    (item.tax_group || 'B') as TaxGroup,
-    (invoice.value.price_mode || 'TTC') as PriceMode,
+    item.tax_group || 'B',
+    invoice.value.price_mode || 'TTC',
     item.discount || 0,
     item.specific_tax || 0,
   );
@@ -372,14 +369,14 @@ async function saveDraft() {
   }
 }
 
-async function validateInvoice() {
+function validateInvoice() {
   $q.dialog({
     title: 'Valider la facture',
     message: 'ATTENTION: Une fois validée, la facture ne pourra plus être modifiée. Continuer ?',
     cancel: true,
     persistent: true,
     color: 'amber-8',
-  }).onOk(async () => {
+  }).onOk(() => void (async () => {
     await saveDraft();
     const { error } = await insforge.database
       .from('invoices')
@@ -392,7 +389,7 @@ async function validateInvoice() {
       invoice.value.status = 'validated';
       $q.notify({ type: 'positive', message: 'Facture validée — point de non-retour' });
     }
-  });
+  })());
 }
 
 async function certifyInvoice() {
