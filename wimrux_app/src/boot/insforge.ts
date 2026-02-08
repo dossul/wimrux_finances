@@ -24,8 +24,9 @@ export default boot(async ({ app, store }) => {
   await authStore.loadSession();
 
   // Auto-load company data if user is authenticated
-  if (authStore.isAuthenticated && authStore.companyId) {
+  const cid = authStore.companyId;
+  if (authStore.isAuthenticated && cid) {
     const companyStore = useCompanyStore(store);
-    await companyStore.loadCompanies(authStore.companyId);
+    await companyStore.loadCompanies(cid);
   }
 });

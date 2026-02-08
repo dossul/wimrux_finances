@@ -101,7 +101,7 @@
         <q-card flat bordered class="q-mb-md" v-if="isDraft && invoice.comments && invoice.comments.length > 0">
           <q-card-section>
             <div class="text-subtitle1 text-weight-medium q-mb-sm">Commentaires</div>
-            <q-input v-model="invoice.comments[0].content" outlined dense type="textarea" rows="2" placeholder="Commentaire libre..." />
+            <q-input :model-value="commentContent" @update:model-value="updateComment" outlined dense type="textarea" rows="2" placeholder="Commentaire libre..." />
           </q-card-section>
         </q-card>
       </div>
@@ -185,6 +185,13 @@ const saving = ref(false);
 const certifying = ref(false);
 
 const isDraft = computed(() => invoice.value.status === 'draft');
+const commentContent = computed(() => invoice.value.comments?.[0]?.content ?? '');
+function updateComment(val: string | number | null) {
+  const first = invoice.value.comments?.[0];
+  if (first) {
+    first.content = String(val ?? '');
+  }
+}
 
 const typeColor = computed(() => {
   const map: Record<string, string> = { FV: 'blue', FT: 'teal', FA: 'orange', EV: 'indigo', ET: 'cyan', EA: 'deep-orange' };
