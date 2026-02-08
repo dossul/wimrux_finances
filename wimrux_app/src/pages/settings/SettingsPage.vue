@@ -220,6 +220,7 @@ async function addDevice() {
   saving.value = true;
   try {
     const { error } = await insforge.database.from('devices').insert({
+      company_id: companyStore.company?.id,
       nim: deviceForm.value.nim,
       name: deviceForm.value.name || deviceForm.value.nim,
       status: 'active',

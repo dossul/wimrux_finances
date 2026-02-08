@@ -112,6 +112,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
+import { useAuthStore } from 'src/stores/auth-store';
 
 interface TreasuryAccount {
   id: string;
@@ -135,6 +136,7 @@ interface TreasuryMovement {
 }
 
 const $q = useQuasar();
+const authStore = useAuthStore();
 
 const accounts = ref<TreasuryAccount[]>([]);
 const movements = ref<TreasuryMovement[]>([]);
@@ -265,6 +267,7 @@ async function saveAccount() {
   saving.value = true;
   try {
     const { error } = await insforge.database.from('treasury_accounts').insert({
+      company_id: authStore.companyId,
       name: accountForm.value.name,
       type: accountForm.value.type,
       balance: accountForm.value.balance,
