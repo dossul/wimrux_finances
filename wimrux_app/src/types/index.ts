@@ -23,8 +23,28 @@ export interface Company {
   ai_system_prompt: string | null;
   ai_enabled: boolean;
   openrouter_api_key: string | null;
+  ai_routing: AiRouting | null;
   created_at: string;
 }
+
+// --- Routage IA par tâche ---
+export type AiTaskType =
+  | 'assistant_fiscal'
+  | 'analyse_facture'
+  | 'resume_rapport'
+  | 'suggestion_fiscale'
+  | 'classification_depense'
+  | 'detection_anomalie';
+
+export interface AiTaskRoute {
+  model: string;
+  fallback: string | null;
+  temperature: number;
+  max_tokens: number;
+  enabled: boolean;
+}
+
+export type AiRouting = Record<AiTaskType, AiTaskRoute>;
 
 export interface BankAccount {
   bank_name: string;

@@ -185,17 +185,102 @@
           </q-card-section>
         </q-card>
 
+        <!-- Routing table -->
+        <q-card flat bordered class="q-mt-md">
+          <q-card-section>
+            <div class="row items-center q-mb-md">
+              <q-icon name="alt_route" size="sm" color="primary" class="q-mr-sm" />
+              <div class="text-subtitle1 text-weight-medium">Routage IA par tâche</div>
+              <q-space />
+              <q-btn flat dense size="sm" color="grey" icon="restart_alt" label="Réinitialiser" no-caps @click="resetRouting" />
+            </div>
+            <q-banner class="bg-grey-2 q-mb-md rounded-borders" dense>
+              Chaque tâche peut utiliser un modèle différent avec son propre fallback, température et limite de tokens.
+            </q-banner>
+
+            <div v-for="(taskKey) in aiTaskKeys" :key="taskKey" class="q-mb-md">
+              <q-expansion-item
+                :icon="taskLabels[taskKey].icon"
+                :label="taskLabels[taskKey].label"
+                :caption="taskLabels[taskKey].description"
+                header-class="bg-grey-1 rounded-borders"
+                dense
+              >
+                <q-card flat class="q-pa-md">
+                  <div class="row q-gutter-sm">
+                    <q-toggle
+                      v-model="routingForm[taskKey].enabled"
+                      :label="routingForm[taskKey].enabled ? 'Activé' : 'Désactivé'"
+                      color="primary"
+                      class="col-12"
+                    />
+                    <q-select
+                      v-model="routingForm[taskKey].model"
+                      :options="availableModels"
+                      emit-value
+                      map-options
+                      label="Modèle principal"
+                      filled
+                      dense
+                      class="col-12 col-md-5"
+                      :disable="!routingForm[taskKey].enabled"
+                    />
+                    <q-select
+                      v-model="routingForm[taskKey].fallback"
+                      :options="fallbackOptions"
+                      emit-value
+                      map-options
+                      label="Fallback"
+                      filled
+                      dense
+                      class="col-12 col-md-5"
+                      :disable="!routingForm[taskKey].enabled"
+                    />
+                    <q-input
+                      v-model.number="routingForm[taskKey].temperature"
+                      label="Temp."
+                      filled
+                      dense
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="2"
+                      class="col-5 col-md"
+                      :disable="!routingForm[taskKey].enabled"
+                    />
+                    <q-input
+                      v-model.number="routingForm[taskKey].max_tokens"
+                      label="Max tokens"
+                      filled
+                      dense
+                      type="number"
+                      step="256"
+                      min="256"
+                      max="8192"
+                      class="col-5 col-md"
+                      :disable="!routingForm[taskKey].enabled"
+                    />
+                  </div>
+                </q-card>
+              </q-expansion-item>
+            </div>
+
+            <div class="row justify-end q-mt-md">
+              <q-btn color="primary" icon="save" label="Enregistrer le routage" no-caps :loading="saving" @click="saveRouting" />
+            </div>
+          </q-card-section>
+        </q-card>
+
         <!-- Available models reference -->
         <q-card flat bordered class="q-mt-md">
           <q-card-section>
-            <div class="text-subtitle1 text-weight-medium q-mb-sm">Modèles disponibles</div>
+            <div class="text-subtitle1 text-weight-medium q-mb-sm">Modèles disponibles (OpenRouter)</div>
             <q-markup-table flat bordered separator="cell" dense>
               <thead>
                 <tr class="bg-grey-2">
                   <th class="text-left">Fournisseur</th>
                   <th class="text-left">Modèle</th>
-                  <th class="text-center">Texte</th>
-                  <th class="text-center">Image</th>
+                  <th class="text-left">ID</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,11 +290,7 @@
                     {{ m.provider }}
                   </td>
                   <td class="text-weight-medium">{{ m.label }}</td>
-                  <td class="text-center"><q-icon name="check_circle" color="green" size="xs" /></td>
-                  <td class="text-center">
-                    <q-icon v-if="m.hasImage" name="check_circle" color="green" size="xs" />
-                    <q-icon v-else name="remove" color="grey-4" size="xs" />
-                  </td>
+                  <td class="text-caption text-grey-7">{{ m.value }}</td>
                 </tr>
               </tbody>
             </q-markup-table>
@@ -242,10 +323,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
+import type { AiTaskType, AiRouting, AiTaskRoute } from 'src/types';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
@@ -303,6 +386,57 @@ function providerIcon(p: string) {
 function providerColor(p: string) {
   const map: Record<string, string> = { Anthropic: 'deep-orange', OpenAI: 'green', Google: 'blue', DeepSeek: 'indigo', xAI: 'grey-9', Minimax: 'purple' };
   return map[p] || 'grey';
+}
+
+const fallbackOptions = [
+  { label: '(Aucun)', value: null },
+  ...availableModels,
+];
+
+const taskLabels = AI_TASK_LABELS;
+const aiTaskKeys: AiTaskType[] = [
+  'assistant_fiscal', 'analyse_facture', 'resume_rapport',
+  'suggestion_fiscale', 'classification_depense', 'detection_anomalie',
+];
+
+const routingForm = reactive<Record<AiTaskType, AiTaskRoute>>(getDefaultRouting());
+
+function loadRoutingForm() {
+  const c = companyStore.company;
+  const routing = c?.ai_routing;
+  if (routing) {
+    for (const key of aiTaskKeys) {
+      if (routing[key]) {
+        routingForm[key] = { ...routingForm[key], ...routing[key] };
+      }
+    }
+  }
+}
+
+function resetRouting() {
+  const defaults = getDefaultRouting();
+  for (const key of aiTaskKeys) {
+    routingForm[key] = defaults[key];
+  }
+  $q.notify({ type: 'info', message: 'Routage réinitialisé aux valeurs par défaut (non sauvegardé)' });
+}
+
+async function saveRouting() {
+  saving.value = true;
+  try {
+    const routingData: AiRouting = {} as AiRouting;
+    for (const key of aiTaskKeys) {
+      routingData[key] = { ...routingForm[key] };
+    }
+    const result = await companyStore.updateCompany({ ai_routing: routingData });
+    if (result?.error) {
+      $q.notify({ type: 'negative', message: result.error.message });
+    } else {
+      $q.notify({ type: 'positive', message: 'Routage IA enregistré' });
+    }
+  } finally {
+    saving.value = false;
+  }
 }
 
 const deviceForm = ref({ nim: '', ifu: '', jwt_secret: '', name: '' });
@@ -428,6 +562,7 @@ async function addDevice() {
 
 onMounted(async () => {
   loadCompanyForm();
+  loadRoutingForm();
   await Promise.all([loadDevices(), loadUsers()]);
 });
 </script>
