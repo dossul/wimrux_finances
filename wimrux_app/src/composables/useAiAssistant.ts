@@ -3,6 +3,7 @@ import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type { AiTaskType, AiTaskRoute, AiRouting } from 'src/types';
+import { useCrypto } from 'src/composables/useCrypto';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -98,14 +99,23 @@ export function useAiAssistant() {
   const activeModel = ref('');
   const activeTask = ref<AiTaskType>('assistant_fiscal');
 
+  const { decrypt } = useCrypto();
+
   function getCompanyConfig() {
     const company = useCompanyStore().company;
     return {
-      apiKey: company?.openrouter_api_key || '',
+      encryptedKey: company?.openrouter_api_key || '',
       enabled: company?.ai_enabled ?? true,
       routing: company?.ai_routing || DEFAULT_ROUTING,
       customPrompt: company?.ai_system_prompt || null,
     };
+  }
+
+  async function resolveApiKey(encryptedKey: string): Promise<string> {
+    if (!encryptedKey) return '';
+    // Try to decrypt; if it fails, assume it's a plain key (legacy)
+    const { plaintext, error: decErr } = await decrypt(encryptedKey);
+    return (!decErr && plaintext) ? plaintext : encryptedKey;
   }
 
   function getTaskRoute(task: AiTaskType): AiTaskRoute {
@@ -204,11 +214,12 @@ export function useAiAssistant() {
       addMessage('assistant', '⚠️ L\'assistant IA est désactivé. Activez-le dans Paramètres > Intelligence Artificielle.');
       return;
     }
-    if (!config.apiKey) {
+    if (!config.encryptedKey) {
       addMessage('user', userMessage);
       addMessage('assistant', '⚠️ Aucune clé API OpenRouter configurée. Ajoutez-la dans Paramètres > Intelligence Artificielle.');
       return;
     }
+    const apiKey = await resolveApiKey(config.encryptedKey);
 
     const route = getTaskRoute(task);
     if (!route.enabled) {
@@ -234,7 +245,7 @@ export function useAiAssistant() {
     // Try primary model, then fallback
     try {
       activeModel.value = route.model;
-      const result = await callOpenRouter(config.apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
+      const result = await callOpenRouter(apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
       addMessage('assistant', result.content);
       void logUsage({ model: route.model, task, tokens_input: result.tokens_input, tokens_output: result.tokens_output, latency_ms: result.latency_ms, status: result.moderation_flagged ? 'moderated' : 'success', is_fallback: false, error_message: null, moderation_flagged: result.moderation_flagged, moderation_reason: result.moderation_reason });
     } catch (primaryErr: unknown) {
@@ -244,7 +255,7 @@ export function useAiAssistant() {
       if (route.fallback && route.fallback !== route.model) {
         try {
           activeModel.value = route.fallback + ' (fallback)';
-          const fbResult = await callOpenRouter(config.apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
+          const fbResult = await callOpenRouter(apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
           addMessage('assistant', fbResult.content);
           void logUsage({ model: route.fallback, task, tokens_input: fbResult.tokens_input, tokens_output: fbResult.tokens_output, latency_ms: fbResult.latency_ms, status: fbResult.moderation_flagged ? 'moderated' : 'success', is_fallback: true, error_message: null, moderation_flagged: fbResult.moderation_flagged, moderation_reason: fbResult.moderation_reason });
         } catch (fallbackErr: unknown) {
@@ -267,7 +278,8 @@ export function useAiAssistant() {
   /** One-shot AI call for programmatic use (no chat history) */
   async function runTask(task: AiTaskType, prompt: string): Promise<{ result: string; error: string | null }> {
     const config = getCompanyConfig();
-    if (!config.enabled || !config.apiKey) return { result: '', error: 'IA non configurée' };
+    if (!config.enabled || !config.encryptedKey) return { result: '', error: 'IA non configurée' };
+    const apiKey = await resolveApiKey(config.encryptedKey);
     const route = getTaskRoute(task);
     if (!route.enabled) return { result: '', error: 'Tâche désactivée' };
 
@@ -277,7 +289,7 @@ export function useAiAssistant() {
     ];
 
     try {
-      const res = await callOpenRouter(config.apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
+      const res = await callOpenRouter(apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
       void logUsage({ model: route.model, task, tokens_input: res.tokens_input, tokens_output: res.tokens_output, latency_ms: res.latency_ms, status: res.moderation_flagged ? 'moderated' : 'success', is_fallback: false, error_message: null, moderation_flagged: res.moderation_flagged, moderation_reason: res.moderation_reason });
       return { result: res.content, error: null };
     } catch (err: unknown) {
@@ -285,7 +297,7 @@ export function useAiAssistant() {
       void logUsage({ model: route.model, task, tokens_input: 0, tokens_output: 0, latency_ms: e.latency_ms || 0, status: e.moderation_flagged ? 'moderated' : 'error', is_fallback: false, error_message: err instanceof Error ? err.message : 'Erreur', moderation_flagged: !!e.moderation_flagged, moderation_reason: e.moderation_reason || null });
       if (route.fallback && route.fallback !== route.model) {
         try {
-          const fbRes = await callOpenRouter(config.apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
+          const fbRes = await callOpenRouter(apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
           void logUsage({ model: route.fallback, task, tokens_input: fbRes.tokens_input, tokens_output: fbRes.tokens_output, latency_ms: fbRes.latency_ms, status: fbRes.moderation_flagged ? 'moderated' : 'success', is_fallback: true, error_message: null, moderation_flagged: fbRes.moderation_flagged, moderation_reason: fbRes.moderation_reason });
           return { result: fbRes.content, error: null };
         } catch (fbErr: unknown) {

@@ -480,10 +480,12 @@ import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
 import { useAiUsage } from 'src/composables/useAiUsage';
+import { useCrypto } from 'src/composables/useCrypto';
 import type { AiTaskType, AiRouting, AiTaskRoute } from 'src/types';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
+const { encrypt, decrypt } = useCrypto();
 
 const tab = ref('company');
 const saving = ref(false);
@@ -659,25 +661,50 @@ function loadCompanyForm() {
       ai_model: c.ai_model || 'anthropic/claude-sonnet-4.5',
       ai_fallback_model: c.ai_fallback_model || 'openai/gpt-4o-mini',
       ai_system_prompt: c.ai_system_prompt || '',
-      openrouter_api_key: c.openrouter_api_key || '',
+      openrouter_api_key: '',
     };
+    // Decrypt the stored key for display
+    if (c.openrouter_api_key) {
+      void decryptApiKey(c.openrouter_api_key);
+    }
+  }
+}
+
+async function decryptApiKey(ciphertext: string) {
+  const { plaintext, error } = await decrypt(ciphertext);
+  if (!error && plaintext) {
+    aiForm.value.openrouter_api_key = plaintext;
+  } else {
+    // Fallback: maybe stored unencrypted (legacy)
+    aiForm.value.openrouter_api_key = ciphertext;
   }
 }
 
 async function saveAiConfig() {
   saving.value = true;
   try {
+    // Encrypt the API key before saving
+    let encryptedKey: string | null = null;
+    if (aiForm.value.openrouter_api_key) {
+      const { ciphertext, error: encErr } = await encrypt(aiForm.value.openrouter_api_key);
+      if (encErr) {
+        $q.notify({ type: 'negative', message: `Chiffrement échoué : ${encErr}` });
+        saving.value = false;
+        return;
+      }
+      encryptedKey = ciphertext;
+    }
     const result = await companyStore.updateCompany({
       ai_enabled: aiForm.value.ai_enabled,
       ai_model: aiForm.value.ai_model,
       ai_fallback_model: aiForm.value.ai_fallback_model,
       ai_system_prompt: aiForm.value.ai_system_prompt || null,
-      openrouter_api_key: aiForm.value.openrouter_api_key || null,
+      openrouter_api_key: encryptedKey || null,
     });
     if (result?.error) {
       $q.notify({ type: 'negative', message: result.error.message });
     } else {
-      $q.notify({ type: 'positive', message: 'Configuration IA enregistr\u00e9e' });
+      $q.notify({ type: 'positive', message: 'Configuration IA enregistrée' });
     }
   } finally {
     saving.value = false;

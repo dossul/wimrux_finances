@@ -101,7 +101,7 @@ et techniques pour guider le développement à 100%.
 | **Auth** | InsForge Auth — Email/Password + OAuth (Google, GitHub), RBAC |
 | **Storage** | InsForge Storage — Upload/Download fichiers (logos, justificatifs) |
 | **Edge Functions** | InsForge Functions — Logique serveur (calculs fiscaux, MCF bridge) |
-| **IA** | InsForge AI — DeepSeek, GPT-4o-mini, Claude, Gemini (assistant fiscal) |
+| **IA** | OpenRouter API direct — Routage par tâche (6 tasks), tracking usage, modérations |
 | **Chiffrement** | AES-256 CBC (données sensibles : IFU, clés API, données MCF) |
 | **PDF** | Génération côté client ou Edge Function avec QR Code |
 | **Communication MCF** | Edge Function / API REST ↔ MCF (RS232 via agent local) |
