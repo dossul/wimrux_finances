@@ -7,6 +7,7 @@
       <q-tab name="devices" label="Appareils SFE" icon="devices" no-caps />
       <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
       <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
+      <q-tab name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -297,6 +298,156 @@
           </q-card-section>
         </q-card>
       </q-tab-panel>
+
+      <!-- AI Usage Stats -->
+      <q-tab-panel name="ai-usage">
+        <div class="row items-center q-mb-md">
+          <q-icon name="analytics" size="sm" color="primary" class="q-mr-sm" />
+          <div class="text-subtitle1 text-weight-medium">Consommation IA</div>
+          <q-space />
+          <q-btn flat dense size="sm" icon="refresh" label="Actualiser" no-caps @click="loadUsageStats" :loading="usageLoading" />
+        </div>
+
+        <!-- Period selector -->
+        <div class="row q-gutter-sm q-mb-md items-center">
+          <q-btn-toggle
+            v-model="usagePeriod"
+            no-caps
+            dense
+            toggle-color="primary"
+            :options="[
+              { label: '7j', value: '7d' },
+              { label: '30j', value: '30d' },
+              { label: '90j', value: '90d' },
+              { label: 'Tout', value: 'all' },
+            ]"
+            @update:model-value="loadUsageStats"
+          />
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="row q-gutter-sm q-mb-md">
+          <q-card flat bordered class="col">
+            <q-card-section class="text-center q-pa-sm">
+              <div class="text-grey-7 text-caption">Requêtes</div>
+              <div class="text-h5 text-weight-bold text-primary">{{ usageTotals.requests }}</div>
+            </q-card-section>
+          </q-card>
+          <q-card flat bordered class="col">
+            <q-card-section class="text-center q-pa-sm">
+              <div class="text-grey-7 text-caption">Tokens entrants</div>
+              <div class="text-h5 text-weight-bold text-blue">{{ formatTokens(usageTotals.tokens_input) }}</div>
+            </q-card-section>
+          </q-card>
+          <q-card flat bordered class="col">
+            <q-card-section class="text-center q-pa-sm">
+              <div class="text-grey-7 text-caption">Tokens sortants</div>
+              <div class="text-h5 text-weight-bold text-green">{{ formatTokens(usageTotals.tokens_output) }}</div>
+            </q-card-section>
+          </q-card>
+          <q-card flat bordered class="col">
+            <q-card-section class="text-center q-pa-sm">
+              <div class="text-grey-7 text-caption">Erreurs</div>
+              <div class="text-h5 text-weight-bold" :class="usageTotals.errors > 0 ? 'text-red' : 'text-grey'">{{ usageTotals.errors }}</div>
+            </q-card-section>
+          </q-card>
+          <q-card flat bordered class="col">
+            <q-card-section class="text-center q-pa-sm">
+              <div class="text-grey-7 text-caption">Modérations</div>
+              <div class="text-h5 text-weight-bold" :class="usageTotals.moderations > 0 ? 'text-orange' : 'text-grey'">{{ usageTotals.moderations }}</div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- Usage by model -->
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="text-subtitle2 text-weight-medium q-mb-sm">Consommation par modèle</div>
+            <q-markup-table flat bordered separator="cell" dense>
+              <thead><tr class="bg-grey-2">
+                <th class="text-left">Modèle</th>
+                <th class="text-right">Requêtes</th>
+                <th class="text-right">Input</th>
+                <th class="text-right">Output</th>
+                <th class="text-right">Total</th>
+                <th class="text-center">Erreurs</th>
+                <th class="text-center">Modérations</th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="m in usageByModel" :key="m.model">
+                  <td class="text-weight-medium">{{ m.model }}</td>
+                  <td class="text-right">{{ m.requests }}</td>
+                  <td class="text-right text-blue">{{ formatTokens(m.tokens_input) }}</td>
+                  <td class="text-right text-green">{{ formatTokens(m.tokens_output) }}</td>
+                  <td class="text-right text-weight-bold">{{ formatTokens(m.tokens_total) }}</td>
+                  <td class="text-center"><q-badge v-if="m.errors > 0" color="red" :label="m.errors" /><span v-else class="text-grey-4">0</span></td>
+                  <td class="text-center"><q-badge v-if="m.moderations > 0" color="orange" :label="m.moderations" /><span v-else class="text-grey-4">0</span></td>
+                </tr>
+                <tr v-if="usageByModel.length === 0"><td colspan="7" class="text-center text-grey-5 q-pa-md">Aucune donnée</td></tr>
+              </tbody>
+            </q-markup-table>
+          </q-card-section>
+        </q-card>
+
+        <!-- Moderations / Bans -->
+        <q-card v-if="usageModerations.length > 0" flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="text-subtitle2 text-weight-medium text-orange q-mb-sm">
+              <q-icon name="gpp_maybe" class="q-mr-xs" />Modérations et refus de contenu
+            </div>
+            <q-markup-table flat bordered separator="cell" dense>
+              <thead><tr class="bg-orange-1">
+                <th class="text-left">Date</th>
+                <th class="text-left">Modèle</th>
+                <th class="text-left">Tâche</th>
+                <th class="text-left">Raison</th>
+                <th class="text-center">Statut</th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="l in usageModerations" :key="l.id">
+                  <td class="text-caption">{{ new Date(l.created_at).toLocaleString('fr-FR') }}</td>
+                  <td>{{ l.model }}</td>
+                  <td>{{ l.task }}</td>
+                  <td class="text-red text-weight-medium">{{ l.moderation_reason || l.error_message || 'Non spécifié' }}</td>
+                  <td class="text-center"><q-badge :color="l.status === 'moderated' ? 'orange' : 'red'" :label="l.status" /></td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+          </q-card-section>
+        </q-card>
+
+        <!-- Recent logs -->
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle2 text-weight-medium q-mb-sm">Historique récent (dernières 50 requêtes)</div>
+            <q-markup-table flat bordered separator="cell" dense wrap-cells>
+              <thead><tr class="bg-grey-2">
+                <th class="text-left">Date</th>
+                <th class="text-left">Modèle</th>
+                <th class="text-left">Tâche</th>
+                <th class="text-right">Input</th>
+                <th class="text-right">Output</th>
+                <th class="text-right">Latence</th>
+                <th class="text-center">Statut</th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="l in usageLogs.slice(0, 50)" :key="l.id">
+                  <td class="text-caption">{{ new Date(l.created_at).toLocaleString('fr-FR') }}</td>
+                  <td>{{ l.model }}<q-badge v-if="l.is_fallback" color="amber" label="FB" class="q-ml-xs" /></td>
+                  <td>{{ l.task }}</td>
+                  <td class="text-right">{{ l.tokens_input }}</td>
+                  <td class="text-right">{{ l.tokens_output }}</td>
+                  <td class="text-right">{{ l.latency_ms }}ms</td>
+                  <td class="text-center">
+                    <q-badge :color="l.status === 'success' ? 'green' : l.status === 'moderated' ? 'orange' : 'red'" :label="l.status" />
+                  </td>
+                </tr>
+                <tr v-if="usageLogs.length === 0"><td colspan="7" class="text-center text-grey-5 q-pa-md">Aucune requête enregistrée</td></tr>
+              </tbody>
+            </q-markup-table>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
     </q-tab-panels>
 
     <!-- Add device dialog -->
@@ -328,6 +479,7 @@ import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
+import { useAiUsage } from 'src/composables/useAiUsage';
 import type { AiTaskType, AiRouting, AiTaskRoute } from 'src/types';
 
 const $q = useQuasar();
@@ -437,6 +589,34 @@ async function saveRouting() {
   } finally {
     saving.value = false;
   }
+}
+
+// --- AI Usage ---
+const aiUsage = useAiUsage();
+const usageLogs = aiUsage.logs;
+const usageByModel = aiUsage.byModel;
+const usageModerations = aiUsage.moderationLogs;
+const usageTotals = aiUsage.totals;
+const usageLoading = aiUsage.loading;
+const usagePeriod = ref('30d');
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function getUsageDateFrom(period: string): string | undefined {
+  if (period === 'all') return undefined;
+  const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
+
+async function loadUsageStats() {
+  const from = getUsageDateFrom(usagePeriod.value);
+  await aiUsage.fetchCompanyUsage(from);
 }
 
 const deviceForm = ref({ nim: '', ifu: '', jwt_secret: '', name: '' });

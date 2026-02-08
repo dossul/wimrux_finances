@@ -88,6 +88,7 @@ const navItems: NavItem[] = [
   { label: 'Rapports fiscaux', icon: 'description', route: '/reports/fiscal', roles: ['admin'] },
   { label: 'Journal d\'audit', icon: 'history', route: '/audit', roles: ['admin', 'auditeur'] },
   { label: 'Assistant IA', icon: 'smart_toy', route: '/ai-assistant', roles: ['admin', 'caissier', 'auditeur'] },
+  { label: 'Suivi IA', icon: 'analytics', route: '/admin/ai-usage', roles: ['admin'] },
   { label: 'Paramètres', icon: 'settings', route: '/settings', roles: ['admin'] },
 ];
 

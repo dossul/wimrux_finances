@@ -1,5 +1,7 @@
 import { ref } from 'vue';
+import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { useAuthStore } from 'src/stores/auth-store';
 import type { AiTaskType, AiTaskRoute, AiRouting } from 'src/types';
 
 export interface ChatMessage {
@@ -61,8 +63,19 @@ const DEFAULT_ROUTING: AiRouting = {
 };
 
 interface OpenRouterResponse {
-  choices?: { message?: { content?: string } }[];
-  error?: { message?: string; code?: number };
+  choices?: { message?: { content?: string; refusal?: string } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  error?: { message?: string; code?: number; metadata?: { reasons?: string[]; flagged_input?: string } };
+  moderation?: { flagged?: boolean; categories?: string[] };
+}
+
+interface AiCallResult {
+  content: string;
+  tokens_input: number;
+  tokens_output: number;
+  latency_ms: number;
+  moderation_flagged: boolean;
+  moderation_reason: string | null;
 }
 
 export const AI_TASK_LABELS: Record<AiTaskType, { label: string; icon: string; description: string }> = {
@@ -111,7 +124,8 @@ export function useAiAssistant() {
     apiMessages: { role: string; content: string }[],
     temperature: number,
     maxTokens: number,
-  ): Promise<string> {
+  ): Promise<AiCallResult> {
+    const startMs = Date.now();
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
@@ -127,14 +141,58 @@ export function useAiAssistant() {
         max_tokens: maxTokens,
       }),
     });
+    const latency_ms = Date.now() - startMs;
 
     if (!response.ok) {
       const errBody = await response.json().catch(() => ({})) as OpenRouterResponse;
-      throw new Error(errBody.error?.message || `OpenRouter ${response.status}: ${response.statusText}`);
+      const modFlag = errBody.error?.code === 400 && errBody.error?.metadata?.reasons;
+      if (modFlag) {
+        const reasons = errBody.error?.metadata?.reasons?.join(', ') || 'content_policy';
+        throw Object.assign(
+          new Error(`Modération: ${reasons}`),
+          { moderation_flagged: true, moderation_reason: reasons, latency_ms },
+        );
+      }
+      throw Object.assign(
+        new Error(errBody.error?.message || `OpenRouter ${response.status}: ${response.statusText}`),
+        { moderation_flagged: false, moderation_reason: null, latency_ms },
+      );
     }
 
     const data = await response.json() as OpenRouterResponse;
-    return data.choices?.[0]?.message?.content || 'Pas de réponse.';
+    const refusal = data.choices?.[0]?.message?.refusal;
+    const modFlagged = !!data.moderation?.flagged || !!refusal;
+    const modReason = refusal
+      || data.moderation?.categories?.join(', ')
+      || null;
+
+    return {
+      content: data.choices?.[0]?.message?.content || 'Pas de réponse.',
+      tokens_input: data.usage?.prompt_tokens || 0,
+      tokens_output: data.usage?.completion_tokens || 0,
+      latency_ms,
+      moderation_flagged: modFlagged,
+      moderation_reason: modReason,
+    };
+  }
+
+  async function logUsage(params: {
+    model: string; task: string; tokens_input: number; tokens_output: number;
+    latency_ms: number; status: string; is_fallback: boolean;
+    error_message: string | null; moderation_flagged: boolean; moderation_reason: string | null;
+  }) {
+    try {
+      const companyId = useCompanyStore().company?.id;
+      const userId = useAuthStore().user?.id;
+      if (!companyId || !userId) return;
+      await insforge.database.from('ai_usage_logs').insert([{
+        company_id: companyId,
+        user_id: userId,
+        ...params,
+      }]);
+    } catch {
+      // silent — logging should never block the user
+    }
   }
 
   async function sendMessage(userMessage: string, task: AiTaskType = 'assistant_fiscal') {
@@ -176,15 +234,22 @@ export function useAiAssistant() {
     // Try primary model, then fallback
     try {
       activeModel.value = route.model;
-      const reply = await callOpenRouter(config.apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
-      addMessage('assistant', reply);
+      const result = await callOpenRouter(config.apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
+      addMessage('assistant', result.content);
+      void logUsage({ model: route.model, task, tokens_input: result.tokens_input, tokens_output: result.tokens_output, latency_ms: result.latency_ms, status: result.moderation_flagged ? 'moderated' : 'success', is_fallback: false, error_message: null, moderation_flagged: result.moderation_flagged, moderation_reason: result.moderation_reason });
     } catch (primaryErr: unknown) {
+      const pErr = primaryErr as { moderation_flagged?: boolean; moderation_reason?: string; latency_ms?: number };
+      void logUsage({ model: route.model, task, tokens_input: 0, tokens_output: 0, latency_ms: pErr.latency_ms || 0, status: pErr.moderation_flagged ? 'moderated' : 'error', is_fallback: false, error_message: primaryErr instanceof Error ? primaryErr.message : 'Erreur', moderation_flagged: !!pErr.moderation_flagged, moderation_reason: pErr.moderation_reason || null });
+
       if (route.fallback && route.fallback !== route.model) {
         try {
           activeModel.value = route.fallback + ' (fallback)';
-          const reply = await callOpenRouter(config.apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
-          addMessage('assistant', reply);
+          const fbResult = await callOpenRouter(config.apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
+          addMessage('assistant', fbResult.content);
+          void logUsage({ model: route.fallback, task, tokens_input: fbResult.tokens_input, tokens_output: fbResult.tokens_output, latency_ms: fbResult.latency_ms, status: fbResult.moderation_flagged ? 'moderated' : 'success', is_fallback: true, error_message: null, moderation_flagged: fbResult.moderation_flagged, moderation_reason: fbResult.moderation_reason });
         } catch (fallbackErr: unknown) {
+          const fbE = fallbackErr as { moderation_flagged?: boolean; moderation_reason?: string; latency_ms?: number };
+          void logUsage({ model: route.fallback, task, tokens_input: 0, tokens_output: 0, latency_ms: fbE.latency_ms || 0, status: fbE.moderation_flagged ? 'moderated' : 'error', is_fallback: true, error_message: fallbackErr instanceof Error ? fallbackErr.message : 'Erreur', moderation_flagged: !!fbE.moderation_flagged, moderation_reason: fbE.moderation_reason || null });
           const msg = fallbackErr instanceof Error ? fallbackErr.message : 'Erreur IA';
           error.value = msg;
           addMessage('assistant', `⚠️ Erreur (${route.model} + ${route.fallback}) : ${msg}`);
@@ -212,13 +277,17 @@ export function useAiAssistant() {
     ];
 
     try {
-      const reply = await callOpenRouter(config.apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
-      return { result: reply, error: null };
+      const res = await callOpenRouter(config.apiKey, route.model, apiMessages, route.temperature, route.max_tokens);
+      void logUsage({ model: route.model, task, tokens_input: res.tokens_input, tokens_output: res.tokens_output, latency_ms: res.latency_ms, status: res.moderation_flagged ? 'moderated' : 'success', is_fallback: false, error_message: null, moderation_flagged: res.moderation_flagged, moderation_reason: res.moderation_reason });
+      return { result: res.content, error: null };
     } catch (err: unknown) {
+      const e = err as { moderation_flagged?: boolean; moderation_reason?: string; latency_ms?: number };
+      void logUsage({ model: route.model, task, tokens_input: 0, tokens_output: 0, latency_ms: e.latency_ms || 0, status: e.moderation_flagged ? 'moderated' : 'error', is_fallback: false, error_message: err instanceof Error ? err.message : 'Erreur', moderation_flagged: !!e.moderation_flagged, moderation_reason: e.moderation_reason || null });
       if (route.fallback && route.fallback !== route.model) {
         try {
-          const reply = await callOpenRouter(config.apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
-          return { result: reply, error: null };
+          const fbRes = await callOpenRouter(config.apiKey, route.fallback, apiMessages, route.temperature, route.max_tokens);
+          void logUsage({ model: route.fallback, task, tokens_input: fbRes.tokens_input, tokens_output: fbRes.tokens_output, latency_ms: fbRes.latency_ms, status: fbRes.moderation_flagged ? 'moderated' : 'success', is_fallback: true, error_message: null, moderation_flagged: fbRes.moderation_flagged, moderation_reason: fbRes.moderation_reason });
+          return { result: fbRes.content, error: null };
         } catch (fbErr: unknown) {
           return { result: '', error: fbErr instanceof Error ? fbErr.message : 'Erreur IA' };
         }

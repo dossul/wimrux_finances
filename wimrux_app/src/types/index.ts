@@ -46,6 +46,50 @@ export interface AiTaskRoute {
 
 export type AiRouting = Record<AiTaskType, AiTaskRoute>;
 
+// --- AI Usage Tracking ---
+export interface AiUsageLog {
+  id: string;
+  company_id: string;
+  user_id: string;
+  model: string;
+  task: string;
+  tokens_input: number;
+  tokens_output: number;
+  tokens_total: number;
+  latency_ms: number;
+  status: 'success' | 'error' | 'moderated';
+  is_fallback: boolean;
+  error_message: string | null;
+  moderation_flagged: boolean;
+  moderation_reason: string | null;
+  cost_usd: number;
+  created_at: string;
+}
+
+export interface AiUsageByModel {
+  model: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  tokens_total: number;
+  errors: number;
+  moderations: number;
+  cost_usd: number;
+}
+
+export interface AiUsageByCompany {
+  company_id: string;
+  company_name: string;
+  requests: number;
+  tokens_input: number;
+  tokens_output: number;
+  tokens_total: number;
+  errors: number;
+  moderations: number;
+  cost_usd: number;
+  models_used: string[];
+}
+
 export interface BankAccount {
   bank_name: string;
   account_number: string;
