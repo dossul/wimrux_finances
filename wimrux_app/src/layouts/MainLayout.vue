@@ -11,6 +11,9 @@
         <q-space />
 
         <div class="q-gutter-sm row items-center no-wrap">
+          <q-icon :name="realtimeConnected ? 'wifi' : 'wifi_off'" :color="realtimeConnected ? 'green-3' : 'red-3'" size="xs">
+            <q-tooltip>{{ realtimeConnected ? 'Temps réel connecté' : 'Temps réel déconnecté' }}</q-tooltip>
+          </q-icon>
           <span class="text-body2 gt-sm">{{ authStore.fullName }}</span>
           <q-btn flat round dense icon="account_circle">
             <q-menu>
@@ -58,13 +61,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth-store';
+import { useRealtimeNotifications } from 'src/composables/useRealtimeNotifications';
 import type { UserRole } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const { connect: connectRealtime, connected: realtimeConnected } = useRealtimeNotifications();
 const leftDrawerOpen = ref(false);
 
 interface NavItem {
@@ -97,4 +102,8 @@ async function onLogout() {
   await authStore.logout();
   await router.push({ name: 'login' });
 }
+
+onMounted(() => {
+  void connectRealtime();
+});
 </script>

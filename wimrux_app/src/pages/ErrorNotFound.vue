@@ -1,22 +1,20 @@
 <template>
-  <div class="fullscreen bg-blue text-white text-center q-pa-md flex flex-center">
+  <div class="fullscreen bg-grey-2 text-center q-pa-md flex flex-center">
     <div>
-      <div style="font-size: 30vh">
-        404
+      <q-icon name="search_off" size="120px" color="primary" class="q-mb-md" />
+      <div class="text-h1 text-primary text-weight-bold">404</div>
+      <div class="text-h5 text-grey-7 q-mt-sm">Page introuvable</div>
+      <div class="text-body1 text-grey-5 q-mt-xs q-mb-xl">
+        La page que vous cherchez n'existe pas ou a été déplacée.
       </div>
-
-      <div class="text-h2" style="opacity:.4">
-        Oops. Nothing here...
-      </div>
-
       <q-btn
-        class="q-mt-xl"
-        color="white"
-        text-color="blue"
+        color="primary"
         unelevated
         to="/"
-        label="Go Home"
+        icon="home"
+        label="Retour au tableau de bord"
         no-caps
+        size="md"
       />
     </div>
   </div>
