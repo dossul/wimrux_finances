@@ -8,6 +8,7 @@
       <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
       <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
       <q-tab name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
+      <q-tab name="chatbot" label="Chatbot API" icon="smart_toy" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -448,7 +449,199 @@
           </q-card-section>
         </q-card>
       </q-tab-panel>
+
+      <!-- Chatbot API -->
+      <q-tab-panel name="chatbot">
+        <!-- Activation toggle -->
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="row items-center">
+              <div>
+                <div class="text-subtitle1 text-weight-medium">Chatbot API</div>
+                <div class="text-caption text-grey-7">Permettez l'accès à votre système via WhatsApp, Telegram, Email ou API REST</div>
+              </div>
+              <q-space />
+              <q-toggle v-model="chatbotEnabled" label="Activer" @update:model-value="toggleChatbot" />
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <template v-if="chatbotEnabled">
+          <!-- API Keys -->
+          <q-card flat bordered class="q-mb-md">
+            <q-card-section>
+              <div class="row items-center q-mb-md">
+                <div class="text-subtitle1 text-weight-medium">Clés API</div>
+                <q-space />
+                <q-btn color="primary" icon="add" label="Nouvelle clé" no-caps size="sm" @click="newKeyDialog = true" />
+              </div>
+
+              <q-banner v-if="newKeyRaw" class="bg-green-1 q-mb-md" rounded>
+                <template v-slot:avatar><q-icon name="vpn_key" color="green" /></template>
+                <div class="text-weight-medium">Clé API créée — copiez-la maintenant, elle ne sera plus affichée :</div>
+                <code class="text-body2">{{ newKeyRaw }}</code>
+                <template v-slot:action>
+                  <q-btn flat label="Copier" icon="content_copy" color="green" no-caps @click="copyKey" />
+                  <q-btn flat label="Fermer" no-caps @click="newKeyRaw = ''" />
+                </template>
+              </q-banner>
+
+              <q-markup-table flat bordered separator="horizontal" v-if="chatbotKeys.length > 0">
+                <thead>
+                  <tr class="bg-grey-2">
+                    <th class="text-left">Nom</th>
+                    <th class="text-left">Préfixe</th>
+                    <th class="text-center">Canaux</th>
+                    <th class="text-center">Statut</th>
+                    <th class="text-center">Expiration</th>
+                    <th class="text-center">Limite/h</th>
+                    <th class="text-center">Dernier usage</th>
+                    <th class="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="k in chatbotKeys" :key="k.id">
+                    <td class="text-left text-weight-medium">{{ k.name }}</td>
+                    <td class="text-left"><code>{{ k.api_key_prefix }}...</code></td>
+                    <td class="text-center">
+                      <q-badge v-for="ch in k.channels" :key="ch" :label="ch" color="blue-grey" class="q-mr-xs" />
+                    </td>
+                    <td class="text-center">
+                      <q-badge :color="k.is_active ? 'green' : 'red'" :label="k.is_active ? 'Active' : 'Inactive'" />
+                    </td>
+                    <td class="text-center">{{ k.expires_at ? new Date(k.expires_at).toLocaleDateString('fr-FR') : '∞' }}</td>
+                    <td class="text-center">{{ k.rate_limit_per_hour }}</td>
+                    <td class="text-center text-caption">{{ k.last_used_at ? new Date(k.last_used_at).toLocaleString('fr-FR') : '—' }}</td>
+                    <td class="text-right">
+                      <q-btn flat round size="sm" :icon="k.is_active ? 'pause' : 'play_arrow'" :color="k.is_active ? 'orange' : 'green'" @click="onToggleKey(k)">
+                        <q-tooltip>{{ k.is_active ? 'Désactiver' : 'Activer' }}</q-tooltip>
+                      </q-btn>
+                      <q-btn flat round size="sm" icon="tune" color="primary" @click="openPermissions(k)">
+                        <q-tooltip>Permissions</q-tooltip>
+                      </q-btn>
+                      <q-btn flat round size="sm" icon="delete" color="red" @click="onDeleteKey(k)">
+                        <q-tooltip>Supprimer</q-tooltip>
+                      </q-btn>
+                    </td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+              <div v-else class="text-center text-grey-5 q-pa-lg">Aucune clé API créée</div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Endpoint info -->
+          <q-card flat bordered class="q-mb-md">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-medium q-mb-sm">Point d'accès API</div>
+              <div class="text-body2 q-mb-sm">Envoyez un POST à l'endpoint suivant avec votre clé API :</div>
+              <code class="text-body2 bg-grey-2 q-pa-sm" style="border-radius:4px; display:block">
+POST {{ gatewayUrl }}
+Headers: X-API-Key: &lt;votre_clé&gt;, X-Channel: whatsapp|telegram|email|api
+Body: { "message": "...", "conversation_id": "..." (optionnel) }
+              </code>
+            </q-card-section>
+          </q-card>
+
+          <!-- Recent conversations -->
+          <q-card flat bordered>
+            <q-card-section>
+              <div class="row items-center q-mb-md">
+                <div class="text-subtitle1 text-weight-medium">Conversations récentes</div>
+                <q-space />
+                <q-btn flat icon="refresh" size="sm" @click="loadChatbotConversations" :loading="chatbotLoading" />
+              </div>
+              <q-markup-table flat bordered separator="horizontal" v-if="chatbotConversations.length > 0">
+                <thead>
+                  <tr class="bg-grey-2">
+                    <th class="text-left">Canal</th>
+                    <th class="text-left">Utilisateur</th>
+                    <th class="text-center">Statut</th>
+                    <th class="text-left">Début</th>
+                    <th class="text-left">Dernier message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="c in chatbotConversations" :key="c.id">
+                    <td><q-badge :label="c.channel" color="blue-grey" /></td>
+                    <td>{{ c.external_user || c.external_id || '—' }}</td>
+                    <td class="text-center"><q-badge :color="c.status === 'active' ? 'green' : c.status === 'blocked' ? 'red' : 'grey'" :label="c.status" /></td>
+                    <td class="text-caption">{{ new Date(c.started_at).toLocaleString('fr-FR') }}</td>
+                    <td class="text-caption">{{ new Date(c.last_message_at).toLocaleString('fr-FR') }}</td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+              <div v-else class="text-center text-grey-5 q-pa-md">Aucune conversation</div>
+            </q-card-section>
+          </q-card>
+        </template>
+      </q-tab-panel>
     </q-tab-panels>
+
+    <!-- Create API key dialog -->
+    <q-dialog v-model="newKeyDialog" persistent>
+      <q-card style="min-width: 500px">
+        <q-card-section>
+          <div class="text-h6">Nouvelle clé API Chatbot</div>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <q-input v-model="newKeyForm.name" label="Nom de la clé" filled :rules="[v => !!v || 'Requis']" hint="Ex: WhatsApp Production" />
+          <q-select v-model="newKeyForm.channels" :options="channelOptions" label="Canaux autorisés" filled multiple emit-value map-options use-chips option-label="label" option-value="value" />
+          <q-input v-model="newKeyForm.expires_at" label="Date d'expiration (optionnel)" filled type="date" clearable />
+          <q-input v-model.number="newKeyForm.rate_limit" label="Limite requêtes/heure" filled type="number" :rules="[v => v > 0 || 'Min 1']" />
+
+          <div class="text-subtitle2 q-mt-md q-mb-sm">Permissions</div>
+          <div v-for="cat in permissionCategories" :key="cat" class="q-mb-sm">
+            <div class="text-caption text-weight-medium text-grey-8 q-mb-xs">{{ cat }}</div>
+            <div v-for="act in actionsByCategory(cat)" :key="act" class="row items-center q-ml-sm">
+              <q-checkbox v-model="newKeyForm.permissions" :val="act" :label="actionLabel(act)" dense />
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn color="primary" label="Créer la clé" no-caps :loading="saving" @click="onCreateKey" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Permissions dialog -->
+    <q-dialog v-model="permDialog" persistent>
+      <q-card style="min-width: 600px; max-width: 90vw">
+        <q-card-section>
+          <div class="text-h6">Permissions — {{ editingKey?.name }}</div>
+        </q-card-section>
+        <q-card-section>
+          <q-markup-table flat bordered separator="horizontal" dense>
+            <thead>
+              <tr class="bg-grey-2">
+                <th class="text-left">Action</th>
+                <th class="text-center" style="width:80px">Activée</th>
+                <th class="text-center">Valide du</th>
+                <th class="text-center">Valide jusqu'au</th>
+                <th class="text-center" style="width:100px">Limite/h</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in editingPerms" :key="p.action">
+                <td class="text-left">
+                  <q-icon :name="actionIcon(p.action)" class="q-mr-xs" size="xs" />
+                  {{ actionLabel(p.action) }}
+                </td>
+                <td class="text-center"><q-toggle v-model="p.enabled" dense /></td>
+                <td class="text-center"><q-input v-model="p.valid_from" type="date" dense borderless clearable style="max-width:140px" /></td>
+                <td class="text-center"><q-input v-model="p.valid_until" type="date" dense borderless clearable style="max-width:140px" /></td>
+                <td class="text-center"><q-input v-model.number="p.rate_limit_per_hour" type="number" dense borderless clearable style="max-width:80px" placeholder="∞" /></td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn color="primary" label="Enregistrer" no-caps :loading="saving" @click="savePermissions" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Add device dialog -->
     <q-dialog v-model="deviceDialogOpen" persistent>
@@ -481,7 +674,9 @@ import { useCompanyStore } from 'src/stores/company-store';
 import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
 import { useAiUsage } from 'src/composables/useAiUsage';
 import { useCrypto } from 'src/composables/useCrypto';
-import type { AiTaskType, AiRouting, AiTaskRoute } from 'src/types';
+import { useChatbotConfig } from 'src/composables/useChatbotConfig';
+import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company } from 'src/types';
+import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS } from 'src/types';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
@@ -767,9 +962,144 @@ async function addDevice() {
   }
 }
 
+// --- Chatbot API ---
+const chatbot = useChatbotConfig();
+const chatbotEnabled = ref(false);
+const chatbotKeys = chatbot.apiKeys;
+const chatbotConversations = ref<ChatbotConversation[]>([]);
+const chatbotLoading = chatbot.loading;
+const newKeyDialog = ref(false);
+const newKeyRaw = ref('');
+const permDialog = ref(false);
+const editingKey = ref<ChatbotApiKey | null>(null);
+const editingPerms = ref<{ action: ChatbotAction; enabled: boolean; valid_from: string | null; valid_until: string | null; rate_limit_per_hour: number | null }[]>([]);
+
+const insforgeUrl = import.meta.env.VITE_INSFORGE_URL as string || '';
+const gatewayUrl = `${insforgeUrl}/functions/chatbot-gateway`;
+const channelOptions = CHATBOT_CHANNELS;
+
+const newKeyForm = ref({
+  name: '',
+  channels: [] as ChatbotChannel[],
+  expires_at: '' as string,
+  rate_limit: 60,
+  permissions: [...ALL_CHATBOT_ACTIONS] as ChatbotAction[],
+});
+
+const permissionCategories = [...new Set(ALL_CHATBOT_ACTIONS.map(a => CHATBOT_ACTION_LABELS[a].category))];
+
+function actionsByCategory(cat: string): ChatbotAction[] {
+  return ALL_CHATBOT_ACTIONS.filter(a => CHATBOT_ACTION_LABELS[a].category === cat);
+}
+
+function actionLabel(a: ChatbotAction): string {
+  return CHATBOT_ACTION_LABELS[a]?.label || a;
+}
+
+function actionIcon(a: ChatbotAction): string {
+  return CHATBOT_ACTION_LABELS[a]?.icon || 'smart_toy';
+}
+
+async function toggleChatbot(val: boolean) {
+  const result = await companyStore.updateCompany({ chatbot_enabled: val } as Partial<Company>);
+  if (result?.error) {
+    $q.notify({ type: 'negative', message: result.error.message });
+    chatbotEnabled.value = !val;
+  } else {
+    $q.notify({ type: 'positive', message: val ? 'Chatbot activé' : 'Chatbot désactivé' });
+  }
+}
+
+async function onCreateKey() {
+  if (!newKeyForm.value.name) return;
+  saving.value = true;
+  try {
+    const { rawKey, error } = await chatbot.createApiKey({
+      name: newKeyForm.value.name,
+      channels: newKeyForm.value.channels,
+      expires_at: newKeyForm.value.expires_at || null,
+      rate_limit_per_hour: newKeyForm.value.rate_limit,
+      permissions: newKeyForm.value.permissions,
+    });
+    if (error) {
+      $q.notify({ type: 'negative', message: error });
+    } else {
+      newKeyRaw.value = rawKey || '';
+      newKeyDialog.value = false;
+      newKeyForm.value = { name: '', channels: [], expires_at: '', rate_limit: 60, permissions: [...ALL_CHATBOT_ACTIONS] };
+      $q.notify({ type: 'positive', message: 'Clé API créée' });
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+
+function copyKey() {
+  void navigator.clipboard.writeText(newKeyRaw.value);
+  $q.notify({ type: 'positive', message: 'Clé copiée' });
+}
+
+async function onToggleKey(k: ChatbotApiKey) {
+  const err = await chatbot.toggleApiKey(k.id, !k.is_active);
+  if (err) $q.notify({ type: 'negative', message: err });
+  else $q.notify({ type: 'info', message: k.is_active ? 'Clé désactivée' : 'Clé activée' });
+}
+
+function onDeleteKey(k: ChatbotApiKey) {
+  $q.dialog({ title: 'Supprimer', message: `Supprimer la clé "${k.name}" ?`, cancel: true, persistent: true })
+    .onOk(() => {
+      void chatbot.deleteApiKey(k.id).then(err => {
+        if (err) $q.notify({ type: 'negative', message: err });
+        else $q.notify({ type: 'positive', message: 'Clé supprimée' });
+      });
+    });
+}
+
+async function openPermissions(k: ChatbotApiKey) {
+  editingKey.value = k;
+  const perms = await chatbot.loadPermissions(k.id);
+  editingPerms.value = ALL_CHATBOT_ACTIONS.map(action => {
+    const existing = perms.find(p => p.action === action);
+    return {
+      action,
+      enabled: existing?.enabled ?? false,
+      valid_from: existing?.valid_from ? existing.valid_from.substring(0, 10) : null,
+      valid_until: existing?.valid_until ? existing.valid_until.substring(0, 10) : null,
+      rate_limit_per_hour: existing?.rate_limit_per_hour ?? null,
+    };
+  });
+  permDialog.value = true;
+}
+
+async function savePermissions() {
+  if (!editingKey.value) return;
+  saving.value = true;
+  try {
+    const err = await chatbot.bulkUpdatePermissions(editingKey.value.id, editingPerms.value);
+    if (err) {
+      $q.notify({ type: 'negative', message: err });
+    } else {
+      $q.notify({ type: 'positive', message: 'Permissions enregistrées' });
+      permDialog.value = false;
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function loadChatbotConversations() {
+  await chatbot.loadConversations();
+  chatbotConversations.value = chatbot.conversations.value;
+}
+
+function loadChatbotState() {
+  chatbotEnabled.value = companyStore.company?.chatbot_enabled ?? false;
+}
+
 onMounted(async () => {
   loadCompanyForm();
   loadRoutingForm();
-  await Promise.all([loadDevices(), loadUsers()]);
+  loadChatbotState();
+  await Promise.all([loadDevices(), loadUsers(), chatbot.loadApiKeys()]);
 });
 </script>
