@@ -244,11 +244,14 @@ export interface TreasuryAccount {
 
 export interface TreasuryMovement {
   id: string;
+  company_id: string;
   account_id: string;
   invoice_id: string | null;
   amount: number;
   type: TreasuryMovementType;
   description: string;
+  payment_type: string;
+  reference: string | null;
   created_at: string;
 }
 

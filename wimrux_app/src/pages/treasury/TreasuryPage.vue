@@ -235,6 +235,7 @@ async function saveMovement() {
   saving.value = true;
   try {
     const { error } = await insforge.database.from('treasury_movements').insert({
+      company_id: authStore.companyId,
       account_id: form.value.account_id,
       type: form.value.type,
       amount: form.value.amount,
