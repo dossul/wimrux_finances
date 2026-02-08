@@ -519,6 +519,9 @@
                       <q-btn flat round size="sm" icon="tune" color="primary" @click="openPermissions(k)">
                         <q-tooltip>Permissions</q-tooltip>
                       </q-btn>
+                      <q-btn flat round size="sm" icon="download" color="teal" @click="exportSkillForKey(k)">
+                        <q-tooltip>Exporter Skill .md</q-tooltip>
+                      </q-btn>
                       <q-btn flat round size="sm" icon="delete" color="red" @click="onDeleteKey(k)">
                         <q-tooltip>Supprimer</q-tooltip>
                       </q-btn>
@@ -527,6 +530,20 @@
                 </tbody>
               </q-markup-table>
               <div v-else class="text-center text-grey-5 q-pa-lg">Aucune clé API créée</div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Skill export -->
+          <q-card flat bordered class="q-mb-md">
+            <q-card-section>
+              <div class="row items-center">
+                <div>
+                  <div class="text-subtitle1 text-weight-medium">Skill Chatbot (.md)</div>
+                  <div class="text-caption text-grey-7">Exportez un fichier Markdown complet à utiliser comme base de connaissances pour votre chatbot IA</div>
+                </div>
+                <q-space />
+                <q-btn color="teal" icon="download" label="Exporter le Skill complet" no-caps @click="exportFullSkill" />
+              </div>
             </q-card-section>
           </q-card>
 
@@ -675,6 +692,7 @@ import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistan
 import { useAiUsage } from 'src/composables/useAiUsage';
 import { useCrypto } from 'src/composables/useCrypto';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
+import { useChatbotSkill } from 'src/composables/useChatbotSkill';
 import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company } from 'src/types';
 import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS } from 'src/types';
 
@@ -963,6 +981,7 @@ async function addDevice() {
 }
 
 // --- Chatbot API ---
+const skill = useChatbotSkill();
 const chatbot = useChatbotConfig();
 const chatbotEnabled = ref(false);
 const chatbotKeys = chatbot.apiKeys;
@@ -1090,6 +1109,20 @@ async function savePermissions() {
 async function loadChatbotConversations() {
   await chatbot.loadConversations();
   chatbotConversations.value = chatbot.conversations.value;
+}
+
+async function exportSkillForKey(k: ChatbotApiKey) {
+  const md = await skill.generateSkillForKey(k);
+  const safeName = k.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+  skill.downloadSkill(md, `skill_chatbot_${safeName}.md`);
+  $q.notify({ type: 'positive', message: `Skill exporté pour "${k.name}"` });
+}
+
+function exportFullSkill() {
+  const md = skill.generateFullSkill();
+  const companyName = (companyStore.company?.name || 'entreprise').replace(/[^a-zA-Z0-9_-]/g, '_');
+  skill.downloadSkill(md, `skill_chatbot_complet_${companyName}.md`);
+  $q.notify({ type: 'positive', message: 'Skill complet exporté' });
 }
 
 function loadChatbotState() {
