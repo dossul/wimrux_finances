@@ -4,6 +4,7 @@ import type { UserRole } from 'src/types';
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean;
+    isAuthRoute?: boolean;
     roles?: UserRole[];
     title?: string;
   }
@@ -14,6 +15,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/auth',
     component: () => import('layouts/AuthLayout.vue'),
+    meta: { isAuthRoute: true },
     children: [
       { path: 'login', name: 'login', component: () => import('pages/auth/LoginPage.vue'), meta: { title: 'Connexion' } },
       { path: 'register', name: 'register', component: () => import('pages/auth/RegisterPage.vue'), meta: { title: 'Inscription' } },

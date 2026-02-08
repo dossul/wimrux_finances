@@ -28,11 +28,31 @@ export default defineRouter(function ({ store }) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  Router.beforeEach((to, _from, next) => {
+  Router.beforeEach(async (to, _from, next) => {
     const authStore = useAuthStore(store);
 
+    // Wait for initial session load if still in progress
+    if (authStore.loading) {
+      await new Promise<void>((resolve) => {
+        const unwatch = authStore.$subscribe(() => {
+          if (!authStore.loading) {
+            unwatch();
+            resolve();
+          }
+        });
+        // Safety timeout
+        setTimeout(() => { unwatch(); resolve(); }, 3000);
+      });
+    }
+
     const requiresAuth = to.matched.some((r) => r.meta.requiresAuth);
+    const isAuthRoute = to.matched.some((r) => r.meta.isAuthRoute);
     const requiredRoles = to.meta.roles;
+
+    // Redirect logged-in users away from auth pages
+    if (isAuthRoute && authStore.isAuthenticated) {
+      return next({ name: 'dashboard' });
+    }
 
     if (requiresAuth && !authStore.isAuthenticated) {
       return next({ name: 'login', query: { redirect: to.fullPath } });
