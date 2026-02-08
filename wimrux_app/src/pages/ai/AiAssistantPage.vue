@@ -3,6 +3,7 @@
     <div class="row items-center q-mb-md">
       <q-icon name="smart_toy" size="md" color="primary" class="q-mr-sm" />
       <div class="text-h5">Assistant Fiscal IA</div>
+      <q-chip v-if="activeModel" dense outline color="grey-7" size="sm" icon="memory" class="q-ml-sm">{{ activeModel }}</q-chip>
       <q-space />
       <q-btn flat dense icon="delete_sweep" label="Effacer" no-caps color="grey-7" @click="clearChat" :disable="messages.length === 0" />
     </div>
@@ -75,7 +76,7 @@ import { ref, nextTick } from 'vue';
 import { useAiAssistant } from 'src/composables/useAiAssistant';
 import type { QScrollArea } from 'quasar';
 
-const { messages, loading, sendMessage, clearChat } = useAiAssistant();
+const { messages, loading, activeModel, sendMessage, clearChat } = useAiAssistant();
 const userInput = ref('');
 const scrollArea = ref<InstanceType<typeof QScrollArea> | null>(null);
 

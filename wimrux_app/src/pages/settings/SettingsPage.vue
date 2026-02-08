@@ -6,6 +6,7 @@
       <q-tab name="company" label="Entreprise" icon="business" no-caps />
       <q-tab name="devices" label="Appareils SFE" icon="devices" no-caps />
       <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
+      <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -92,6 +93,110 @@
           </q-card-section>
         </q-card>
       </q-tab-panel>
+      <!-- AI Configuration -->
+      <q-tab-panel name="ai">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle1 text-weight-medium q-mb-md">Configuration IA de l'entreprise</div>
+            <q-banner class="bg-blue-1 text-blue-9 q-mb-md rounded-borders" dense>
+              <template v-slot:avatar><q-icon name="info" color="blue" /></template>
+              Les modèles IA sont fournis via InsForge (OpenRouter). Aucune clé API externe n'est requise.<br />
+              Chaque entreprise peut choisir son modèle principal et un modèle de secours (fallback).
+            </q-banner>
+
+            <q-form @submit.prevent="saveAiConfig" class="q-gutter-md">
+              <q-toggle v-model="aiForm.ai_enabled" label="Activer l'assistant IA" color="primary" />
+
+              <q-select
+                v-model="aiForm.ai_model"
+                :options="availableModels"
+                emit-value
+                map-options
+                label="Modèle IA principal"
+                filled
+                :disable="!aiForm.ai_enabled"
+                hint="Modèle utilisé par défaut pour l'assistant fiscal"
+              >
+                <template v-slot:option="scope">
+                  <q-item v-bind="scope.itemProps">
+                    <q-item-section avatar><q-icon :name="providerIcon(scope.opt.provider)" :color="providerColor(scope.opt.provider)" /></q-item-section>
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.label }}</q-item-label>
+                      <q-item-label caption>{{ scope.opt.provider }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+
+              <q-select
+                v-model="aiForm.ai_fallback_model"
+                :options="availableModels"
+                emit-value
+                map-options
+                label="Modèle de secours (fallback)"
+                filled
+                :disable="!aiForm.ai_enabled"
+                hint="Utilisé automatiquement si le modèle principal est indisponible"
+              >
+                <template v-slot:option="scope">
+                  <q-item v-bind="scope.itemProps">
+                    <q-item-section avatar><q-icon :name="providerIcon(scope.opt.provider)" :color="providerColor(scope.opt.provider)" /></q-item-section>
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.label }}</q-item-label>
+                      <q-item-label caption>{{ scope.opt.provider }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+
+              <q-input
+                v-model="aiForm.ai_system_prompt"
+                label="Prompt système personnalisé (optionnel)"
+                filled
+                type="textarea"
+                autogrow
+                :disable="!aiForm.ai_enabled"
+                hint="Laissez vide pour utiliser le prompt fiscal par défaut"
+              />
+
+              <div class="row justify-end q-mt-md">
+                <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps :loading="saving" />
+              </div>
+            </q-form>
+          </q-card-section>
+        </q-card>
+
+        <!-- Available models reference -->
+        <q-card flat bordered class="q-mt-md">
+          <q-card-section>
+            <div class="text-subtitle1 text-weight-medium q-mb-sm">Modèles disponibles</div>
+            <q-markup-table flat bordered separator="cell" dense>
+              <thead>
+                <tr class="bg-grey-2">
+                  <th class="text-left">Fournisseur</th>
+                  <th class="text-left">Modèle</th>
+                  <th class="text-center">Texte</th>
+                  <th class="text-center">Image</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in availableModels" :key="m.value">
+                  <td>
+                    <q-icon :name="providerIcon(m.provider)" :color="providerColor(m.provider)" size="xs" class="q-mr-xs" />
+                    {{ m.provider }}
+                  </td>
+                  <td class="text-weight-medium">{{ m.label }}</td>
+                  <td class="text-center"><q-icon name="check_circle" color="green" size="xs" /></td>
+                  <td class="text-center">
+                    <q-icon v-if="m.hasImage" name="check_circle" color="green" size="xs" />
+                    <q-icon v-else name="remove" color="grey-4" size="xs" />
+                  </td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
     </q-tab-panels>
 
     <!-- Add device dialog -->
@@ -146,6 +251,39 @@ const companyForm = ref({
   tax_office: '',
 });
 
+const aiForm = ref({
+  ai_enabled: true,
+  ai_model: 'anthropic/claude-sonnet-4.5',
+  ai_fallback_model: 'openai/gpt-4o-mini',
+  ai_system_prompt: '',
+});
+
+interface ModelOption { label: string; value: string; provider: string; hasImage: boolean }
+
+const availableModels: ModelOption[] = [
+  { label: 'Claude Sonnet 4.5', value: 'anthropic/claude-sonnet-4.5', provider: 'Anthropic', hasImage: false },
+  { label: 'Claude Haiku 3.5', value: 'anthropic/claude-3.5-haiku', provider: 'Anthropic', hasImage: false },
+  { label: 'GPT-4o', value: 'openai/gpt-4o', provider: 'OpenAI', hasImage: false },
+  { label: 'GPT-4o Mini', value: 'openai/gpt-4o-mini', provider: 'OpenAI', hasImage: false },
+  { label: 'Gemini 2.5 Pro', value: 'google/gemini-2.5-pro', provider: 'Google', hasImage: false },
+  { label: 'Gemini 2.5 Flash', value: 'google/gemini-2.5-flash-lite', provider: 'Google', hasImage: false },
+  { label: 'Gemini 3 Pro Image', value: 'google/gemini-3-pro-image-preview', provider: 'Google', hasImage: true },
+  { label: 'DeepSeek V3.2', value: 'deepseek/deepseek-v3.2', provider: 'DeepSeek', hasImage: false },
+  { label: 'DeepSeek R1', value: 'deepseek/deepseek-r1', provider: 'DeepSeek', hasImage: false },
+  { label: 'Grok 4.1 Fast', value: 'x-ai/grok-4.1-fast', provider: 'xAI', hasImage: false },
+  { label: 'Minimax M2.1', value: 'minimax/minimax-m2.1', provider: 'Minimax', hasImage: false },
+];
+
+function providerIcon(p: string) {
+  const map: Record<string, string> = { Anthropic: 'psychology', OpenAI: 'auto_awesome', Google: 'cloud', DeepSeek: 'science', xAI: 'bolt', Minimax: 'memory' };
+  return map[p] || 'smart_toy';
+}
+
+function providerColor(p: string) {
+  const map: Record<string, string> = { Anthropic: 'deep-orange', OpenAI: 'green', Google: 'blue', DeepSeek: 'indigo', xAI: 'grey-9', Minimax: 'purple' };
+  return map[p] || 'grey';
+}
+
 const deviceForm = ref({ nim: '', ifu: '', jwt_secret: '', name: '' });
 const devices = ref<Device[]>([]);
 const users = ref<UserRow[]>([]);
@@ -181,6 +319,31 @@ function loadCompanyForm() {
       tax_regime: c.tax_regime,
       tax_office: c.tax_office,
     };
+    aiForm.value = {
+      ai_enabled: c.ai_enabled ?? true,
+      ai_model: c.ai_model || 'anthropic/claude-sonnet-4.5',
+      ai_fallback_model: c.ai_fallback_model || 'openai/gpt-4o-mini',
+      ai_system_prompt: c.ai_system_prompt || '',
+    };
+  }
+}
+
+async function saveAiConfig() {
+  saving.value = true;
+  try {
+    const result = await companyStore.updateCompany({
+      ai_enabled: aiForm.value.ai_enabled,
+      ai_model: aiForm.value.ai_model,
+      ai_fallback_model: aiForm.value.ai_fallback_model,
+      ai_system_prompt: aiForm.value.ai_system_prompt || null,
+    });
+    if (result?.error) {
+      $q.notify({ type: 'negative', message: result.error.message });
+    } else {
+      $q.notify({ type: 'positive', message: 'Configuration IA enregistr\u00e9e' });
+    }
+  } finally {
+    saving.value = false;
   }
 }
 

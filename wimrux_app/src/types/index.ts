@@ -18,6 +18,10 @@ export interface Company {
   tax_regime: string;
   tax_office: string;
   logo_url: string | null;
+  ai_model: string | null;
+  ai_fallback_model: string | null;
+  ai_system_prompt: string | null;
+  ai_enabled: boolean;
   created_at: string;
 }
 
