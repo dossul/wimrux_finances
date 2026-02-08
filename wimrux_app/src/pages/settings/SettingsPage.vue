@@ -102,8 +102,10 @@
         </q-card-section>
         <q-card-section>
           <q-form @submit.prevent="addDevice" class="q-gutter-sm">
-            <q-input v-model="deviceForm.nim" label="NIM (Numéro d'identification)" filled :rules="[v => !!v || 'NIM requis']" />
-            <q-input v-model="deviceForm.name" label="Nom de l'appareil" filled />
+            <q-input v-model="deviceForm.nim" label="NIM (Numéro d'identification)" filled :rules="[v => !!v || 'NIM requis']" hint="Ex: BF01000001" />
+            <q-input v-model="deviceForm.ifu" label="IFU rattaché" filled :rules="[v => !!v || 'IFU requis']" />
+            <q-input v-model="deviceForm.jwt_secret" label="Clé secrète (JWT Secret)" filled type="password" :rules="[v => !!v || 'Clé requise']" />
+            <q-input v-model="deviceForm.name" label="Nom de l'appareil (optionnel)" filled />
             <div class="row justify-end q-gutter-sm q-mt-md">
               <q-btn flat label="Annuler" v-close-popup no-caps />
               <q-btn type="submit" color="primary" label="Ajouter" :loading="saving" no-caps />
@@ -144,7 +146,7 @@ const companyForm = ref({
   tax_office: '',
 });
 
-const deviceForm = ref({ nim: '', name: '' });
+const deviceForm = ref({ nim: '', ifu: '', jwt_secret: '', name: '' });
 const devices = ref<Device[]>([]);
 const users = ref<UserRow[]>([]);
 
@@ -222,8 +224,10 @@ async function addDevice() {
     const { error } = await insforge.database.from('devices').insert({
       company_id: companyStore.company?.id,
       nim: deviceForm.value.nim,
+      ifu: deviceForm.value.ifu,
+      jwt_secret: deviceForm.value.jwt_secret,
       name: deviceForm.value.name || deviceForm.value.nim,
-      status: 'active',
+      status: 'ACTIF',
     });
     if (error) throw new Error(error.message);
     deviceDialogOpen.value = false;

@@ -159,13 +159,18 @@ import { insforge } from 'src/boot/insforge';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useInvoicePdf } from 'src/composables/useInvoicePdf';
 import { useFnecApi } from 'src/composables/useFnecApi';
+import { useDegradedMode } from 'src/composables/useDegradedMode';
 import type { Invoice, InvoiceItem, Client, TaxGroup, ArticleType } from 'src/types';
+
+interface SfeDevice { nim: string; ifu: string; jwt_secret: string; status: string }
 
 const route = useRoute();
 const $q = useQuasar();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
 const { downloadPdf: pdfDownload } = useInvoicePdf();
 const fnecApi = useFnecApi();
+const { enqueue: queueForRetry } = useDegradedMode();
+const activeDevice = ref<SfeDevice | null>(null);
 
 const invoiceId = computed(() => route.params.id as string);
 
@@ -404,11 +409,23 @@ function validateInvoice() {
 async function certifyInvoice() {
   certifying.value = true;
   try {
+    // 0. Load active device if not loaded
+    if (!activeDevice.value) {
+      const { data } = await insforge.database.from('devices').select('*').eq('status', 'ACTIF').limit(1);
+      const rows = data as SfeDevice[] | null;
+      activeDevice.value = rows?.[0] ?? null;
+    }
+    if (!activeDevice.value) {
+      $q.notify({ type: 'negative', message: 'Aucun appareil SFE actif. Configurez-en un dans Param\u00e8tres.' });
+      return;
+    }
+    const dev = activeDevice.value;
+
     // 1. Authenticate with FNEC
     const authResult = await fnecApi.getToken({
-      clientId: '00000000000001',
-      clientSecret: 'test_secret',
-      nim: 'BF01000001',
+      clientId: dev.ifu,
+      clientSecret: dev.jwt_secret,
+      nim: dev.nim,
     });
     if (authResult.error) {
       $q.notify({ type: 'negative', message: `FNEC Auth: ${authResult.error.message}` });
@@ -417,7 +434,7 @@ async function certifyInvoice() {
 
     // 2. Submit invoice
     const submitResult = await fnecApi.submitInvoice({
-      ifu: '00000000000001',
+      ifu: dev.ifu,
       type: invoice.value.type,
       reference: invoice.value.reference,
       items: items.value.map(i => ({
@@ -472,7 +489,19 @@ async function certifyInvoice() {
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur certification';
-    $q.notify({ type: 'negative', message });
+    // Mode dégradé: queue for retry if certification fails
+    if (invoiceId.value) {
+      await queueForRetry(invoiceId.value, message);
+      $q.notify({
+        type: 'warning',
+        icon: 'wifi_off',
+        message: 'Certification échouée — facture mise en file d\'attente (mode dégradé)',
+        caption: message,
+        timeout: 8000,
+      });
+    } else {
+      $q.notify({ type: 'negative', message });
+    }
   } finally {
     certifying.value = false;
   }
