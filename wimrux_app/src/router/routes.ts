@@ -38,6 +38,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'reports', name: 'reports', component: () => import('pages/reports/ReportsPage.vue'), meta: { title: 'Rapports', roles: ['admin', 'auditeur'] } },
       { path: 'reports/fiscal', name: 'fiscal-reports', component: () => import('pages/reports/FiscalReportsPage.vue'), meta: { title: 'Rapports fiscaux', roles: ['admin'] } },
       { path: 'audit', name: 'audit', component: () => import('pages/audit/AuditLogPage.vue'), meta: { title: 'Journal d\'audit', roles: ['admin', 'auditeur'] } },
+      { path: 'ai-assistant', name: 'ai-assistant', component: () => import('pages/ai/AiAssistantPage.vue'), meta: { title: 'Assistant IA', roles: ['admin', 'caissier', 'auditeur'] } },
       { path: 'settings', name: 'settings', component: () => import('pages/settings/SettingsPage.vue'), meta: { title: 'Paramètres', roles: ['admin'] } },
     ],
   },

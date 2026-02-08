@@ -225,7 +225,7 @@ const dateFrom = ref('');
 const dateTo = ref('');
 const period = ref('month');
 const activeTab = ref('summary');
-const { exportCsv } = useExportCsv();
+const { exportGeneric } = useExportCsv();
 
 const periodOptions = [
   { label: 'Ce mois', value: 'month' },
@@ -408,7 +408,11 @@ function exportReportCsv() {
   const rows = report.value.byType.map(r => ({
     Type: r.type, Label: r.label, Nombre: r.count, HT: r.ht, TVA: r.tva, TTC: r.ttc,
   }));
-  exportCsv(rows, ['Type', 'Label', 'Nombre', 'HT', 'TVA', 'TTC'], `rapport_${period.value}`);
+  exportGeneric(
+    ['Type', 'Label', 'Nombre', 'HT', 'TVA', 'TTC'],
+    rows.map(r => [r.Type, r.Label, r.Nombre, r.HT, r.TVA, r.TTC]),
+    `rapport_${period.value}.csv`,
+  );
 }
 
 onMounted(generateReport);

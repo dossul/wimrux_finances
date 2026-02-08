@@ -51,6 +51,15 @@
       </q-card-section>
     </q-card>
 
+    <!-- Mode Dégradé banner -->
+    <q-banner v-if="pendingQueueCount > 0" class="bg-orange-1 text-orange-9 q-mb-md rounded-borders" dense>
+      <template v-slot:avatar><q-icon name="wifi_off" color="orange" /></template>
+      <strong>Mode dégradé :</strong> {{ pendingQueueCount }} facture(s) en attente de certification FNEC.
+      <template v-slot:action>
+        <q-btn flat no-caps color="orange" label="Relancer tout" icon="replay" :loading="retrying" @click="retryAllPending" />
+      </template>
+    </q-banner>
+
     <!-- Quick actions -->
     <q-card flat bordered>
       <q-card-section>
@@ -67,10 +76,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
+import { useDegradedMode } from 'src/composables/useDegradedMode';
 import type { Invoice } from 'src/types';
 
+const $q = useQuasar();
+const { queue: pendingQueue, loadQueue, retryAll } = useDegradedMode();
 const loading = ref(false);
+const retrying = ref(false);
+const pendingQueueCount = ref(0);
 const recentInvoices = ref<Invoice[]>([]);
 
 const kpis = ref([
@@ -131,5 +146,27 @@ async function loadDashboard() {
   }
 }
 
-onMounted(loadDashboard);
+async function retryAllPending() {
+  retrying.value = true;
+  try {
+    await retryAll();
+    await loadQueue();
+    pendingQueueCount.value = pendingQueue.value.length;
+    if (pendingQueueCount.value === 0) {
+      $q.notify({ type: 'positive', message: 'Toutes les certifications en attente ont été traitées' });
+    } else {
+      $q.notify({ type: 'warning', message: `${pendingQueueCount.value} certification(s) toujours en échec` });
+    }
+  } catch {
+    $q.notify({ type: 'negative', message: 'Erreur lors de la relance' });
+  } finally {
+    retrying.value = false;
+  }
+}
+
+onMounted(async () => {
+  await loadDashboard();
+  await loadQueue();
+  pendingQueueCount.value = pendingQueue.value.length;
+});
 </script>
