@@ -3,6 +3,7 @@
     <div class="row items-center q-mb-md">
       <div class="text-h5">Factures</div>
       <q-space />
+      <q-btn outline color="primary" icon="download" label="Export CSV" no-caps class="q-mr-sm" @click="exportCsv" />
       <q-btn-dropdown color="primary" icon="add" label="Nouvelle facture" no-caps>
         <q-list>
           <q-item clickable v-close-popup v-for="t in invoiceTypeOptions" :key="t.value" @click="createInvoice(t.value)">
@@ -68,10 +69,12 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
+import { useExportCsv } from 'src/composables/useExportCsv';
 import type { Invoice } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const { exportInvoices } = useExportCsv();
 
 const invoices = ref<Invoice[]>([]);
 const loading = ref(false);
@@ -177,6 +180,10 @@ async function createInvoice(type: string) {
   if (!error && data) {
     await router.push(`/invoices/${(data as Invoice).id}`);
   }
+}
+
+function exportCsv() {
+  exportInvoices(filteredInvoices.value);
 }
 
 onMounted(loadInvoices);

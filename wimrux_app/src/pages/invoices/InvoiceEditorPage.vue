@@ -143,7 +143,7 @@
             <q-btn v-if="isDraft" color="primary" icon="save" label="Enregistrer brouillon" class="full-width" no-caps :loading="saving" @click="saveDraft" />
             <q-btn v-if="isDraft && items.length > 0" color="amber-8" icon="check" label="Valider la facture" class="full-width" no-caps @click="validateInvoice" />
             <q-btn v-if="invoice.status === 'validated'" color="green" icon="verified" label="Certifier (FNEC)" class="full-width" no-caps :loading="certifying" @click="certifyInvoice" />
-            <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="Télécharger PDF" class="full-width" no-caps />
+            <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="Télécharger PDF" class="full-width" no-caps @click="downloadPdf" />
           </q-card-section>
         </q-card>
       </div>
@@ -157,12 +157,14 @@ import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
+import { useInvoicePdf } from 'src/composables/useInvoicePdf';
 import { useFnecApi } from 'src/composables/useFnecApi';
 import type { Invoice, InvoiceItem, Client, TaxGroup, ArticleType } from 'src/types';
 
 const route = useRoute();
 const $q = useQuasar();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
+const { downloadPdf: pdfDownload } = useInvoicePdf();
 const fnecApi = useFnecApi();
 
 const invoiceId = computed(() => route.params.id as string);
@@ -467,6 +469,17 @@ async function certifyInvoice() {
   } finally {
     certifying.value = false;
   }
+}
+
+function downloadPdf() {
+  const inv = invoice.value as Invoice;
+  const client = clients.value.find(c => c.id === inv.client_id);
+  pdfDownload(
+    inv,
+    items.value as InvoiceItem[],
+    undefined,
+    client ? { name: client.name, ifu: client.ifu, type: client.type, address: client.address } : undefined,
+  );
 }
 
 onMounted(async () => {

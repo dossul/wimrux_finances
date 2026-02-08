@@ -71,12 +71,14 @@ import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store';
 import { insforge } from 'src/boot/insforge';
 
 const router = useRouter();
 const route = useRoute();
 const $q = useQuasar();
 const authStore = useAuthStore();
+const companyStore = useCompanyStore();
 
 const email = ref('');
 const password = ref('');
@@ -87,9 +89,13 @@ async function onSubmit() {
   loading.value = true;
   try {
     await authStore.login(email.value, password.value);
+    // Load company data after successful login
+    if (authStore.companyId) {
+      await companyStore.loadCompanies(authStore.companyId);
+    }
     const redirect = (route.query.redirect as string) || '/';
     await router.push(redirect);
-    $q.notify({ type: 'positive', message: 'Connexion réussie' });
+    $q.notify({ type: 'positive', message: `Bienvenue, ${authStore.fullName || 'utilisateur'}` });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur de connexion';
     $q.notify({ type: 'negative', message });

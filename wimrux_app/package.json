@@ -17,6 +17,8 @@
     "@insforge/sdk": "^1.1.5",
     "@quasar/extras": "^1.16.4",
     "axios": "^1.2.1",
+    "jspdf": "^4.1.0",
+    "jspdf-autotable": "^5.0.7",
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",
     "vue": "^3.5.22",
