@@ -158,9 +158,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useAiUsage } from 'src/composables/useAiUsage';
+import { useAuthStore } from 'src/stores/auth-store';
 
+const authStore = useAuthStore();
 const aiUsage = useAiUsage();
 const { byModel, byCompany, loading, totals } = aiUsage;
+const isProjectAdmin = computed(() => authStore.role === 'project_admin');
 const moderations = aiUsage.moderationLogs;
 const period = ref('30d');
 
@@ -188,7 +191,11 @@ function getDateFrom(p: string): string | undefined {
 
 async function loadAll() {
   const from = getDateFrom(period.value);
-  await aiUsage.fetchAllUsage(from);
+  if (isProjectAdmin.value) {
+    await aiUsage.fetchAllUsage(from);
+  } else {
+    await aiUsage.fetchCompanyUsage(from);
+  }
 }
 
 onMounted(() => loadAll());

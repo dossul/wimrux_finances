@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { insforge } from 'src/boot/insforge';
-import type { UserProfile, UserRole } from 'src/types';
+import { usePermissions } from 'src/composables/usePermissions';
+import type { UserProfile, UserRole, Permission } from 'src/types';
 
 interface InsForgeUser {
   id: string;
@@ -14,6 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<InsForgeUser | null>(null);
   const profile = ref<UserProfile | null>(null);
   const loading = ref(false);
+  const permissions = usePermissions();
 
   const isAuthenticated = computed(() => !!user.value);
   const role = computed<UserRole | null>(() => profile.value?.role ?? null);
@@ -43,6 +45,14 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (!error && data) {
       profile.value = data as UserProfile;
+      // Set permission context and load granular permissions
+      permissions.setContext(
+        profile.value.role,
+        user.value.id,
+        profile.value.company_id,
+        profile.value.full_name,
+      );
+      await permissions.loadCompanyPermissions();
     }
   }
 
@@ -72,6 +82,9 @@ export const useAuthStore = defineStore('auth', () => {
     await insforge.auth.signOut();
     user.value = null;
     profile.value = null;
+    permissions.companyOverrides.value = [];
+    permissions.userRoleAssignments.value = [];
+    permissions.setContext(null, null, null, null);
   }
 
   async function forgotPassword(email: string) {
@@ -85,7 +98,19 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function hasAnyRole(roles: UserRole[]): boolean {
-    return role.value !== null && roles.includes(role.value);
+    if (role.value === null) return false;
+    // project_admin has access to everything
+    if (role.value === 'project_admin') return true;
+    return roles.includes(role.value);
+  }
+
+  // Granular permission checks (delegates to usePermissions)
+  function hasPermission(p: Permission): boolean {
+    return permissions.hasPermission(p);
+  }
+
+  function hasAnyPermission(ps: Permission[]): boolean {
+    return permissions.hasAnyPermission(ps);
   }
 
   return {
@@ -96,6 +121,7 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     companyId,
     fullName,
+    permissions,
     loadSession,
     login,
     register,
@@ -103,5 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
     forgotPassword,
     hasRole,
     hasAnyRole,
+    hasPermission,
+    hasAnyPermission,
   };
 });

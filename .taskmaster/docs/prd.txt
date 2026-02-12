@@ -1,0 +1,694 @@
+# WIMRUX® FINANCES — Product Requirements Document (PRD)
+# Version 3.0 — PRD Exhaustif pour Taskmaster AI
+# Date: 08 Février 2026
+# Deadline Absolue: 1er Juillet 2026
+
+================================================================================
+SECTION 1: CONTEXTE ET VISION
+================================================================================
+
+## 1.1 Entreprise
+- Nom: WESTAGO SARL
+- Pays: Burkina Faso
+- Réglementation: Direction Générale des Impôts (DGI)
+- Obligation légale: Mise en conformité SECeF (Système Électronique Certifié de Facturation) au 1er Juillet 2026
+
+## 1.2 Objectif
+Livrer un SFE (Système de Facturation d'Entreprise) homologué par la DGI du Burkina Faso, sous forme d'application web SaaS multi-entreprise.
+
+## 1.3 Règle d'Or (NON-NÉGOCIABLE)
+Le logiciel DOIT garantir:
+- INALTÉRABILITÉ des données de facturation
+- SÉCURISATION (chiffrement AES-256, signatures)
+- CONSERVATION et ARCHIVAGE
+- INTERDICTION ABSOLUE de supprimer ou modifier une facture validée/certifiée
+- INTERDICTION ABSOLUE de modifier un log d'audit
+
+================================================================================
+SECTION 2: STACK TECHNIQUE
+================================================================================
+
+## 2.1 Frontend
+- Framework: Quasar Framework 2.x
+- Langage: Vue 3 Composition API + TypeScript
+- Style: Quasar Material Components (pas de Tailwind, pas de Vuetify)
+- Capacités: PWA, SSR, Mobile-First, Responsive
+- State management: Pinia
+- Routing: Vue Router avec guards RBAC
+
+## 2.2 Backend (BaaS)
+- Plateforme: InsForge (Backend-as-a-Service)
+- URL API: https://gfe4bd9y.eu-central.insforge.app
+- SDK: @insforge/sdk (TypeScript)
+- PAS de Django, PAS de Flask, PAS de Python backend
+- TOUT le backend passe par InsForge
+
+## 2.3 Services InsForge disponibles
+- Database: PostgreSQL avec PostgREST API, Row Level Security (RLS)
+- Auth: Email/Password + OAuth (Google, GitHub), vérification email par code
+- Storage: Buckets de fichiers (logos, justificatifs, PDFs générés)
+- Edge Functions: Fonctions serverless Deno runtime (pour l'API FNEC simulée, calculs fiscaux)
+- AI: DeepSeek v3.2, GPT-4o-mini, Claude Sonnet 4.5, Gemini 3 Pro, Grok 4.1, MiniMax M2.1
+- Realtime: WebSocket pub/sub (événements DB + client, notifications)
+
+## 2.4 Architecture
+
+```
+UTILISATEUR (Navigateur / PWA)
+       │
+QUASAR FRAMEWORK (Frontend Vue 3 + TypeScript)
+       │ SDK @insforge/sdk
+INSFORGE (BaaS)
+  ├── PostgreSQL (PostgREST + RLS)
+  ├── Auth (OAuth, Email/Password, RBAC)
+  ├── Storage (Fichiers)
+  ├── Edge Functions (API FNEC Simulée, Calculs)
+  ├── AI (Assistant fiscal)
+  └── Realtime (WebSocket notifications)
+       │
+API FNEC SIMULÉE (Edge Function InsForge)
+       │ (remplacée par API DGI officielle à terme)
+DRIVER SFE-MCF (Agent Local - RS232 / API)
+```
+
+================================================================================
+SECTION 3: API FNEC SIMULÉE — SPÉCIFICATION COMPLÈTE
+================================================================================
+
+L'API officielle de la DGI du Burkina Faso n'est PAS encore publiée. Cette API simulée est inspirée du modèle e-MECeF du Bénin mais utilise EXCLUSIVEMENT la terminologie et les spécifications du Burkina Faso.
+
+## 3.1 Endpoints REST
+
+### POST /bf/fnec/auth/token — Authentification
+Requête:
+```json
+{
+  "clientId": "IFU_ENTREPRISE",
+  "clientSecret": "SECRET_FOURNI_PAR_DGI",
+  "nim": "BF01000001"
+}
+```
+Réponse:
+```json
+{
+  "access_token": "eyJhbG...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "ifu": "00000000000001",
+  "nim": "BF01000001"
+}
+```
+
+### GET /bf/fnec/status — Statut système
+Headers: Authorization: Bearer <JWT>
+Réponse:
+```json
+{
+  "status": true,
+  "version": "1.0-BF",
+  "ifu": "00000000000001",
+  "nim": "BF01000001",
+  "tokenValid": "2026-02-15T23:59:59+00:00",
+  "serverDateTime": "2026-02-08T10:30:00+00:00",
+  "pendingInvoicesCount": 2,
+  "pendingInvoicesList": [{"date": "...", "uid": "UUID"}],
+  "lastAuditRemote": "2026-02-07T18:00:00+00:00",
+  "deviceStatus": "ACTIF"
+}
+```
+Champ deviceStatus: ACTIF | BLOQUÉ | DÉSACTIVÉ
+
+### POST /bf/fnec/invoices — Soumission facture
+Headers: Authorization: Bearer <JWT>
+Requête:
+```json
+{
+  "ifu": "00000000000001",
+  "type": "FV",
+  "reference": "FACT-2026-00001",
+  "items": [
+    {
+      "code": "ART001",
+      "name": "Riz parfumé 25kg",
+      "type": "LOCBIE",
+      "price": 15000,
+      "quantity": 3,
+      "unit": "sac",
+      "taxGroup": "B",
+      "specificTax": 0
+    }
+  ],
+  "client": {
+    "type": "PM",
+    "ifu": "00000000000002",
+    "name": "SARL DISTRIBUTION",
+    "rccm": "RCCM BF-OUA 2020 B 1234",
+    "address": "Sect 15, Ilot 234, Parc 056",
+    "phone": "+22670123456",
+    "email": "contact@distribution.bf"
+  },
+  "operator": {"name": "Fatima OUEDRAOGO"},
+  "payment": [{"type": "MOBILEMONEY", "amount": 59000}],
+  "priceMode": "TTC",
+  "comments": [{"label": "Réf. exo.", "content": ""}]
+}
+```
+
+Réponse (succès):
+```json
+{
+  "uid": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "PENDING",
+  "taxCalculation": {
+    "totalHT": {"A": 0, "B": 50000, "C": 0, ..., "P": 0},
+    "tva": {"B": 9000},
+    "psvb": {"B": 1180},
+    "totalTTC": 59000,
+    "stampDuty": 0
+  },
+  "serverDateTime": "2026-02-08T10:35:12+00:00"
+}
+```
+
+### PUT /bf/fnec/invoices/{UID}/confirm — Certification
+Réponse:
+```json
+{
+  "uid": "550e8400-...",
+  "status": "CERTIFIED",
+  "dateTime": "2026-02-08T10:37:45+00:00",
+  "fiscalNumber": "FV0000123/2026",
+  "codeSECeFDGI": "BF45-A7C3-89DE-F2B1-4C5E-90AB",
+  "qrCode": "BF;FV0000123/2026;BF45A7C389DEF2B14C5E90AB;00000000000001;20260208103745",
+  "signature": "3045022100abcd...ef0102",
+  "counters": "123/123 FV",
+  "nim": "BF01000001",
+  "deviceInfo": {
+    "nim": "BF01000001",
+    "activationCounter": 1,
+    "manufacturer": "BF",
+    "certificate": "01"
+  }
+}
+```
+Format QR Code: BF;{fiscalNumber};{codeSECeFDGI_sans_tirets};{IFU};{dateTime_compact}
+
+### PUT /bf/fnec/invoices/{UID}/cancel — Annulation
+Réponse: {"uid": "...", "status": "CANCELLED", "dateTime": "..."}
+
+### GET /bf/fnec/invoices/{UID} — Détails facture en attente
+Retourne les données complètes de la facture soumise.
+
+### GET /bf/fnec/info/taxGroups — Groupes de taxation
+Réponse: Objet avec taux TVA et PSVB pour chaque groupe A-P.
+
+### GET /bf/fnec/info/invoiceTypes — Types de factures
+Réponse: [{type: "FV", description: "Facture de vente"}, ...]
+
+### GET /bf/fnec/info/paymentTypes — Modes de paiement
+Réponse: ESPECES, CHEQUES, MOBILEMONEY, CARTEBANCAIRE, VIREMENT, CREDIT, AUTRE
+
+### GET /bf/fnec/reports/z — Z-Rapport (clôture journalière)
+### GET /bf/fnec/reports/x — X-Rapport (intermédiaire)
+
+## 3.2 Types de Factures (6 types)
+
+| Code | Description |
+|------|-------------|
+| FV   | Facture de vente |
+| FT   | Facture d'acompte ou d'avance |
+| FA   | Facture d'avoir (référence FV obligatoire) |
+| EV   | Facture de vente à l'exportation |
+| ET   | Facture d'acompte à l'exportation |
+| EA   | Facture d'avoir à l'exportation |
+
+## 3.3 Types d'Articles (4 types)
+
+| Code   | Description |
+|--------|-------------|
+| LOCBIE | Bien local |
+| LOCSER | Service local |
+| IMPBIE | Bien importation |
+| IMPSER | Service importation |
+
+## 3.4 Types de Clients (4 types)
+
+| Code | Type | Champs obligatoires |
+|------|------|---------------------|
+| CC   | Client comptant | Mention "CC Client comptant" |
+| PM   | Personne morale | Nom (raison sociale), IFU obligatoire |
+| PP   | Personne physique | Nom |
+| PC   | Personne physique commerçant | Nom, IFU obligatoire |
+
+## 3.5 Groupes de Taxation (16 groupes A-P)
+
+| Groupe | Description | TVA (%) | PSVB (%) |
+|--------|-------------|---------|----------|
+| A | Exonéré | 0 | 2 |
+| B | TVA taxable 1 | 18 | 2 |
+| C | TVA taxable 2 | 10 | 2 |
+| D | Exportation produits taxables | 0 | 0 |
+| E | Régime dérogatoire | 0 | 1 |
+| F | Régime dérogatoire | 18 | 1 |
+| G | Régime dérogatoire | 10 | 1 |
+| H | Régime synthétique | 0 | 0 |
+| I | Consignation emballage | 0 | 0 |
+| J | Dépôts, garantie, caution | 0 | 0 |
+| K | Débours | 0 | 0 |
+| L | Taxe développement touristique | 10 | 0 |
+| M | Taxe séjour hôtelier | 10 | 0 |
+| N | PBA (Droits fixes) | 0 | 0 |
+| O | Réservé | 0 | 0 |
+| P | Réservé | 0 | 0 |
+
+## 3.6 Règles de Calcul Fiscal
+
+### Mode TTC (prix incluant TVA):
+- Montant HT = Prix TTC / (1 + Taux TVA)
+- Montant TVA = Prix TTC - Montant HT
+
+### Mode HT (prix hors TVA):
+- Montant TVA = Prix HT × Taux TVA
+- Montant TTC = Prix HT + Montant TVA
+
+### PSVB (Prélèvement à la Source sur Vente de Biens):
+- PSVB = Montant TTC × Taux PSVB du groupe
+- Groupe A: 2%, B: 2%, C: 2%, D: 0%, E: 1%, F: 1%, G: 1%, H-P: 0%
+
+### Timbre Quittance (paiements espèces uniquement):
+| Montant TTC | Timbre |
+|-------------|--------|
+| < 5 000 FCFA | 0 FCFA |
+| 5 000 – 25 000 | 100 FCFA |
+| 25 001 – 50 000 | 200 FCFA |
+| 50 001 – 100 000 | 500 FCFA |
+| > 100 000 | 1 000 FCFA |
+
+### Arrondis:
+- 2 décimales, arrondi supérieur si ≥ 0.005
+- En cas d'arrondi fiscal: Montant HT + Montant Taxe = Montant TTC (toujours)
+
+## 3.7 Codes d'Erreur FNEC
+
+| Code | Description |
+|------|-------------|
+| BF001 | IFU vendeur absent ou invalide |
+| BF002 | Type de facture non valide |
+| BF003 | Référence de facture manquante ou invalide |
+| BF004 | Articles manquants (minimum 1 requis) |
+| BF005 | Groupe de taxation invalide |
+| BF006 | Type de client invalide |
+| BF007 | IFU client obligatoire pour type PM ou PC |
+| BF008 | Mode de paiement invalide |
+| BF009 | Montant total paiement ≠ montant TTC |
+| BF010 | Montant article ou facture négatif ou nul |
+| BF011 | Type d'article invalide |
+| BF012 | Limite de factures en attente atteinte |
+| BF013 | Facture déjà confirmée ou annulée |
+| BF014 | Facture introuvable |
+| BF015 | Dispositif SECeF bloqué (connexion requise) |
+| BF016 | Dispositif SECeF désactivé |
+| BF017 | NIM non enregistré ou invalide |
+| BF018 | Référence de facture en double |
+| BF019 | Format adresse cadastrale invalide (SSSS LLL PPPP) |
+| BF020 | Mode de prix invalide (doit être HT ou TTC) |
+| BF099 | Erreur interne du serveur |
+
+Format réponse erreur:
+```json
+{
+  "error": true,
+  "code": "BF005",
+  "message": "Groupe de taxation invalide: 'X' n'existe pas",
+  "details": {"field": "items[0].taxGroup", "value": "X", "allowedValues": ["A"..."P"]},
+  "timestamp": "2026-02-08T10:45:00+00:00"
+}
+```
+
+## 3.8 Stratégie de Migration vers API Officielle DGI
+- URLs configurées via variables d'environnement (FNEC_API_BASE_URL)
+- Logique d'appel API isolée dans composable `src/composables/useFnecApi.ts`
+- Interfaces TypeScript partagées (pas de couplage fort avec l'implémentation)
+- Couche de mapping pour adapter les éventuelles différences de schéma
+- Le code frontend ne doit JAMAIS appeler l'API FNEC directement, toujours via le composable
+
+## 3.9 Schéma Base de Données pour l'API Simulée
+
+```sql
+CREATE TABLE devices (
+  nim VARCHAR(10) PRIMARY KEY,
+  ifu VARCHAR(20) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIF',
+  jwt_secret VARCHAR(255) NOT NULL,
+  activation_counter INTEGER DEFAULT 1,
+  last_audit_remote TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE sim_invoices (
+  uid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nim VARCHAR(10) NOT NULL REFERENCES devices(nim),
+  ifu VARCHAR(20) NOT NULL,
+  reference VARCHAR(100) NOT NULL UNIQUE,
+  type VARCHAR(2) NOT NULL CHECK (type IN ('FV','FT','FA','EV','ET','EA')),
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  fiscal_number VARCHAR(50),
+  code_secef_dgi VARCHAR(29),
+  qr_code TEXT,
+  signature TEXT,
+  data JSONB NOT NULL,
+  tax_calculation JSONB,
+  date_submitted TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  date_certified TIMESTAMP,
+  counters VARCHAR(50)
+);
+```
+
+================================================================================
+SECTION 4: MENTIONS OBLIGATOIRES SUR LA FACTURE
+================================================================================
+
+Selon les spécifications techniques de la DGI (Note n°2025-0889/MEF/SG/DGI):
+
+## 4.1 Informations Vendeur
+- Nom de l'entreprise
+- IFU de l'entreprise
+- Adresse avec références cadastrales (Section, Ilot, Parcelle: SSSS LLL PPPP)
+- Contact (téléphone, email)
+- Compte(s) bancaire(s)
+- Régime d'imposition
+- Service des impôts de rattachement
+
+## 4.2 Informations Client
+- Type de client (CC, PM, PP, PC)
+- IFU et nom (obligatoire pour PM et PC)
+- Adresse et contact (optionnel)
+
+## 4.3 Éléments de la Facture
+- Numéro de série unique (série ininterrompue par année)
+- Date et heure d'établissement
+- Type de facture (FV, FT, FA, EV, ET, EA)
+- Mention "DUPLICATA" si copie
+- Mention "FACTURE D'AVOIR" + nature si avoir
+- Mention "EXPORTATION" si export
+- Mention "ACOMPTE" si acompte
+
+## 4.4 Détails Articles
+- Désignation (min 64 caractères de capacité)
+- Type d'article (LOCBIE, LOCSER, IMPBIE, IMPSER)
+- Quantité, unité de mesure
+- Prix unitaire, montant
+- Groupe de taxation
+- Réductions éventuelles
+
+## 4.5 Calculs Fiscaux sur la Facture
+- Mode de prix (HT ou TTC)
+- Montants totaux HT par groupe de taxation
+- Taux d'imposition appliqués
+- Montants de TVA par groupe
+- Montants de PSVB si applicable
+- Taxe spécifique si applicable
+- Montant total TTC
+- "Montant timbre quittance" + montant si paiement espèces
+- Montant total en lettres
+
+## 4.6 Paiement
+- Mode(s) de paiement
+- Montant par mode
+
+## 4.7 Éléments de Sécurité (du MCF/API FNEC)
+- Code SECeF/DGI (24 caractères avec tirets: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX)
+- NIM (numéro machine, format MMCCNNNNNN, 10 caractères)
+- ISF (identifiant système)
+- Compteurs de factures
+- QR Code 2D (format: BF;fiscalNumber;codeSECeF;IFU;dateTimeCompact)
+- Date et heure de certification (celle du MCF, pas du serveur)
+- Mention: "EXIGEZ LA FACTURE ÉLECTRONIQUE CERTIFIÉE"
+
+## 4.8 Autres
+- Nom de l'opérateur
+- Lignes de commentaire (max 8)
+- Référence certificat d'exonération si applicable
+- Base juridique si exonération
+
+================================================================================
+SECTION 5: MODULES À DÉVELOPPER (15 modules)
+================================================================================
+
+## Module 0: API FNEC Simulée (FONDATEUR — Edge Function InsForge)
+- Priorité: FONDATEUR (doit être fait en premier)
+- Implémenter tous les endpoints de la section 3
+- Edge Function InsForge (Deno runtime)
+- Tables de données simulées (devices, sim_invoices)
+- Logique de calcul fiscal (TVA, PSVB, timbre)
+- Génération de codes SECeF, signatures, QR codes simulés
+- Gestion de tous les codes d'erreur BF001-BF099
+- Tests unitaires pour chaque endpoint et scénario d'erreur
+
+## Module 1: Auth & RBAC
+- Priorité: CRITIQUE
+- InsForge Auth (Email/Password + OAuth Google/GitHub)
+- 3 rôles: Admin, Caissier, Auditeur
+- Table `roles` liée à `auth.users`
+- Pinia store pour session et rôle
+- Vue Router navigation guards par rôle
+- Pages: Login, Register, Forgot Password, Profile
+
+## Module 2: Multi-Entreprise
+- Priorité: CRITIQUE
+- Table `companies` avec RLS stricte
+- Chaque utilisateur appartient à une entreprise
+- Isolation totale des données entre entreprises
+- Sélecteur d'entreprise si un utilisateur a accès à plusieurs
+- Toutes les requêtes DB filtrées par company_id (via RLS)
+
+## Module 3: Facturation
+- Priorité: CRITIQUE
+- Dépend de: Module 0, 1, 2, 4, 6, 10
+- CRUD factures (brouillon → validée → certifiée)
+- Support des 6 types: FV, FT, FA, EV, ET, EA
+- FA (avoir): référence obligatoire vers FV originale, montant ≤ montant FV
+- Gestion des lignes d'articles (ajout, modification, suppression en mode brouillon)
+- Sélection du mode prix: HT ou TTC
+- Calcul en temps réel: HT par groupe, TVA, PSVB, TTC, timbre
+- Validation = point de non-retour (UI et DB bloquent toute modification)
+- Appel API FNEC via Driver (module 4) à la validation
+- Numérotation séquentielle ininterrompue par année et par type
+
+## Module 4: Driver SFE-FNEC (composable useFnecApi.ts)
+- Priorité: CRITIQUE
+- Dépend de: Module 0, 1
+- Composable Vue 3 dans `src/composables/useFnecApi.ts`
+- Fonctions: getToken(), getStatus(), submitInvoice(), confirmInvoice(), cancelInvoice(), getInvoiceDetails(), getTaxGroups(), getInvoiceTypes(), getPaymentTypes(), getZReport(), getXReport()
+- Appelle l'Edge Function via InsForge SDK (`client.functions.invoke()`)
+- URLs configurables par env vars
+- Gestion d'erreurs: mapping codes BFxxx → messages UI français
+- Retry automatique pour erreurs temporaires (BF099, timeout)
+- Latence max: 3 secondes
+
+## Module 5: PDF Generator
+- Priorité: CRITIQUE
+- Dépend de: Module 3, 4
+- Génération PDF avec toutes les mentions obligatoires (section 4)
+- QR Code 2D intégré (format: BF;fiscalNumber;codeSECeF;IFU;dateTime)
+- Bloc sécurité: Code SECeF, NIM, ISF, Compteurs, Date/Heure MCF
+- Mention légale: "EXIGEZ LA FACTURE ÉLECTRONIQUE CERTIFIÉE"
+- Support DUPLICATA
+- Montant total en lettres (français)
+- Stockage du PDF dans InsForge Storage
+- Téléchargement et impression depuis l'UI
+
+## Module 6: Taxes
+- Priorité: CRITIQUE
+- Dépend de: Module 0
+- Implémentation des 16 groupes de taxation A-P
+- Calcul TVA (0%, 10%, 18% selon groupe)
+- Calcul PSVB (0%, 0.2%, 1%, 2% selon groupe)
+- Calcul timbre quittance (barème progressif si paiement espèces)
+- Arrondis à 2 décimales (règle: ≥ 0.005 → arrondi supérieur)
+- Égalité stricte: HT + Taxes = TTC
+- Composable `src/composables/useTaxCalculation.ts`
+- Tests unitaires exhaustifs pour chaque groupe et chaque mode (HT/TTC)
+
+## Module 7: Audit Log
+- Priorité: CRITIQUE
+- Dépend de: Module 2
+- Table `audit_log`: user_id, timestamp, action_type, table_name, record_id, data_before (JSONB), data_after (JSONB), ip_address
+- Triggers PostgreSQL sur toutes les tables métier
+- RLS: INSERT uniquement par système, SELECT par Admin/Auditeur, AUCUN UPDATE/DELETE
+- Trigger bloquant UPDATE/DELETE sur factures validées/certifiées
+- Interface UI de consultation pour les auditeurs (filtres, recherche, export)
+
+## Module 8: Z-Report / X-Report
+- Priorité: HAUTE
+- Dépend de: Module 3, 4
+- Z-Rapport: clôture journalière définitive (totalisation, archivage)
+- X-Rapport: rapport intermédiaire (consultation en cours de journée)
+- Appel aux endpoints /reports/z et /reports/x de l'API FNEC
+- Affichage structuré des résultats
+- Archivage en PDF dans InsForge Storage
+- Gestion post-clôture Z (nouvelle journée)
+
+## Module 9: Trésorerie
+- Priorité: HAUTE
+- Dépend de: Module 2, 3
+- Multi-comptes: Banque, Caisse, Mobile Money
+- Enregistrement des encaissements liés aux factures
+- Rapprochement factures / paiements
+- Soldes en temps réel
+- Historique des mouvements
+
+## Module 10: Gestion Clients
+- Priorité: HAUTE
+- Dépend de: Module 2
+- CRUD clients avec types: CC, PM, PP, PC
+- IFU obligatoire pour PM et PC (validation Regex format BF)
+- RCCM pour les personnes morales
+- Adresse cadastrale format SSSS LLL PPPP
+- Prévoir hook futur API DGI pour vérification IFU en temps réel
+- Recherche et filtres dans la liste clients
+
+## Module 11: Mode Dégradé
+- Priorité: HAUTE
+- Dépend de: Module 3, 4
+- Détection automatique d'indisponibilité API FNEC (timeout, 5xx)
+- Table `pending_certification_queue` en PostgreSQL
+- Les factures validées sont mises en file d'attente
+- Processus de retry automatique périodique
+- Notification InsForge Realtime (WebSocket) quand certification réussie
+- UI affiche statut "En attente de certification"
+- Latence max d'attente: 3 secondes avant bascule mode dégradé
+
+## Module 12: Rapports & Dashboards
+- Priorité: MOYENNE
+- Dépend de: Module 3, 9
+- Dashboard principal: CA du jour/mois/année, factures émises, graphiques
+- Balance âgée (créances par ancienneté)
+- Compte de résultat simplifié
+- Bilan simplifié
+- Export CSV/PDF des rapports
+- Filtres par période, entreprise, type de facture
+
+## Module 13: Chiffrement
+- Priorité: HAUTE
+- Dépend de: Module 0, 1
+- AES-256 CBC pour données sensibles stockées
+- Chiffrement: IFU, clés API, données MCF, secrets JWT
+- Gestion des clés de chiffrement (rotation possible)
+- Ne PAS chiffrer les données de recherche (nom client, etc.)
+- Chiffrement côté Edge Function avant stockage
+
+## Module 14: IA / Assistant Fiscal
+- Priorité: MOYENNE
+- Dépend de: Module 3, 12
+- Chat assistant via InsForge AI (DeepSeek, GPT-4o-mini, Claude, Gemini)
+- Analyse prédictive (tendances CA, saisonnalité)
+- Suggestions de classification articles/groupes taxation
+- Aide à la rédaction de descriptions articles
+- NLP pour questions en langage naturel sur les données fiscales
+
+================================================================================
+SECTION 6: SCHÉMA BASE DE DONNÉES PRINCIPAL
+================================================================================
+
+Tables principales à créer dans InsForge PostgreSQL:
+
+```sql
+-- Entreprises (multi-tenant)
+companies (id, name, ifu, rccm, address_cadastral, phone, email, bank_accounts JSONB, tax_regime, tax_office, logo_url, created_at)
+
+-- Utilisateurs et rôles
+user_profiles (id, user_id FK auth.users, company_id FK companies, role ENUM('admin','caissier','auditeur'), full_name, created_at)
+
+-- Clients
+clients (id, company_id FK, type ENUM('CC','PM','PP','PC'), name, ifu, rccm, address, address_cadastral, phone, email, created_at, updated_at)
+
+-- Factures
+invoices (id, company_id FK, client_id FK, type ENUM('FV','FT','FA','EV','ET','EA'), reference, status ENUM('draft','validated','certified','cancelled'), price_mode ENUM('HT','TTC'), original_invoice_id FK (pour FA/EA), operator_name, comments JSONB, tax_calculation JSONB, total_ht, total_tva, total_psvb, total_ttc, stamp_duty, total_payment, fnec_uid UUID, fiscal_number, code_secef_dgi, qr_code, signature, nim, counters, certification_datetime, pdf_url, created_at, validated_at, certified_at)
+
+-- Lignes de facture
+invoice_items (id, invoice_id FK, code, name, type ENUM('LOCBIE','LOCSER','IMPBIE','IMPSER'), price, quantity, unit, tax_group CHAR(1), specific_tax, discount, amount_ht, amount_tva, amount_psvb, amount_ttc, sort_order)
+
+-- Audit
+audit_log (id BIGSERIAL, user_id, timestamp, action_type, table_name, record_id, data_before JSONB, data_after JSONB, ip_address, company_id)
+
+-- Dispositifs (pour API simulée)
+devices (nim, ifu, status, jwt_secret, activation_counter, last_audit_remote, created_at)
+
+-- File d'attente mode dégradé
+pending_certification_queue (id, invoice_id FK, attempts, last_attempt_at, error_message, created_at)
+
+-- Trésorerie
+treasury_accounts (id, company_id FK, name, type ENUM('bank','cash','mobile_money'), balance, created_at)
+treasury_movements (id, account_id FK, invoice_id FK, amount, type ENUM('credit','debit'), description, created_at)
+
+-- Rapports Z/X archivés
+fiscal_reports (id, company_id FK, nim, type ENUM('Z','X'), data JSONB, pdf_url, report_date DATE, created_at)
+```
+
+================================================================================
+SECTION 7: SÉCURITÉ
+================================================================================
+
+## 7.1 RLS (Row Level Security)
+- Toutes les tables métier ont RLS activé
+- Politique: user ne voit que les données de sa company_id
+- audit_log: INSERT only par système, SELECT par admin/auditeur
+
+## 7.2 Triggers d'Inaltérabilité
+- Trigger BEFORE UPDATE/DELETE sur `invoices`: REJETER si status IN ('validated', 'certified')
+- Trigger BEFORE UPDATE/DELETE sur `audit_log`: REJETER TOUJOURS
+
+## 7.3 Chiffrement
+- AES-256 CBC pour IFU, clés API, données MCF
+- TLS pour toutes les communications
+
+================================================================================
+SECTION 8: PROCESSUS DE FACTURATION COMPLET
+================================================================================
+
+1. Caissier crée un brouillon (status: 'draft')
+2. Ajoute lignes d'articles, sélectionne client, mode prix
+3. Calculs fiscaux en temps réel (TVA, PSVB, timbre)
+4. Caissier clique "Valider" → point de non-retour
+5. Status passe à 'validated' (trigger bloque UPDATE/DELETE)
+6. Driver useFnecApi.submitInvoice() → reçoit UID + calculs serveur
+7. Vérification: calculs client = calculs serveur
+8. Driver useFnecApi.confirmInvoice(uid) → reçoit éléments de sécurité
+9. Stockage: code_secef_dgi, qr_code, signature, nim, counters, fiscal_number
+10. Status passe à 'certified'
+11. Génération PDF avec bloc sécurité complet
+12. Stockage PDF dans InsForge Storage
+13. Entrée dans audit_log (action: 'invoice_certified')
+14. Si mode dégradé: étapes 6-12 sont différées via pending_certification_queue
+
+================================================================================
+SECTION 9: ROADMAP
+================================================================================
+
+| Phase | Période | Modules | Livrables |
+|-------|---------|---------|-----------|
+| 0 | Fév 2026 | 0, 12-DB | API FNEC Edge Function, schema PostgreSQL |
+| 1 | Fév 2026 | 1, 2, 7 | Auth, RBAC, Multi-entreprise, Audit triggers |
+| 2 | Mars 2026 | 4, 6, 10, 13 | Driver FNEC, Taxes, Clients, Chiffrement |
+| 3 | Avril 2026 | 3, 5 | UI Facturation, PDF Generator |
+| 4 | Mai 2026 | 8, 9, 11 | Z-Reports, Trésorerie, Mode Dégradé |
+| 5 | Mai-Juin 2026 | 12, 14 | Rapports, IA Assistant |
+| 6 | Juin 2026 | — | Tests charge, dossier DGI, démo homologation |
+| DEADLINE | 1er Juillet 2026 | — | Production homologuée |
+
+================================================================================
+SECTION 10: CONTRAINTES ET RÈGLES NON-FONCTIONNELLES
+================================================================================
+
+- Langue de l'UI: Français
+- Monnaie: FCFA (pas de centimes dans l'affichage, mais 2 décimales en calcul)
+- Fuseau horaire: UTC+0 (Burkina Faso GMT)
+- Performance: latence max 3 secondes pour certification
+- Disponibilité: mode dégradé si API FNEC indisponible
+- PWA: l'application doit fonctionner comme PWA sur mobile
+- Responsive: mobile-first design
+- Tests: chaque module doit avoir des tests unitaires
+- TypeScript strict: pas de `any`, interfaces typées pour toutes les données
+- Composition API: pas d'Options API Vue 2
+- InsForge SDK: toujours utiliser le SDK, jamais d'appels HTTP directs à InsForge

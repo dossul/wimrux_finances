@@ -38,7 +38,7 @@
 
         <template v-for="nav in navItems" :key="nav.route">
           <q-item
-            v-if="canAccess(nav.roles)"
+            v-if="canAccess(nav.permissions)"
             :to="nav.route"
             exact
             clickable
@@ -65,7 +65,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useRealtimeNotifications } from 'src/composables/useRealtimeNotifications';
-import type { UserRole } from 'src/types';
+import type { Permission } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -76,25 +76,25 @@ interface NavItem {
   label: string;
   icon: string;
   route: string;
-  roles: UserRole[];
+  permissions: Permission[];
 }
 
 const navItems: NavItem[] = [
-  { label: 'Tableau de bord', icon: 'dashboard', route: '/', roles: ['admin', 'caissier', 'auditeur'] },
-  { label: 'Factures', icon: 'receipt_long', route: '/invoices', roles: ['admin', 'caissier'] },
-  { label: 'Clients', icon: 'people', route: '/clients', roles: ['admin', 'caissier'] },
-  { label: 'Trésorerie', icon: 'account_balance', route: '/treasury', roles: ['admin'] },
-  { label: 'Rapports', icon: 'assessment', route: '/reports', roles: ['admin', 'auditeur'] },
-  { label: 'Rapports fiscaux', icon: 'description', route: '/reports/fiscal', roles: ['admin'] },
-  { label: 'Journal d\'audit', icon: 'history', route: '/audit', roles: ['admin', 'auditeur'] },
-  { label: 'Assistant IA', icon: 'smart_toy', route: '/ai-assistant', roles: ['admin', 'caissier', 'auditeur'] },
-  { label: 'Suivi IA', icon: 'analytics', route: '/admin/ai-usage', roles: ['admin'] },
-  { label: 'Chatbot API', icon: 'hub', route: '/admin/chatbot', roles: ['admin'] },
-  { label: 'Paramètres', icon: 'settings', route: '/settings', roles: ['admin'] },
+  { label: 'Tableau de bord', icon: 'dashboard', route: '/app', permissions: ['dashboard.view'] },
+  { label: 'Factures', icon: 'receipt_long', route: '/app/invoices', permissions: ['invoices.read'] },
+  { label: 'Clients', icon: 'people', route: '/app/clients', permissions: ['clients.read'] },
+  { label: 'Trésorerie', icon: 'account_balance', route: '/app/treasury', permissions: ['treasury.read'] },
+  { label: 'Rapports', icon: 'assessment', route: '/app/reports', permissions: ['reports.read'] },
+  { label: 'Rapports fiscaux', icon: 'description', route: '/app/reports/fiscal', permissions: ['reports.fiscal'] },
+  { label: 'Journal d\'audit', icon: 'history', route: '/app/audit', permissions: ['audit.read'] },
+  { label: 'Assistant IA', icon: 'smart_toy', route: '/app/ai-assistant', permissions: ['ai.use'] },
+  { label: 'Suivi IA', icon: 'analytics', route: '/app/admin/ai-usage', permissions: ['settings.manage'] },
+  { label: 'Chatbot API', icon: 'hub', route: '/app/admin/chatbot', permissions: ['settings.manage'] },
+  { label: 'Paramètres', icon: 'settings', route: '/app/settings', permissions: ['settings.manage'] },
 ];
 
-function canAccess(roles: UserRole[]): boolean {
-  return authStore.hasAnyRole(roles);
+function canAccess(permissions: Permission[]): boolean {
+  return authStore.hasAnyPermission(permissions);
 }
 
 function toggleLeftDrawer() {

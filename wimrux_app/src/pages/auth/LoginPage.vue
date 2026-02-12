@@ -59,9 +59,8 @@
       </div>
     </q-card-section>
 
-    <q-card-section class="text-center">
-      <span class="text-body2">Pas encore de compte ?</span>
-      <router-link to="/auth/register" class="text-primary q-ml-xs">S'inscrire</router-link>
+    <q-card-section class="text-center text-caption text-grey">
+      Contactez votre administrateur pour obtenir un compte
     </q-card-section>
   </q-card>
 </template>
@@ -93,7 +92,7 @@ async function onSubmit() {
     if (authStore.companyId) {
       await companyStore.loadCompanies(authStore.companyId);
     }
-    const redirect = (route.query.redirect as string) || '/';
+    const redirect = (route.query.redirect as string) || '/app';
     await router.push(redirect);
     $q.notify({ type: 'positive', message: `Bienvenue, ${authStore.fullName || 'utilisateur'}` });
   } catch (err: unknown) {

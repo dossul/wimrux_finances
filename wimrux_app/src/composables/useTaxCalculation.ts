@@ -52,6 +52,10 @@ function initGroupMap(): Record<TaxGroup, number> {
 
 export function useTaxCalculation() {
 
+  // Conforme DGI BF — Spéc. SFE §6.9
+  // Base taxable TVA = montant HT + taxe spécifique (si applicable)
+  // TVA = base taxable × taux TVA
+  // TTC = HT + taxe spécifique + TVA
   function calculateItemTax(
     price: number,
     quantity: number,
@@ -61,20 +65,22 @@ export function useTaxCalculation() {
     specificTax = 0,
   ): ItemTaxResult {
     const rates = TAX_GROUP_RATES[taxGroup];
-    const lineTotal = round2(price * quantity - discount + specificTax);
 
     let ht: number;
-    let tvaMontant: number;
-
     if (priceMode === 'TTC') {
-      ht = round2(lineTotal / (1 + rates.tva));
-      tvaMontant = round2(lineTotal - ht);
+      // Le prix saisi est TTC (hors taxe spécifique)
+      const priceTTC = round2(price * quantity - discount);
+      ht = round2(priceTTC / (1 + rates.tva));
     } else {
-      ht = lineTotal;
-      tvaMontant = round2(ht * rates.tva);
+      // Le prix saisi est HT
+      ht = round2(price * quantity - discount);
     }
 
-    const ttc = round2(ht + tvaMontant);
+    // §6.9: Base taxable TVA augmentée de la taxe spécifique
+    const baseTVA = round2(ht + specificTax);
+    const tvaMontant = round2(baseTVA * rates.tva);
+
+    const ttc = round2(ht + specificTax + tvaMontant);
     const psvbMontant = round2(ttc * rates.psvb);
 
     return {

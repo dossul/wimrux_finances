@@ -3,7 +3,169 @@
 // ============================================================================
 
 // --- Rôles utilisateur ---
-export type UserRole = 'admin' | 'caissier' | 'auditeur';
+export type UserRole =
+  | 'admin'
+  | 'superviseur'
+  | 'comptable'
+  | 'tresorier'
+  | 'caissier'
+  | 'manager'
+  | 'auditeur'
+  | 'controleur'
+  | 'consultant'
+  | 'project_admin';
+
+// --- Permissions granulaires ---
+export type Permission =
+  | 'dashboard.view'
+  | 'invoices.create'
+  | 'invoices.read'
+  | 'invoices.submit'
+  | 'invoices.approve'
+  | 'invoices.validate'
+  | 'invoices.certify'
+  | 'clients.create'
+  | 'clients.read'
+  | 'clients.update'
+  | 'clients.delete'
+  | 'treasury.read'
+  | 'treasury.create'
+  | 'treasury.update'
+  | 'reports.read'
+  | 'reports.fiscal'
+  | 'audit.read'
+  | 'ai.use'
+  | 'settings.manage'
+  | 'users.manage';
+
+export const ALL_PERMISSIONS: Permission[] = [
+  'dashboard.view',
+  'invoices.create', 'invoices.read', 'invoices.submit',
+  'invoices.approve', 'invoices.validate', 'invoices.certify',
+  'clients.create', 'clients.read', 'clients.update', 'clients.delete',
+  'treasury.read', 'treasury.create', 'treasury.update',
+  'reports.read', 'reports.fiscal',
+  'audit.read',
+  'ai.use',
+  'settings.manage',
+  'users.manage',
+];
+
+export const PERMISSION_LABELS: Record<Permission, { label: string; category: string; icon: string }> = {
+  'dashboard.view':     { label: 'Voir le tableau de bord',     category: 'Général',      icon: 'dashboard' },
+  'invoices.create':    { label: 'Créer des factures',          category: 'Facturation',  icon: 'add_circle' },
+  'invoices.read':      { label: 'Consulter les factures',      category: 'Facturation',  icon: 'receipt_long' },
+  'invoices.submit':    { label: 'Soumettre pour validation',   category: 'Facturation',  icon: 'send' },
+  'invoices.approve':   { label: 'Approuver les factures',      category: 'Facturation',  icon: 'thumb_up' },
+  'invoices.validate':  { label: 'Valider définitivement',      category: 'Facturation',  icon: 'check_circle' },
+  'invoices.certify':   { label: 'Certifier (SECeF)',           category: 'Facturation',  icon: 'verified' },
+  'clients.create':     { label: 'Créer des clients',           category: 'Clients',      icon: 'person_add' },
+  'clients.read':       { label: 'Consulter les clients',       category: 'Clients',      icon: 'people' },
+  'clients.update':     { label: 'Modifier les clients',        category: 'Clients',      icon: 'edit' },
+  'clients.delete':     { label: 'Supprimer des clients',       category: 'Clients',      icon: 'delete' },
+  'treasury.read':      { label: 'Consulter la trésorerie',     category: 'Trésorerie',   icon: 'account_balance' },
+  'treasury.create':    { label: 'Créer des mouvements',        category: 'Trésorerie',   icon: 'swap_horiz' },
+  'treasury.update':    { label: 'Modifier la trésorerie',      category: 'Trésorerie',   icon: 'edit' },
+  'reports.read':       { label: 'Consulter les rapports',      category: 'Rapports',     icon: 'assessment' },
+  'reports.fiscal':     { label: 'Rapports fiscaux',            category: 'Rapports',     icon: 'description' },
+  'audit.read':         { label: 'Journal d\'audit',            category: 'Audit',        icon: 'history' },
+  'ai.use':             { label: 'Utiliser l\'assistant IA',    category: 'IA',           icon: 'smart_toy' },
+  'settings.manage':    { label: 'Gérer les paramètres',        category: 'Administration', icon: 'settings' },
+  'users.manage':       { label: 'Gérer les utilisateurs',      category: 'Administration', icon: 'manage_accounts' },
+};
+
+export const PERMISSION_CATEGORIES = [
+  'Général', 'Facturation', 'Clients', 'Trésorerie', 'Rapports', 'Audit', 'IA', 'Administration',
+] as const;
+
+// Default permissions per built-in role (before any company override)
+export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<UserRole, 'project_admin'>, Permission[]> = {
+  admin: [...ALL_PERMISSIONS],
+  superviseur: [
+    'dashboard.view',
+    'invoices.read', 'invoices.submit', 'invoices.approve', 'invoices.validate', 'invoices.certify',
+    'clients.read',
+    'treasury.read',
+    'reports.read', 'reports.fiscal',
+    'audit.read',
+    'ai.use',
+  ],
+  comptable: [
+    'dashboard.view',
+    'invoices.create', 'invoices.read', 'invoices.submit',
+    'clients.create', 'clients.read', 'clients.update',
+    'treasury.read', 'treasury.create', 'treasury.update',
+    'reports.read', 'reports.fiscal',
+    'audit.read',
+    'ai.use',
+  ],
+  tresorier: [
+    'dashboard.view',
+    'invoices.read',
+    'treasury.read', 'treasury.create', 'treasury.update',
+    'reports.read',
+    'ai.use',
+  ],
+  caissier: [
+    'dashboard.view',
+    'invoices.create', 'invoices.read', 'invoices.submit',
+    'clients.create', 'clients.read', 'clients.update',
+    'ai.use',
+  ],
+  manager: [
+    'dashboard.view',
+    'invoices.read',
+    'clients.read',
+    'treasury.read',
+    'reports.read', 'reports.fiscal',
+  ],
+  auditeur: [
+    'dashboard.view',
+    'invoices.read',
+    'reports.read',
+    'audit.read',
+    'ai.use',
+  ],
+  controleur: [
+    'dashboard.view',
+    'invoices.read',
+    'clients.read',
+    'treasury.read',
+    'reports.read', 'reports.fiscal',
+    'audit.read',
+  ],
+  consultant: [
+    'dashboard.view',
+    'invoices.read',
+    'clients.read',
+    'reports.read', 'reports.fiscal',
+  ],
+};
+
+// Row in company_role_permissions table
+export interface CompanyRolePermission {
+  id: string;
+  company_id: string;
+  role: string;
+  permission: Permission;
+  granted: boolean;
+  expires_at: string | null;
+  granted_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Row in user_role_assignments table (multi-role fusion)
+export interface UserRoleAssignment {
+  id: string;
+  user_id: string;
+  company_id: string;
+  role: string;
+  is_primary: boolean;
+  assigned_by: string | null;
+  assigned_at: string;
+  expires_at: string | null;
+}
 
 // --- Entreprise ---
 export interface Company {
@@ -25,6 +187,7 @@ export interface Company {
   openrouter_api_key: string | null;
   ai_routing: AiRouting | null;
   chatbot_enabled: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -109,7 +272,13 @@ export interface UserProfile {
 
 // --- Types de factures ---
 export type InvoiceType = 'FV' | 'FT' | 'FA' | 'EV' | 'ET' | 'EA';
-export type InvoiceStatus = 'draft' | 'validated' | 'certified' | 'cancelled';
+export type InvoiceStatus =
+  | 'draft'
+  | 'pending_validation'
+  | 'approved'
+  | 'validated'
+  | 'certified'
+  | 'cancelled';
 export type PriceMode = 'HT' | 'TTC';
 
 // --- Types d'articles ---
@@ -136,6 +305,7 @@ export interface Client {
   address_cadastral: string | null;
   phone: string | null;
   email: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +340,7 @@ export interface Invoice {
   status: InvoiceStatus;
   price_mode: PriceMode;
   original_invoice_id: string | null;
+  credit_note_nature: 'COR' | 'RAN' | 'RAM' | 'RRR' | null;
   operator_name: string;
   comments: InvoiceComment[];
   tax_calculation: TaxCalculationResult | null;
@@ -191,6 +362,13 @@ export interface Invoice {
   created_at: string;
   validated_at: string | null;
   certified_at: string | null;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
   items?: InvoiceItem[];
   client?: Client;
 }
@@ -222,14 +400,14 @@ export interface TaxCalculationResult {
   stampDuty: number;
 }
 
-// --- API FNEC ---
-export interface FnecAuthRequest {
+// --- API MCF (Module de Contrôle de Facturation) ---
+export interface McfAuthRequest {
   clientId: string;
   clientSecret: string;
   nim: string;
 }
 
-export interface FnecAuthResponse {
+export interface McfAuthResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
@@ -237,7 +415,7 @@ export interface FnecAuthResponse {
   nim: string;
 }
 
-export interface FnecStatusResponse {
+export interface McfStatusResponse {
   status: boolean;
   version: string;
   ifu: string;
@@ -250,14 +428,14 @@ export interface FnecStatusResponse {
   deviceStatus: 'ACTIF' | 'BLOQUÉ' | 'DÉSACTIVÉ';
 }
 
-export interface FnecSubmitResponse {
+export interface McfSubmitResponse {
   uid: string;
   status: 'PENDING';
   taxCalculation: TaxCalculationResult;
   serverDateTime: string;
 }
 
-export interface FnecConfirmResponse {
+export interface McfConfirmResponse {
   uid: string;
   status: 'CERTIFIED';
   dateTime: string;
@@ -275,7 +453,7 @@ export interface FnecConfirmResponse {
   };
 }
 
-export interface FnecErrorResponse {
+export interface McfErrorResponse {
   error: true;
   code: string;
   message: string;

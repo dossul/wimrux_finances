@@ -9,6 +9,7 @@
       <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
       <q-tab name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
       <q-tab name="chatbot" label="Chatbot API" icon="smart_toy" no-caps />
+      <q-tab name="rbac" label="RBAC / Permissions" icon="admin_panel_settings" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -20,14 +21,14 @@
             <q-form @submit.prevent="saveCompany" class="q-gutter-sm">
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.name" label="Raison sociale" filled class="col" :rules="[v => !!v || 'Requis']" />
-                <q-input v-model="companyForm.ifu" label="IFU" filled style="width: 200px" :rules="[v => !!v || 'Requis']" />
+                <q-input v-model="companyForm.ifu" label="IFU (8 chiffres)" filled style="width: 200px" mask="########" :rules="[v => !!v || 'Requis', v => isValidIFU(v) || 'IFU invalide (8 chiffres)']" />
               </div>
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.rccm" label="RCCM" filled class="col" />
                 <q-input v-model="companyForm.tax_regime" label="Régime fiscal" filled class="col" />
                 <q-input v-model="companyForm.tax_office" label="Centre des impôts" filled class="col" />
               </div>
-              <q-input v-model="companyForm.address_cadastral" label="Adresse cadastrale (SSSS LLL PPPP)" filled mask="#### ### ####" />
+              <q-input v-model="companyForm.address_cadastral" label="Adresse cadastrale (SSSS LLL PPPP)" filled mask="#### ### ####" :rules="[v => !v || isValidCadastralAddress(v) || 'Format invalide (SSSS LLL PPPP)']" hint="Section (4 chiffres) Lot (3 chiffres) Parcelle (4 chiffres)" />
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" />
                 <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" />
@@ -593,7 +594,199 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
           </q-card>
         </template>
       </q-tab-panel>
+      <!-- RBAC / Permissions management -->
+      <q-tab-panel name="rbac">
+        <q-banner class="bg-blue-1 text-blue-9 q-mb-md rounded-borders" dense>
+          <template v-slot:avatar><q-icon name="admin_panel_settings" color="blue" /></template>
+          Gestion granulaire des permissions par rôle. Chaque entreprise gère son propre RBAC de manière isolée.<br />
+          Les modifications sont <strong>immédiates</strong> et s'appliquent à tous les utilisateurs du rôle concerné.
+        </q-banner>
+
+        <!-- Role selector -->
+        <div class="row items-center q-gutter-sm q-mb-md">
+          <q-select
+            v-model="rbacSelectedRole"
+            :options="rbacRoleOptions"
+            emit-value
+            map-options
+            label="Rôle à configurer"
+            outlined
+            dense
+            style="min-width: 280px"
+          />
+          <q-btn flat dense icon="restart_alt" label="Réinitialiser ce rôle" no-caps color="orange" @click="onResetRole" />
+          <q-space />
+          <q-btn color="primary" icon="save" label="Enregistrer les permissions" no-caps :loading="rbacSaving" @click="onSaveRbac" />
+        </div>
+
+        <!-- Permission matrix -->
+        <q-card flat bordered class="q-mb-md" v-for="cat in rbacCategories" :key="cat">
+          <q-card-section class="q-pa-sm">
+            <div class="text-subtitle2 text-weight-bold q-mb-xs">{{ cat }}</div>
+            <template v-for="perm in rbacPermissionsByCategory(cat)" :key="perm">
+              <div v-if="getPermEdit(perm)" class="row items-center q-py-xs" style="border-bottom: 1px solid #f0f0f0">
+                <div class="col-1 text-center">
+                  <q-icon :name="rbacPermLabel(perm).icon" size="xs" color="grey-7" />
+                </div>
+                <div class="col-5">
+                  <div class="text-body2">{{ rbacPermLabel(perm).label }}</div>
+                  <div class="text-caption text-grey-6">{{ perm }}</div>
+                </div>
+                <div class="col-2 text-center">
+                  <q-toggle v-model="getPermEdit(perm)!.granted" dense color="primary" />
+                </div>
+                <div class="col-4">
+                  <q-input
+                    v-model="getPermEdit(perm)!.expires_at"
+                    type="date"
+                    dense
+                    borderless
+                    clearable
+                    placeholder="Permanent"
+                    hint="Expiration (vide = permanent)"
+                    style="max-width: 180px"
+                  />
+                </div>
+              </div>
+            </template>
+          </q-card-section>
+        </q-card>
+
+        <!-- Legend -->
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section class="q-pa-sm">
+            <div class="text-caption text-grey-7">
+              <q-icon name="info" size="xs" class="q-mr-xs" />
+              <strong>Légende :</strong>
+              Toggle = activer/désactiver la permission.
+              Date d'expiration = permission temporaire (supprimée automatiquement après la date).
+              « Réinitialiser » = retour aux permissions par défaut du rôle.
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- User management section -->
+        <q-separator class="q-my-lg" />
+        <div class="text-subtitle1 text-weight-bold q-mb-md">
+          <q-icon name="manage_accounts" class="q-mr-sm" />Gestion des utilisateurs
+        </div>
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="row items-center q-mb-md">
+              <div class="text-subtitle2">Utilisateurs de l'entreprise</div>
+              <q-space />
+              <q-btn color="primary" icon="person_add" label="Nouvel utilisateur" no-caps size="sm" @click="rbacUserDialogOpen = true" />
+            </div>
+            <q-table
+              :rows="rbacUsers"
+              :columns="rbacUserColumns"
+              row-key="id"
+              flat
+              dense
+              :loading="rbacUsersLoading"
+              :pagination="{ rowsPerPage: 15 }"
+            >
+              <template v-slot:body-cell-role="props">
+                <q-td :props="props">
+                  <q-badge :color="roleColor(props.row.role)" :label="props.row.role" />
+                </q-td>
+              </template>
+              <template v-slot:body-cell-extra_roles="props">
+                <q-td :props="props">
+                  <template v-if="props.row.extra_roles && props.row.extra_roles.length">
+                    <q-badge v-for="r in props.row.extra_roles" :key="r" :color="roleColor(r)" :label="r" class="q-mr-xs q-mb-xs" outline>
+                      <q-btn flat dense round size="xs" icon="close" class="q-ml-xs" @click="onRevokeRole(props.row, r)" />
+                    </q-badge>
+                  </template>
+                  <span v-else class="text-grey-5 text-caption">—</span>
+                </q-td>
+              </template>
+              <template v-slot:body-cell-actions="props">
+                <q-td :props="props">
+                  <q-btn flat dense size="sm" icon="add_circle" color="primary" @click="openAssignRoleDialog(props.row)">
+                    <q-tooltip>Ajouter un rôle cumulé</q-tooltip>
+                  </q-btn>
+                </q-td>
+              </template>
+            </q-table>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
     </q-tab-panels>
+
+    <!-- RBAC: Create user dialog -->
+    <q-dialog v-model="rbacUserDialogOpen" persistent>
+      <q-card style="min-width: 450px">
+        <q-card-section>
+          <div class="text-h6">Nouvel utilisateur</div>
+        </q-card-section>
+        <q-card-section>
+          <q-form @submit.prevent="onCreateRbacUser" class="q-gutter-sm">
+            <q-input v-model="rbacUserForm.full_name" label="Nom complet" filled :rules="[v => !!v || 'Requis']" />
+            <q-input v-model="rbacUserForm.email" label="Email" filled type="email" :rules="[v => !!v || 'Requis']" />
+            <q-select
+              v-model="rbacUserForm.role"
+              :options="rbacRoleOptions"
+              emit-value
+              map-options
+              label="Rôle"
+              filled
+              :rules="[v => !!v || 'Requis']"
+            />
+            <q-input
+              v-model="rbacUserForm.password"
+              label="Mot de passe"
+              filled
+              :type="rbacShowPwd ? 'text' : 'password'"
+              :rules="[v => !!v || 'Requis', v => v.length >= 8 || 'Min 8 caractères']"
+            >
+              <template v-slot:append>
+                <q-btn flat dense :icon="rbacShowPwd ? 'visibility_off' : 'visibility'" @click="rbacShowPwd = !rbacShowPwd" />
+                <q-btn flat dense icon="casino" @click="rbacUserForm.password = generateRbacPwd()">
+                  <q-tooltip>Générer un mot de passe</q-tooltip>
+                </q-btn>
+              </template>
+            </q-input>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+              <q-btn flat label="Annuler" v-close-popup no-caps />
+              <q-btn type="submit" color="primary" label="Créer" no-caps :loading="rbacSaving" />
+            </div>
+          </q-form>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- RBAC: Assign additional role dialog -->
+    <q-dialog v-model="assignRoleDialogOpen" persistent>
+      <q-card style="min-width: 400px">
+        <q-card-section>
+          <div class="text-h6">Ajouter un rôle cumulé</div>
+          <div class="text-caption text-grey">{{ assignRoleTarget?.full_name }}</div>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <q-select
+            v-model="assignRoleForm.role"
+            :options="assignRoleAvailableOptions"
+            emit-value
+            map-options
+            label="Rôle à ajouter"
+            filled
+          />
+          <q-input
+            v-model="assignRoleForm.expires_at"
+            type="date"
+            label="Expiration (optionnel)"
+            filled
+            clearable
+            hint="Vide = permanent"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn color="primary" label="Assigner" no-caps :loading="rbacSaving" @click="onAssignRole" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Create API key dialog -->
     <q-dialog v-model="newKeyDialog" persistent>
@@ -684,20 +877,24 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
+import { createClient } from '@insforge/sdk';
 import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { usePermissions } from 'src/composables/usePermissions';
 import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
 import { useAiUsage } from 'src/composables/useAiUsage';
 import { useCrypto } from 'src/composables/useCrypto';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import { useChatbotSkill } from 'src/composables/useChatbotSkill';
-import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company } from 'src/types';
-import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS } from 'src/types';
+import { isValidIFU, isValidCadastralAddress } from 'src/utils/validators';
+import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission } from 'src/types';
+import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS } from 'src/types';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
+const rbacPerms = usePermissions();
 const { encrypt, decrypt } = useCrypto();
 
 const tab = ref('company');
@@ -1129,10 +1326,259 @@ function loadChatbotState() {
   chatbotEnabled.value = companyStore.company?.chatbot_enabled ?? false;
 }
 
+// ============================================================================
+// RBAC Tab — Granular permission management + multi-role fusion
+// ============================================================================
+const rbacSaving = ref(false);
+const rbacSelectedRole = ref<string>('superviseur');
+const rbacUserDialogOpen = ref(false);
+const rbacShowPwd = ref(false);
+const rbacUsersLoading = ref(false);
+const rbacUsers = ref<(UserRow & { user_id?: string; extra_roles?: string[] })[]>([]);
+
+const rbacRoleOptions = [
+  { label: 'Superviseur / Chef comptable', value: 'superviseur' },
+  { label: 'Comptable', value: 'comptable' },
+  { label: 'Trésorier', value: 'tresorier' },
+  { label: 'Caissier', value: 'caissier' },
+  { label: 'Manager / Direction', value: 'manager' },
+  { label: 'Auditeur', value: 'auditeur' },
+  { label: 'Contrôleur interne', value: 'controleur' },
+  { label: 'Consultant externe', value: 'consultant' },
+];
+
+const rbacUserColumns = [
+  { name: 'full_name', label: 'Nom', field: 'full_name', align: 'left' as const, sortable: true },
+  { name: 'role', label: 'Rôle principal', field: 'role', align: 'center' as const, sortable: true },
+  { name: 'extra_roles', label: 'Rôles cumulés', field: 'extra_roles', align: 'left' as const },
+  { name: 'created_at', label: 'Créé le', field: 'created_at', align: 'left' as const, sortable: true,
+    format: (v: string) => v ? new Date(v).toLocaleDateString('fr-FR') : '' },
+  { name: 'actions', label: '', field: 'actions', align: 'center' as const },
+];
+
+const rbacUserForm = ref({ full_name: '', email: '', role: 'comptable', password: '' });
+
+const rbacCategories = PERMISSION_CATEGORIES;
+
+function rbacPermissionsByCategory(cat: string): Permission[] {
+  return ALL_PERMISSIONS.filter(p => PERMISSION_LABELS[p].category === cat);
+}
+
+function rbacPermLabel(p: Permission) {
+  return PERMISSION_LABELS[p];
+}
+
+// Editable matrix: keyed by permission key
+type PermEdit = { granted: boolean; expires_at: string | null };
+const rbacEditMatrix = reactive<Record<string, PermEdit>>({});
+
+function getPermEdit(p: string): PermEdit | undefined {
+  return rbacEditMatrix[p];
+}
+
+function initEditMatrix() {
+  const role = rbacSelectedRole.value;
+  const effectivePerms = rbacPerms.getEffectivePermissions(role);
+  const overrides = rbacPerms.companyOverrides.value.filter(o => o.role === role);
+
+  for (const p of ALL_PERMISSIONS) {
+    const override = overrides.find(o => o.permission === p);
+    rbacEditMatrix[p] = {
+      granted: effectivePerms.includes(p),
+      expires_at: override?.expires_at ? override.expires_at.substring(0, 10) : null,
+    };
+  }
+}
+
+watch(rbacSelectedRole, () => { initEditMatrix(); });
+
+async function onSaveRbac() {
+  rbacSaving.value = true;
+  try {
+    const role = rbacSelectedRole.value;
+    const defaultPerms = (DEFAULT_ROLE_PERMISSIONS as Record<string, Permission[]>)[role] ?? [];
+
+    const permUpdates: { permission: Permission; granted: boolean; expires_at?: string | null }[] = [];
+    for (const p of ALL_PERMISSIONS) {
+      const isDefault = defaultPerms.includes(p);
+      const edit = rbacEditMatrix[p];
+      if (!edit) continue;
+      // Save override if: different from default, or has an expiry
+      if (edit.granted !== isDefault || edit.expires_at) {
+        permUpdates.push({
+          permission: p,
+          granted: edit.granted,
+          expires_at: edit.expires_at || null,
+        });
+      }
+    }
+
+    const result = await rbacPerms.bulkSetPermissions(role, permUpdates);
+    if (result.error) {
+      $q.notify({ type: 'negative', message: result.error });
+    } else {
+      $q.notify({ type: 'positive', message: `Permissions du rôle « ${role} » enregistrées` });
+    }
+  } finally {
+    rbacSaving.value = false;
+  }
+}
+
+function onResetRole() {
+  $q.dialog({
+    title: 'Réinitialiser',
+    message: `Rétablir les permissions par défaut pour le rôle « ${rbacSelectedRole.value} » ?`,
+    cancel: true,
+    persistent: true,
+  }).onOk(() => {
+    rbacSaving.value = true;
+    void rbacPerms.resetRoleToDefaults(rbacSelectedRole.value).then((result) => {
+      if (result.error) {
+        $q.notify({ type: 'negative', message: result.error });
+      } else {
+        initEditMatrix();
+        $q.notify({ type: 'positive', message: 'Permissions réinitialisées aux valeurs par défaut' });
+      }
+    }).finally(() => {
+      rbacSaving.value = false;
+    });
+  });
+}
+
+// --- User management in RBAC tab ---
+async function loadRbacUsers() {
+  rbacUsersLoading.value = true;
+  try {
+    const { data } = await insforge.database
+      .from('user_profiles')
+      .select('*')
+      .order('full_name', { ascending: true });
+    if (data) {
+      rbacUsers.value = (data as (UserRow & { user_id?: string })[]).map(u => {
+        const extra = rbacPerms.userRoleAssignments.value
+          .filter(a => a.user_id === u.user_id && (!a.expires_at || a.expires_at > new Date().toISOString()))
+          .map(a => a.role);
+        return { ...u, extra_roles: extra };
+      });
+    }
+  } finally {
+    rbacUsersLoading.value = false;
+  }
+}
+
+// --- Multi-role fusion ---
+const assignRoleDialogOpen = ref(false);
+const assignRoleTarget = ref<(UserRow & { user_id?: string; extra_roles?: string[] }) | null>(null);
+const assignRoleForm = ref({ role: '', expires_at: '' as string });
+
+const assignRoleAvailableOptions = computed(() => {
+  if (!assignRoleTarget.value) return rbacRoleOptions;
+  const primaryRole = assignRoleTarget.value.role;
+  const extras = assignRoleTarget.value.extra_roles ?? [];
+  const taken = new Set([primaryRole, ...extras]);
+  return rbacRoleOptions.filter(o => !taken.has(o.value));
+});
+
+function openAssignRoleDialog(row: UserRow & { user_id?: string; extra_roles?: string[] }) {
+  assignRoleTarget.value = row;
+  assignRoleForm.value = { role: '', expires_at: '' };
+  assignRoleDialogOpen.value = true;
+}
+
+async function onAssignRole() {
+  if (!assignRoleTarget.value?.user_id || !assignRoleForm.value.role) return;
+  rbacSaving.value = true;
+  try {
+    const result = await rbacPerms.assignRole(
+      assignRoleTarget.value.user_id,
+      assignRoleForm.value.role,
+      assignRoleForm.value.expires_at || null,
+    );
+    if (result.error) {
+      $q.notify({ type: 'negative', message: result.error });
+    } else {
+      assignRoleDialogOpen.value = false;
+      $q.notify({ type: 'positive', message: `Rôle « ${assignRoleForm.value.role} » assigné` });
+      await loadRbacUsers();
+    }
+  } finally {
+    rbacSaving.value = false;
+  }
+}
+
+function onRevokeRole(row: UserRow & { user_id?: string }, role: string) {
+  if (!row.user_id) return;
+  const userId = row.user_id;
+  $q.dialog({
+    title: 'Retirer le rôle',
+    message: `Retirer le rôle « ${role} » de ${row.full_name} ?`,
+    cancel: true,
+    persistent: true,
+  }).onOk(() => {
+    rbacSaving.value = true;
+    void rbacPerms.revokeRole(userId, role).then((result) => {
+      if (result.error) {
+        $q.notify({ type: 'negative', message: result.error });
+      } else {
+        $q.notify({ type: 'positive', message: `Rôle « ${role} » retiré` });
+        return loadRbacUsers();
+      }
+    }).finally(() => {
+      rbacSaving.value = false;
+    });
+  });
+}
+
+function generateRbacPwd(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+  let pwd = '';
+  for (let i = 0; i < 14; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  return pwd;
+}
+
+async function onCreateRbacUser() {
+  rbacSaving.value = true;
+  try {
+    const baseUrl = import.meta.env.VITE_INSFORGE_URL as string;
+    const anonKey = import.meta.env.VITE_INSFORGE_ANON_KEY as string;
+    const adminClient = createClient({ baseUrl, anonKey });
+
+    const { data: signUpData, error: signUpErr } = await adminClient.auth.signUp({
+      email: rbacUserForm.value.email,
+      password: rbacUserForm.value.password,
+      name: rbacUserForm.value.full_name,
+    });
+    if (signUpErr) throw new Error(signUpErr.message);
+
+    const newUserId = signUpData?.user?.id;
+    if (!newUserId) throw new Error('Impossible de récupérer l\'ID utilisateur');
+
+    const { error: profileErr } = await insforge.database
+      .from('user_profiles')
+      .insert({
+        user_id: newUserId,
+        company_id: companyStore.company?.id,
+        full_name: rbacUserForm.value.full_name,
+        role: rbacUserForm.value.role,
+      });
+    if (profileErr) throw new Error(profileErr.message);
+
+    rbacUserDialogOpen.value = false;
+    rbacUserForm.value = { full_name: '', email: '', role: 'comptable', password: '' };
+    $q.notify({ type: 'positive', message: 'Utilisateur créé' });
+    await loadRbacUsers();
+  } catch (err: unknown) {
+    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Erreur' });
+  } finally {
+    rbacSaving.value = false;
+  }
+}
+
 onMounted(async () => {
   loadCompanyForm();
   loadRoutingForm();
   loadChatbotState();
-  await Promise.all([loadDevices(), loadUsers(), chatbot.loadApiKeys()]);
+  initEditMatrix();
+  await Promise.all([loadDevices(), loadUsers(), chatbot.loadApiKeys(), loadRbacUsers()]);
 });
 </script>

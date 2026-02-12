@@ -10,6 +10,8 @@ export const useInvoiceStore = defineStore('invoice', () => {
   const loading = ref(false);
 
   const draftCount = computed(() => invoices.value.filter(i => i.status === 'draft').length);
+  const pendingCount = computed(() => invoices.value.filter(i => i.status === 'pending_validation').length);
+  const approvedCount = computed(() => invoices.value.filter(i => i.status === 'approved').length);
   const certifiedCount = computed(() => invoices.value.filter(i => i.status === 'certified').length);
   const totalTTCThisMonth = computed(() => {
     const now = new Date();
@@ -53,10 +55,27 @@ export const useInvoiceStore = defineStore('invoice', () => {
     return { invoice: invRes, items: itemsRes };
   }
 
-  async function createDraft(type: InvoiceType, companyId: string, operatorName: string) {
+  // Génère la référence via séquence DB (atomique, ininterrompue)
+  // Fallback: comptage local si la table invoice_sequences n'existe pas encore
+  async function getNextReference(type: InvoiceType, companyId: string): Promise<string> {
     const year = new Date().getFullYear();
+    try {
+      const { data } = await insforge.database.rpc('next_invoice_reference', {
+        p_company_id: companyId,
+        p_type: type,
+        p_year: year,
+      });
+      if (data) return data as string;
+    } catch {
+      // Fallback si la fonction DB n'est pas encore déployée
+    }
+    // Fallback: comptage local (temporaire)
     const count = invoices.value.filter(i => i.type === type).length + 1;
-    const reference = `${type}-${year}-${String(count).padStart(5, '0')}`;
+    return `${type}-${year}-${String(count).padStart(5, '0')}`;
+  }
+
+  async function createDraft(type: InvoiceType, companyId: string, operatorName: string) {
+    const reference = await getNextReference(type, companyId);
 
     const { data, error } = await insforge.database
       .from('invoices')
@@ -136,6 +155,8 @@ export const useInvoiceStore = defineStore('invoice', () => {
     currentItems,
     loading,
     draftCount,
+    pendingCount,
+    approvedCount,
     certifiedCount,
     totalTTCThisMonth,
     loadInvoices,

@@ -2,7 +2,7 @@
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-md">
-      <q-btn flat icon="arrow_back" @click="$router.push('/invoices')" />
+      <q-btn flat icon="arrow_back" @click="$router.push('/app/invoices')" />
       <q-badge :color="typeColor" :label="invoice.type" class="q-mx-sm" />
       <div class="text-h5">{{ invoice.reference || 'Nouvelle facture' }}</div>
       <q-space />
@@ -26,7 +26,7 @@
                 dense
                 clearable
                 class="col"
-                :disable="!isDraft"
+                :disable="!canEdit"
               />
               <q-select
                 v-model="invoice.price_mode"
@@ -37,9 +37,39 @@
                 outlined
                 dense
                 style="width: 120px"
-                :disable="!isDraft"
+                :disable="!canEdit"
               />
             </div>
+
+            <!-- Nature avoir (FA/EA uniquement) -->
+            <template v-if="invoice.type === 'FA' || invoice.type === 'EA'">
+              <div class="row q-gutter-sm q-mt-sm">
+                <q-select
+                  v-model="invoice.credit_note_nature"
+                  :options="creditNoteNatureOptions"
+                  emit-value
+                  map-options
+                  label="Nature de l'avoir *"
+                  outlined
+                  dense
+                  class="col"
+                  :disable="!canEdit"
+                  :rules="[v => !!v || 'Nature d\'avoir obligatoire pour FA/EA']"
+                />
+                <q-select
+                  v-model="invoice.original_invoice_id"
+                  :options="certifiedInvoiceOptions"
+                  emit-value
+                  map-options
+                  label="Facture d'origine *"
+                  outlined
+                  dense
+                  class="col"
+                  :disable="!canEdit"
+                  :rules="[v => !!v || 'Facture d\'origine obligatoire']"
+                />
+              </div>
+            </template>
           </q-card-section>
         </q-card>
 
@@ -49,7 +79,7 @@
             <div class="row items-center q-mb-sm">
               <div class="text-subtitle1 text-weight-medium">Articles</div>
               <q-space />
-              <q-btn v-if="isDraft" flat size="sm" color="primary" icon="add" label="Ajouter" no-caps @click="addItem" />
+              <q-btn v-if="canEdit" flat size="sm" color="primary" icon="add" label="Ajouter" no-caps @click="addItem" />
             </div>
 
             <q-markup-table flat bordered separator="cell" v-if="items.length > 0">
@@ -63,30 +93,30 @@
                   <th style="width:100px">HT</th>
                   <th style="width:80px">TVA</th>
                   <th style="width:100px">TTC</th>
-                  <th style="width:50px" v-if="isDraft"></th>
+                  <th style="width:50px" v-if="canEdit"></th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(item, idx) in items" :key="idx">
                   <td>
-                    <q-input v-model="item.name" dense borderless placeholder="Désignation article" :disable="!isDraft" />
+                    <q-input v-model="item.name" dense borderless placeholder="Désignation article" :disable="!canEdit" />
                   </td>
                   <td>
-                    <q-select v-model="item.type" :options="articleTypes" dense borderless emit-value map-options :disable="!isDraft" />
+                    <q-select v-model="item.type" :options="articleTypes" dense borderless emit-value map-options :disable="!canEdit" />
                   </td>
                   <td>
-                    <q-select v-model="item.tax_group" :options="taxGroupOptions" dense borderless emit-value map-options :disable="!isDraft" @update:model-value="recalcItem(idx)" />
+                    <q-select v-model="item.tax_group" :options="taxGroupOptions" dense borderless emit-value map-options :disable="!canEdit" @update:model-value="recalcItem(idx)" />
                   </td>
                   <td>
-                    <q-input v-model.number="item.quantity" type="number" dense borderless min="1" :disable="!isDraft" @update:model-value="recalcItem(idx)" />
+                    <q-input v-model.number="item.quantity" type="number" dense borderless min="1" :disable="!canEdit" @update:model-value="recalcItem(idx)" />
                   </td>
                   <td>
-                    <q-input v-model.number="item.price" type="number" dense borderless min="0" :disable="!isDraft" @update:model-value="recalcItem(idx)" />
+                    <q-input v-model.number="item.price" type="number" dense borderless min="0" :disable="!canEdit" @update:model-value="recalcItem(idx)" />
                   </td>
                   <td class="text-right">{{ fmt(item.amount_ht) }}</td>
                   <td class="text-right">{{ fmt(item.amount_tva) }}</td>
                   <td class="text-right text-weight-bold">{{ fmt(item.amount_ttc) }}</td>
-                  <td v-if="isDraft">
+                  <td v-if="canEdit">
                     <q-btn flat dense icon="delete" size="xs" color="negative" @click="removeItem(idx)" />
                   </td>
                 </tr>
@@ -98,7 +128,7 @@
         </q-card>
 
         <!-- Comments -->
-        <q-card flat bordered class="q-mb-md" v-if="isDraft && invoice.comments && invoice.comments.length > 0">
+        <q-card flat bordered class="q-mb-md" v-if="canEdit && invoice.comments && invoice.comments.length > 0">
           <q-card-section>
             <div class="text-subtitle1 text-weight-medium q-mb-sm">Commentaires</div>
             <q-input :model-value="commentContent" @update:model-value="updateComment" outlined dense type="textarea" rows="2" placeholder="Commentaire libre..." />
@@ -137,15 +167,64 @@
           </q-card-section>
         </q-card>
 
+        <!-- Workflow status banner -->
+        <q-card v-if="invoice.submitted_by || invoice.approved_by || invoice.rejected_by" flat bordered class="q-mb-md">
+          <q-card-section class="q-pa-sm">
+            <div class="text-caption q-gutter-xs">
+              <div v-if="invoice.submitted_by" class="row items-center q-gutter-xs">
+                <q-icon name="send" size="xs" color="orange" />
+                <span>Soumise par <b>{{ invoice.submitted_by }}</b></span>
+              </div>
+              <div v-if="invoice.approved_by" class="row items-center q-gutter-xs">
+                <q-icon name="thumb_up" size="xs" color="blue" />
+                <span>Approuvée par <b>{{ invoice.approved_by }}</b></span>
+              </div>
+              <div v-if="invoice.rejected_by" class="row items-center q-gutter-xs text-red">
+                <q-icon name="thumb_down" size="xs" />
+                <span>Rejetée par <b>{{ invoice.rejected_by }}</b></span>
+                <span v-if="invoice.rejection_reason"> — {{ invoice.rejection_reason }}</span>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+
         <!-- Actions -->
         <q-card flat bordered>
           <q-card-section class="q-gutter-sm">
-            <q-btn v-if="isDraft" color="primary" icon="save" label="Enregistrer brouillon" class="full-width" no-caps :loading="saving" @click="saveDraft" />
-            <q-btn v-if="isDraft && items.length > 0" color="amber-8" icon="check" label="Valider la facture" class="full-width" no-caps @click="validateInvoice" />
-            <q-btn v-if="invoice.status === 'validated'" color="green" icon="verified" label="Certifier (FNEC)" class="full-width" no-caps :loading="certifying" @click="certifyInvoice" />
+            <q-btn v-if="canEdit" color="primary" icon="save" label="Enregistrer brouillon" class="full-width" no-caps :loading="saving" @click="saveDraft" />
+            <template v-for="action in workflowActions" :key="action.key">
+              <q-btn
+                v-if="action.key !== 'certify'"
+                :color="action.color"
+                :icon="action.icon"
+                :label="action.label"
+                class="full-width"
+                no-caps
+                :loading="transitioning"
+                @click="action.needsReason ? openRejectDialog(action) : executeAction(action)"
+              />
+            </template>
+            <q-btn v-if="workflowActions.some(a => a.key === 'certify')" color="green" icon="verified" label="Certifier (SECeF)" class="full-width" no-caps :loading="certifying" @click="certifyInvoice" />
             <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="Télécharger PDF" class="full-width" no-caps @click="downloadPdf" />
+            <q-btn v-if="invoice.status === 'certified'" color="blue-grey" icon="content_copy" label="Duplicata PDF" class="full-width q-mt-xs" no-caps outline @click="downloadDuplicata" />
           </q-card-section>
         </q-card>
+
+    <!-- Rejection reason dialog -->
+    <q-dialog v-model="rejectDialogOpen" persistent>
+      <q-card style="min-width: 400px">
+        <q-card-section>
+          <div class="text-h6">{{ pendingAction?.label }}</div>
+        </q-card-section>
+        <q-card-section>
+          <q-input v-model="rejectReason" label="Motif" filled type="textarea" rows="3" :rules="[v => !!v || 'Motif obligatoire']" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn color="red" label="Confirmer" no-caps :loading="transitioning" @click="confirmReject" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
       </div>
     </div>
   </q-page>
@@ -158,9 +237,11 @@ import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useInvoicePdf } from 'src/composables/useInvoicePdf';
-import { useFnecApi } from 'src/composables/useFnecApi';
+import { useMcfApi } from 'src/composables/useMcfApi';
 import { useDegradedMode } from 'src/composables/useDegradedMode';
+import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
 import type { Invoice, InvoiceItem, Client, TaxGroup, ArticleType } from 'src/types';
+import type { WorkflowAction } from 'src/composables/useInvoiceWorkflow';
 
 interface SfeDevice { nim: string; ifu: string; jwt_secret: string; status: string }
 
@@ -168,11 +249,16 @@ const route = useRoute();
 const $q = useQuasar();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
 const { downloadPdf: pdfDownload } = useInvoicePdf();
-const fnecApi = useFnecApi();
+const mcfApi = useMcfApi();
 const { enqueue: queueForRetry } = useDegradedMode();
 const activeDevice = ref<SfeDevice | null>(null);
+const { getAvailableActions, executeTransition, canEditContent } = useInvoiceWorkflow();
 
 const invoiceId = computed(() => route.params.id as string);
+const transitioning = ref(false);
+const rejectDialogOpen = ref(false);
+const rejectReason = ref('');
+const pendingAction = ref<WorkflowAction | null>(null);
 
 const invoice = ref<Partial<Invoice>>({
   type: 'FV',
@@ -186,10 +272,12 @@ const invoice = ref<Partial<Invoice>>({
 
 const items = ref<Partial<InvoiceItem>[]>([]);
 const clients = ref<Client[]>([]);
+const certifiedInvoices = ref<Pick<Invoice, 'id' | 'reference' | 'total_ttc' | 'type' | 'status'>[]>([]);
 const saving = ref(false);
 const certifying = ref(false);
 
-const isDraft = computed(() => invoice.value.status === 'draft');
+const canEdit = computed(() => canEditContent(invoice.value));
+const workflowActions = computed(() => getAvailableActions(invoice.value));
 const commentContent = computed(() => invoice.value.comments?.[0]?.content ?? '');
 function updateComment(val: string | number | null) {
   const first = invoice.value.comments?.[0];
@@ -204,13 +292,13 @@ const typeColor = computed(() => {
 });
 
 const statusColor = computed(() => {
-  const map: Record<string, string> = { draft: 'grey', validated: 'amber-8', certified: 'green', cancelled: 'red' };
-  return map[invoice.value.status || 'draft'] || 'grey';
+  const s = invoice.value.status || 'draft';
+  return STATUS_CONFIG[s]?.color || 'grey';
 });
 
 const statusLabel = computed(() => {
-  const map: Record<string, string> = { draft: 'Brouillon', validated: 'Validée', certified: 'Certifiée', cancelled: 'Annulée' };
-  return map[invoice.value.status || 'draft'] || '';
+  const s = invoice.value.status || 'draft';
+  return STATUS_CONFIG[s]?.label || '';
 });
 
 const articleTypes = [
@@ -227,6 +315,17 @@ const taxGroupOptions = Object.entries(TAX_GROUP_RATES).map(([key, val]) => ({
 
 const clientOptions = computed(() =>
   clients.value.map(c => ({ label: `${c.name} (${c.type})`, value: c.id }))
+);
+
+const creditNoteNatureOptions = [
+  { label: 'COR — Correction', value: 'COR' },
+  { label: 'RAN — Retour avant livraison', value: 'RAN' },
+  { label: 'RAM — Retour après livraison', value: 'RAM' },
+  { label: 'RRR — Rabais/Remise/Ristourne', value: 'RRR' },
+];
+
+const certifiedInvoiceOptions = computed(() =>
+  certifiedInvoices.value.map(i => ({ label: `${i.reference} — ${fmtCur(i.total_ttc)}`, value: i.id }))
 );
 
 const totals = computed(() => {
@@ -383,27 +482,47 @@ async function saveDraft() {
   }
 }
 
-function validateInvoice() {
-  $q.dialog({
-    title: 'Valider la facture',
-    message: 'ATTENTION: Une fois validée, la facture ne pourra plus être modifiée. Continuer ?',
-    cancel: true,
-    persistent: true,
-    color: 'amber-8',
-  }).onOk(() => void (async () => {
-    await saveDraft();
-    const { error } = await insforge.database
-      .from('invoices')
-      .update({ status: 'validated', validated_at: new Date().toISOString() })
-      .eq('id', invoiceId.value);
+function openRejectDialog(action: WorkflowAction) {
+  pendingAction.value = action;
+  rejectReason.value = '';
+  rejectDialogOpen.value = true;
+}
 
-    if (error) {
-      $q.notify({ type: 'negative', message: error.message });
-    } else {
-      invoice.value.status = 'validated';
-      $q.notify({ type: 'positive', message: 'Facture validée — point de non-retour' });
+async function confirmReject() {
+  if (!pendingAction.value || !rejectReason.value) return;
+  await executeAction(pendingAction.value, rejectReason.value);
+  rejectDialogOpen.value = false;
+}
+
+async function executeAction(action: WorkflowAction, reason?: string) {
+  transitioning.value = true;
+  try {
+    // Save draft first if submitting from draft
+    if (invoice.value.status === 'draft' && action.targetStatus === 'pending_validation') {
+      await saveDraft();
     }
-  })());
+
+    const result = await executeTransition(
+      invoiceId.value,
+      invoice.value,
+      action.targetStatus,
+      reason,
+    );
+
+    if (!result.success) {
+      $q.notify({ type: 'negative', message: result.error || 'Erreur transition' });
+      return;
+    }
+
+    // Reload to get fresh data with all tracking fields
+    await loadInvoice();
+    $q.notify({ type: 'positive', message: action.label + ' — effectué' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erreur';
+    $q.notify({ type: 'negative', message });
+  } finally {
+    transitioning.value = false;
+  }
 }
 
 async function certifyInvoice() {
@@ -421,19 +540,19 @@ async function certifyInvoice() {
     }
     const dev = activeDevice.value;
 
-    // 1. Authenticate with FNEC
-    const authResult = await fnecApi.getToken({
+    // 1. Authentification MCF
+    const authResult = await mcfApi.getToken({
       clientId: dev.ifu,
       clientSecret: dev.jwt_secret,
       nim: dev.nim,
     });
     if (authResult.error) {
-      $q.notify({ type: 'negative', message: `FNEC Auth: ${authResult.error.message}` });
+      $q.notify({ type: 'negative', message: `MCF Auth: ${authResult.error.message}` });
       return;
     }
 
     // 2. Submit invoice
-    const submitResult = await fnecApi.submitInvoice({
+    const submitResult = await mcfApi.submitInvoice({
       ifu: dev.ifu,
       type: invoice.value.type,
       reference: invoice.value.reference,
@@ -451,7 +570,7 @@ async function certifyInvoice() {
     });
 
     if (submitResult.error) {
-      $q.notify({ type: 'negative', message: `FNEC Submit: ${submitResult.error.message}` });
+      $q.notify({ type: 'negative', message: `MCF Soumission: ${submitResult.error.message}` });
       return;
     }
 
@@ -459,9 +578,9 @@ async function certifyInvoice() {
     const uid = submitResult.data?.uid;
     if (!uid) return;
 
-    const confirmResult = await fnecApi.confirmInvoice(uid);
+    const confirmResult = await mcfApi.confirmInvoice(uid);
     if (confirmResult.error) {
-      $q.notify({ type: 'negative', message: `FNEC Certify: ${confirmResult.error.message}` });
+      $q.notify({ type: 'negative', message: `MCF Certification: ${confirmResult.error.message}` });
       return;
     }
 
@@ -507,19 +626,52 @@ async function certifyInvoice() {
   }
 }
 
-function downloadPdf() {
+async function downloadPdf() {
   const inv = invoice.value as Invoice;
   const client = clients.value.find(c => c.id === inv.client_id);
-  pdfDownload(
+  await pdfDownload(
     inv,
     items.value as InvoiceItem[],
     undefined,
     client ? { name: client.name, ifu: client.ifu, type: client.type, address: client.address } : undefined,
+    {
+      operatorName: inv.operator_name,
+      creditNoteNature: inv.credit_note_nature || undefined,
+      originalInvoiceRef: certifiedInvoices.value.find(i => i.id === inv.original_invoice_id)?.reference,
+    },
   );
 }
 
+async function downloadDuplicata() {
+  const inv = invoice.value as Invoice;
+  const client = clients.value.find(c => c.id === inv.client_id);
+  await pdfDownload(
+    inv,
+    items.value as InvoiceItem[],
+    undefined,
+    client ? { name: client.name, ifu: client.ifu, type: client.type, address: client.address } : undefined,
+    {
+      isDuplicate: true,
+      operatorName: inv.operator_name,
+      creditNoteNature: inv.credit_note_nature || undefined,
+      originalInvoiceRef: certifiedInvoices.value.find(i => i.id === inv.original_invoice_id)?.reference,
+    },
+  );
+}
+
+async function loadCertifiedInvoices() {
+  const { data } = await insforge.database
+    .from('invoices')
+    .select('id, reference, total_ttc, type, status')
+    .eq('status', 'certified')
+    .in('type', ['FV', 'FT', 'EV', 'ET'])
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (data) certifiedInvoices.value = data as typeof certifiedInvoices.value;
+}
+
 onMounted(async () => {
-  await Promise.all([loadInvoice(), loadClients()]);
+  await Promise.all([loadInvoice(), loadClients(), loadCertifiedInvoices()]);
   // Recalc all items on load
   items.value.forEach((_, idx) => recalcItem(idx));
 });

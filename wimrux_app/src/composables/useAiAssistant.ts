@@ -16,7 +16,7 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const TASK_SYSTEM_PROMPTS: Record<AiTaskType, string> = {
   assistant_fiscal: `Tu es un assistant fiscal expert pour le Burkina Faso. Tu aides les utilisateurs de WIMRUX® FINANCES avec :
 - La réglementation fiscale burkinabè (TVA, PSVB, timbre quittance, groupes A-P)
-- Les factures normalisées certifiées (FNEC) et les exigences DGI
+- Les factures électroniques certifiées (FEC) SECeF et les exigences DGI
 - Le calcul des taxes et la conformité fiscale
 - L'interprétation des rapports Z et X
 - Les conseils de gestion financière et comptable

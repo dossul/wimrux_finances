@@ -47,10 +47,11 @@ export default defineRouter(function ({ store }) {
 
     const requiresAuth = to.matched.some((r) => r.meta.requiresAuth);
     const isAuthRoute = to.matched.some((r) => r.meta.isAuthRoute);
+    const requiredPermissions = to.meta.permissions;
     const requiredRoles = to.meta.roles;
 
-    // Redirect logged-in users away from auth pages
-    if (isAuthRoute && authStore.isAuthenticated) {
+    // Redirect logged-in users away from auth pages and landing
+    if ((isAuthRoute || to.name === 'landing') && authStore.isAuthenticated) {
       return next({ name: 'dashboard' });
     }
 
@@ -58,7 +59,13 @@ export default defineRouter(function ({ store }) {
       return next({ name: 'login', query: { redirect: to.fullPath } });
     }
 
-    if (requiredRoles && requiredRoles.length > 0 && !authStore.hasAnyRole(requiredRoles)) {
+    // Permission-based guard (primary) — respects multi-role fusion
+    if (requiredPermissions && requiredPermissions.length > 0 && !authStore.hasAnyPermission(requiredPermissions)) {
+      return next({ name: 'dashboard' });
+    }
+
+    // Legacy role-based guard (fallback for routes without permissions)
+    if (!requiredPermissions && requiredRoles && requiredRoles.length > 0 && !authStore.hasAnyRole(requiredRoles)) {
       return next({ name: 'dashboard' });
     }
 

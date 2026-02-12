@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { insforge } from 'src/boot/insforge';
-import { useFnecApi } from './useFnecApi';
+import { useMcfApi } from './useMcfApi';
 import type { PendingCertification } from 'src/types';
 
 interface SfeDevice { nim: string; ifu: string; jwt_secret: string; status: string }
@@ -8,7 +8,7 @@ interface SfeDevice { nim: string; ifu: string; jwt_secret: string; status: stri
 export function useDegradedMode() {
   const queue = ref<PendingCertification[]>([]);
   const processing = ref(false);
-  const fnecApi = useFnecApi();
+  const mcfApi = useMcfApi();
 
   async function loadQueue() {
     const { data } = await insforge.database
@@ -63,11 +63,11 @@ export function useDegradedMode() {
       const items = (itemsData || []) as Record<string, unknown>[];
 
       // Auth
-      const authResult = await fnecApi.getToken({ clientId: dev.ifu, clientSecret: dev.jwt_secret, nim: dev.nim });
+      const authResult = await mcfApi.getToken({ clientId: dev.ifu, clientSecret: dev.jwt_secret, nim: dev.nim });
       if (authResult.error) throw new Error(authResult.error.message);
 
       // Submit
-      const submitResult = await fnecApi.submitInvoice({
+      const submitResult = await mcfApi.submitInvoice({
         ifu: dev.ifu,
         type: inv['type'] as string,
         reference: inv['reference'] as string,
@@ -89,7 +89,7 @@ export function useDegradedMode() {
       if (!uid) throw new Error('UID manquant');
 
       // Confirm
-      const confirmResult = await fnecApi.confirmInvoice(uid);
+      const confirmResult = await mcfApi.confirmInvoice(uid);
       if (confirmResult.error) throw new Error(confirmResult.error.message);
 
       const cert = confirmResult.data;

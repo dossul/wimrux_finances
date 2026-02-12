@@ -41,7 +41,16 @@ export function useAiUsage() {
         .limit(5000);
       if (from) query = query.gte('created_at', from);
       if (to) query = query.lte('created_at', to);
-      const { data } = await query;
+      const { data, error } = await query;
+      if (error) {
+        console.warn('[useAiUsage] fetchAllUsage error:', error.message);
+        logs.value = [];
+        aggregateByModel([]);
+        extractModerations([]);
+        computeTotals([]);
+        byCompany.value = [];
+        return;
+      }
       const allLogs = (data || []) as AiUsageLog[];
       logs.value = allLogs;
       aggregateByModel(allLogs);

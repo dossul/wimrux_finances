@@ -1,0 +1,668 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "PHASE 0 — Infrastructure Projet Quasar + InsForge",
+        "description": "Initialisation du projet Quasar 2.x, Vue 3 Composition API, TypeScript strict, InsForge SDK, Pinia, structure de dossiers, variables d'environnement, boot insforge.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "details": "Projet créé avec Quasar CLI. TypeScript strict activé. InsForge SDK configuré dans src/boot/insforge.ts (baseUrl: https://gfe4bd9y.eu-central.insforge.app). Pinia installé. Structure: src/composables/, src/stores/, src/types/, src/pages/. Variables .env configurées. PWA activé.",
+        "testStrategy": "quasar dev compile sans erreur, imports InsForge fonctionnent, PWA se génère.",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "PHASE 0 — Schéma DB PostgreSQL (19 tables + RLS + triggers)",
+        "description": "Création des 19 tables avec RLS company_id, triggers audit JSONB, fonction get_user_company_id(), triggers d'inaltérabilité sur invoices et audit_log.",
+        "status": "done",
+        "dependencies": [1],
+        "priority": "high",
+        "details": "Tables: companies, user_profiles, clients, invoices, invoice_items, devices, treasury_accounts, treasury_movements, audit_log, fiscal_reports, pending_certification_queue, ai_usage_logs, company_role_permissions, user_role_assignments, chatbot_api_keys, chatbot_permissions, chatbot_conversations, chatbot_messages, sim_invoices. RLS avec get_user_company_id() sur toutes les tables. Trigger log_audit_changes() JSONB. Trigger notify_audit_entry(). Triggers BEFORE UPDATE/DELETE sur invoices (status validated/certified) et audit_log (toujours).",
+        "testStrategy": "Toutes les tables existent, RLS fonctionne, triggers fonctionnent, audit_log s'incrémente.",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "PHASE 0 — Edge Functions (fnec-simulator, crypto-aes256, chatbot-gateway)",
+        "description": "Déploiement des 3 Edge Functions sur InsForge: simulateur FNEC (11 endpoints), chiffrement AES-256, gateway chatbot.",
+        "status": "done",
+        "dependencies": [2],
+        "priority": "high",
+        "details": "fnec-simulator: 11 endpoints REST (/bf/fnec/auth/token, /status, /invoices, /invoices/:uid/confirm, /cancel, /info/taxGroups, /invoiceTypes, /paymentTypes, /reports/z, /reports/x). Codes erreur BF001-BF099. crypto-aes256: encrypt/decrypt AES-256-CBC. chatbot-gateway: auth API key, permission check, AI intent, 11 actions.",
+        "testStrategy": "Chaque Edge Function répond correctement via insforge.functions.invoke().",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "PHASE 1 — Types & Interfaces TypeScript (640 lignes)",
+        "description": "Définition complète des types dans src/types/index.ts: 10 rôles, 20 permissions, 6 types factures, 4 types clients, 4 types articles, 16 groupes taxation, 7 modes paiement, interfaces Invoice/InvoiceItem/Client/Company/FNEC/Audit/Treasury/Chatbot/RBAC.",
+        "status": "done",
+        "dependencies": [1],
+        "priority": "high",
+        "details": "UserRole (10), Permission (20), ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS. InvoiceType (FV/FT/FA/EV/ET/EA), InvoiceStatus (6), PriceMode (HT/TTC), ArticleType (LOCBIE/LOCSER/IMPBIE/IMPSER), ClientType (CC/PM/PP/PC), TaxGroup (A-P), PaymentType (7). Company avec bank_accounts, tax_regime, tax_office, ai_routing, chatbot_enabled. Invoice avec tous champs certification (code_secef_dgi, qr_code, nim, counters, signature, fiscal_number). FNEC types complets. Chatbot types (6 interfaces). RBAC types (CompanyRolePermission, UserRoleAssignment).",
+        "testStrategy": "vue-tsc clean, aucune erreur de type.",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "PHASE 1 — Système RBAC granulaire + multi-rôle",
+        "description": "usePermissions composable avec 20 permissions, company overrides, user role assignments, multi-role fusion (UNION). Intégration auth-store.",
+        "status": "done",
+        "dependencies": [2, 4],
+        "priority": "high",
+        "details": "usePermissions.ts: setContext(), loadCompanyPermissions(), getEffectivePermissions(), getUserEffectivePermissions(), hasPermission/hasAnyPermission/hasAllPermissions, bulkSetPermissions, resetRoleToDefaults, assignRole, revokeRole. Auth-store: proxy hasPermission/hasAnyPermission, setContext après loadProfile. project_admin bypass all. Routes utilisent meta.permissions au lieu de meta.roles. Router guard vérifie hasAnyPermission.",
+        "testStrategy": "Accès conditionnel fonctionne par rôle et permission. project_admin a accès total.",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "PHASE 1 — Router + Layouts + Auth (Login/Register/ForgotPassword)",
+        "description": "Router history mode, guard beforeEach avec session wait, AuthLayout gradient, MainLayout avec nav permissions. Pages Login, Register, ForgotPassword.",
+        "status": "done",
+        "dependencies": [4, 5],
+        "priority": "high",
+        "details": "routes.ts: landing public, /auth (login, forgot-password), /app avec 12 routes protégées par permissions. Router guard: wait authStore.loading, redirect si non-auth, redirect si auth sur auth pages, check permissions. AuthLayout: gradient branding WIMRUX. MainLayout: sidebar nav avec permissions, realtime indicator. LoginPage, RegisterPage, ForgotPasswordPage fonctionnels.",
+        "testStrategy": "Navigation protégée, redirections correctes, session auto-load au boot.",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "PHASE 2 — Calcul fiscal DGI (16 groupes A-P, PSVB, timbre)",
+        "description": "useTaxCalculation composable: 16 groupes de taxation (A-P) avec taux TVA et PSVB conformes DGI BF, modes HT/TTC, timbre quittance, arrondi 2 décimales.",
+        "status": "done",
+        "dependencies": [4],
+        "priority": "high",
+        "details": "TAX_GROUP_RATES: A (exonéré 0%/2%), B (TVA 18%/2%), C (TVA 10%/2%), D (export 0%/0%), E-G (dérogatoire), H (synthétique), I-K (consignation/dépôts/débours), L-M (TDT/séjour 10%), N (PBA), O-P (réservé). calculateItemTax(): mode HT→TTC et TTC→HT. calculateStampDuty(): paliers 5k/25k/50k/100k FCFA. calculateInvoiceTotals(): agrégation par groupe, grand totals. round2(): arrondi fiscal.",
+        "testStrategy": "Calculs corrects pour chaque groupe, HT+TVA=TTC strictement, timbre sur espèces uniquement.",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "PHASE 2 — API FNEC composable (useFnecApi)",
+        "description": "Composable useFnecApi: communication avec Edge Function fnec-simulator, retry automatique, 11 endpoints, codes erreur BF001-BF099.",
+        "status": "done",
+        "dependencies": [3, 4],
+        "priority": "high",
+        "details": "callFnec<T>: wrapper générique avec retry (2x), gestion erreurs. getToken(), getStatus(), submitInvoice(), confirmInvoice(), cancelInvoice(), getInvoiceDetails(), getTaxGroups(), getInvoiceTypes(), getPaymentTypes(), getZReport(), getXReport(). ERROR_MESSAGES: 20 codes erreur BF001-BF099 traduits en français.",
+        "testStrategy": "Chaque endpoint retourne les données attendues, retries fonctionnent, erreurs propagées.",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "PHASE 2 — Workflow facture (useInvoiceWorkflow)",
+        "description": "Cycle de vie facture: draft → pending_validation → approved → validated → certified. Permission-based transitions. Anti-fraude (soumetteur ≠ approbateur).",
+        "status": "done",
+        "dependencies": [5, 8],
+        "priority": "high",
+        "details": "TRANSITION_PERMISSIONS: 6 transitions avec permission requise. canTransition(): vérifie permission + anti-fraude. getAvailableActions(): retourne les actions disponibles selon le statut et les permissions de l'utilisateur. executeTransition(): update DB avec tracking (submitted_by, approved_by, etc.). STATUS_CONFIG: labels/couleurs/icônes. isReadOnly, canEditContent. project_admin bypass.",
+        "testStrategy": "Séparation des pouvoirs respectée, transitions correctes, anti-fraude fonctionne.",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "PHASE 2 — Invoice Store Pinia",
+        "description": "Store centralisé pour les factures: CRUD, KPIs (draftCount, pendingCount, certifiedCount, totalTTCThisMonth), gestion items.",
+        "status": "done",
+        "dependencies": [4],
+        "priority": "high",
+        "details": "useInvoiceStore: loadInvoices(filters), loadInvoiceById(id), createDraft(type, companyId, operatorName), updateInvoice(id, updates), saveItems(invoiceId, items), clearCurrent(). Computed KPIs. Référence auto: TYPE-YYYY-NNNNN.",
+        "testStrategy": "CRUD fonctionne, KPIs se mettent à jour, items sauvegardés correctement.",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "PHASE 2 — Pages Factures (Liste + Éditeur)",
+        "description": "InvoicesListPage.vue: liste avec filtres (statut, type, période), badges statut, actions. InvoiceEditorPage.vue: formulaire complet (client, articles, calcul fiscal, workflow, certification FNEC).",
+        "status": "done",
+        "dependencies": [7, 8, 9, 10],
+        "priority": "high",
+        "details": "InvoicesListPage: table Quasar, filtres colonnes, recherche, tri, pagination. InvoiceEditorPage: sélection type facture, mode prix HT/TTC, ajout/suppression articles avec calcul auto, sélection client, paiements, workflow actions, certification FNEC (submit + confirm), affichage éléments de sécurité.",
+        "testStrategy": "Création/édition/soumission/certification fonctionne end-to-end.",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "PHASE 2 — Génération PDF FEC (useInvoicePdf)",
+        "description": "Composable useInvoicePdf: jsPDF + autoTable, format A4, bloc émetteur/client, table articles, résumé fiscal par groupe, bloc totaux, bloc certification si certifiée.",
+        "status": "done",
+        "dependencies": [7, 11],
+        "priority": "high",
+        "details": "Header WIMRUX FINANCES + SFE homologué DGI BF. Type facture en titre. Colonnes: #, Désignation, Type, Grp, Qté, P.U., HT, TVA, TTC. Résumé fiscal par groupe actif. Bloc totaux (HT, TVA, PSVB, timbre, TTC). Bloc certification vert si certified (N° Fiscal, Code SECeF/DGI, NIM, Date, UID, QR). Footer WIMRUX.",
+        "testStrategy": "PDF généré avec toutes les sections, téléchargement fonctionne.",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "PHASE 3 — Module Clients (CRUD complet)",
+        "description": "ClientsPage.vue: CRUD clients avec types (CC/PM/PP/PC), validation IFU, recherche, badges type, isolation company_id.",
+        "status": "done",
+        "dependencies": [4, 6],
+        "priority": "high",
+        "details": "Table clients avec colonnes type, nom, IFU, RCCM, phone, email, statut. Dialog création/édition. Type client obligatoire. IFU obligatoire si PM ou PC. Badges type colorés. Recherche textuelle. Activation/désactivation.",
+        "testStrategy": "CRUD fonctionne, validation IFU correcte pour PM/PC.",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "PHASE 3 — Module Trésorerie",
+        "description": "TreasuryPage.vue: comptes (banque/caisse/mobile money) + mouvements (crédit/débit) avec company_id isolation.",
+        "status": "done",
+        "dependencies": [4, 6],
+        "priority": "medium",
+        "details": "Onglets comptes et mouvements. Comptes: nom, type (bank/cash/mobile_money), solde. Mouvements: compte, montant, type (crédit/débit), description, mode paiement, référence. Lié aux factures (invoice_id optionnel).",
+        "testStrategy": "CRUD comptes et mouvements, soldes corrects.",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "PHASE 3 — Module Rapports + Rapports Fiscaux Z/X",
+        "description": "ReportsPage.vue: KPIs par période. FiscalReportsPage.vue: génération Z-Rapport et X-Rapport via FNEC API.",
+        "status": "done",
+        "dependencies": [8, 11],
+        "priority": "high",
+        "details": "ReportsPage: filtres période, KPIs (CA, factures, moyenne, etc.), répartition par type et groupe fiscal. FiscalReportsPage: boutons Générer Z-Rapport / X-Rapport, affichage résultat structuré, sauvegarde dans fiscal_reports.",
+        "testStrategy": "KPIs corrects, Z/X rapports générés et sauvegardés.",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "PHASE 3 — Journal d'Audit (inaltérable)",
+        "description": "AuditLogPage.vue: consultation du journal d'audit avec filtres, détail dialog, badge INALTÉRABLE. Aucune modification possible (trigger BEFORE UPDATE/DELETE).",
+        "status": "done",
+        "dependencies": [2, 6],
+        "priority": "high",
+        "details": "Table audit_log: user_id, timestamp, action_type, table_name, record_id, data_before, data_after, company_id. Filtres: action, table, période, utilisateur. Dialog détail avec diff JSON. Badge « INALTÉRABLE ». RLS: SELECT admin/auditeur, INSERT système uniquement.",
+        "testStrategy": "Logs affichés, filtres fonctionnent, impossible de modifier/supprimer.",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "PHASE 4 — Assistant IA fiscal",
+        "description": "AiAssistantPage.vue + useAiAssistant composable: chat IA avec routing par tâche, modèles configurables par entreprise, usage tracking.",
+        "status": "done",
+        "dependencies": [3, 6],
+        "priority": "medium",
+        "details": "useAiAssistant: sendMessage(), conversation history, streaming. AiRouting par tâche (6 types). Companies: ai_model, ai_fallback_model, ai_system_prompt, ai_enabled, openrouter_api_key. Logging dans ai_usage_logs (tokens, latency, cost, moderation).",
+        "testStrategy": "Chat IA fonctionne, routing par tâche, logs enregistrés.",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "PHASE 4 — Suivi IA Admin + Chatbot Gateway",
+        "description": "AdminAiUsagePage, AdminChatbotPage, useAiUsage, useChatbotConfig, useChatbotSkill. Gestion API keys chatbot, permissions granulaires, conversations.",
+        "status": "done",
+        "dependencies": [3, 17],
+        "priority": "medium",
+        "details": "AdminAiUsagePage: KPIs par modèle/entreprise, moderation logs. AdminChatbotPage: toggle chatbot, gestion clés API, permissions par action, conversations. useChatbotConfig: CRUD clés + permissions. useChatbotSkill: exécution des 11 actions chatbot. Edge Function chatbot-gateway: auth API key, permission check, AI intent, action dispatch.",
+        "testStrategy": "Admin voit l'usage IA, gestion chatbot complète.",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "PHASE 5 — Chiffrement AES-256 + Mode dégradé + Realtime",
+        "description": "useCrypto (AES-256 via Edge Function), useDegradedMode (file d'attente certification), useRealtimeNotifications (WebSocket events).",
+        "status": "done",
+        "dependencies": [3, 8],
+        "priority": "high",
+        "details": "useCrypto: encrypt/decrypt via Edge Function crypto-aes256. useDegradedMode: pending_certification_queue, loadQueue, enqueue, retryOne (auth→submit→confirm), retryAll. useRealtimeNotifications: subscribe DB changes (invoices, audit_log), toast notifications.",
+        "testStrategy": "Chiffrement/déchiffrement correct, retry certification, notifications temps réel.",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "PHASE 5 — Dashboard + Landing Page + Settings complets",
+        "description": "IndexPage.vue (KPIs dashboard), LandingPage.vue (public), SettingsPage.vue (entreprise, devices SFE, utilisateurs, IA, chatbot, RBAC).",
+        "status": "done",
+        "dependencies": [5, 6, 11],
+        "priority": "high",
+        "details": "Dashboard: cartes KPI (brouillons, en attente, certifiées, CA mensuel), factures récentes, actions rapides. Landing: présentation WIMRUX, features, CTA. Settings: 6 onglets — profil entreprise, appareils SFE, utilisateurs, config IA, chatbot API, RBAC (matrice permissions, multi-rôle).",
+        "testStrategy": "Dashboard affiche les données, settings fonctionnels.",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "PHASE 5 — Export CSV + i18n fr/en + 404 page",
+        "description": "useExportCsv composable, internationalisation français/anglais, ErrorNotFound page.",
+        "status": "done",
+        "dependencies": [6],
+        "priority": "low",
+        "details": "useExportCsv: export générique vers CSV. i18n: boot/i18n.ts, locale par défaut fr, traductions complètes fr/en. ErrorNotFound.vue: page 404 stylisée.",
+        "testStrategy": "Export CSV fonctionne, changement de langue, 404 sur routes inconnues.",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "PHASE 6 — PDF FEC: Mentions obligatoires vendeur complètes",
+        "description": "Ajouter sur le PDF les mentions obligatoires vendeur manquantes: RCCM, références comptes bancaires, régime d'imposition, service des impôts de rattachement. Réf. Spéc. SFE §3(a-l).",
+        "status": "pending",
+        "dependencies": [12],
+        "priority": "high",
+        "details": "Modifier useInvoicePdf.ts pour ajouter dans le bloc émetteur: RCCM du company, bank_accounts (nom banque + IBAN), tax_regime, tax_office. Le paramètre company du generatePdf() doit être étendu pour inclure ces champs. Prendre les données depuis company-store.",
+        "testStrategy": "PDF contient toutes les mentions vendeur conformes à la spécification SFE §3.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Étendre le paramètre company de generatePdf() avec bank_accounts, tax_regime, tax_office",
+            "description": "Ajouter les champs manquants à l'interface du paramètre company dans useInvoicePdf",
+            "dependencies": [],
+            "status": "pending",
+            "testStrategy": "Pas d'erreur TypeScript"
+          },
+          {
+            "id": 2,
+            "title": "Ajouter RCCM, comptes bancaires, régime d'imposition, service des impôts dans le bloc émetteur du PDF",
+            "description": "Modifier le bloc émetteur pour afficher les mentions obligatoires",
+            "dependencies": [1],
+            "status": "pending",
+            "testStrategy": "PDF contient RCCM, comptes bancaires, régime, service des impôts"
+          }
+        ]
+      },
+      {
+        "id": 23,
+        "title": "PHASE 6 — PDF FEC: QR Code 2D réel (scannable)",
+        "description": "Remplacer le placeholder QR texte par un vrai QR Code 2D scannable généré avec la librairie qrcode. Format: BF;{fiscalNumber};{codeSECeF_sans_tirets};{IFU};{dateTime}. Réf. Spéc. SFE §2.30.",
+        "status": "pending",
+        "dependencies": [12],
+        "priority": "high",
+        "details": "Installer qrcode (npm install qrcode @types/qrcode). Dans useInvoicePdf.ts, générer un QR Code 2D en Data URL (toDataURL) avec le contenu conforme DGI, puis l'insérer dans le PDF avec doc.addImage(). Le QR doit être scannable et contenir: BF;{fiscalNumber};{codeSECeF_sans_tirets};{IFU_vendeur};{dateTime_YYYYMMDDHHMMSS}.",
+        "testStrategy": "QR Code visible sur le PDF, scannable avec un lecteur QR, contenu conforme au format DGI.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Installer qrcode + @types/qrcode",
+            "description": "Ajouter la dépendance qrcode pour la génération de QR codes",
+            "dependencies": [],
+            "status": "pending",
+            "testStrategy": "Package installé sans erreur"
+          },
+          {
+            "id": 2,
+            "title": "Générer le QR Code Data URL dans useInvoicePdf",
+            "description": "Construire la chaîne BF;... et la convertir en QR Code image",
+            "dependencies": [1],
+            "status": "pending",
+            "testStrategy": "QR Code inséré dans le PDF, scannable"
+          }
+        ]
+      },
+      {
+        "id": 24,
+        "title": "PHASE 6 — PDF FEC: Montant en lettres (français)",
+        "description": "Ajouter le montant total TTC en lettres (français) sur la facture PDF. Réf. Spéc. SFE §3(u).",
+        "status": "pending",
+        "dependencies": [12],
+        "priority": "high",
+        "details": "Créer une fonction numberToFrenchWords(n: number): string qui convertit un montant en FCFA en lettres (français). Exemples: 150000 → 'Cent cinquante mille francs CFA', 1234567 → 'Un million deux cent trente-quatre mille cinq cent soixante-sept francs CFA'. Intégrer dans le PDF après le bloc totaux.",
+        "testStrategy": "Montant en lettres correct pour différents montants, affiché sur le PDF.",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "PHASE 6 — PDF FEC: Mention légale + Mentions conditionnelles",
+        "description": "Ajouter « EXIGEZ LA FACTURE ÉLECTRONIQUE CERTIFIÉE » en pied de page. Ajouter mentions conditionnelles: DUPLICATA, FACTURE D'AVOIR + nature, EXPORTATION, D'ACOMPTE. Réf. Spéc. SFE §3(f-i).",
+        "status": "pending",
+        "dependencies": [12],
+        "priority": "high",
+        "details": "Footer PDF: ajouter la mention légale DGI. En-tête type facture: ajouter 'DUPLICATA' si duplicata, 'FACTURE D'AVOIR — [COR/RAN/RAM/RRR]' si FA/EA, 'EXPORTATION' si EV/ET/EA, 'D'ACOMPTE' si FT/ET. Ces mentions sont cumulatives (ex: facture export acompte = EXPORTATION + D'ACOMPTE).",
+        "testStrategy": "Chaque type de facture affiche les mentions correctes sur le PDF.",
+        "subtasks": []
+      },
+      {
+        "id": 26,
+        "title": "PHASE 6 — PDF FEC: ISF, opérateur, commentaires, paiements",
+        "description": "Ajouter sur le PDF: ISF (identifiant SFE), nom de l'opérateur, lignes de commentaire (A-H), détail des modes de paiement. Réf. Spéc. SFE §3(m-w).",
+        "status": "pending",
+        "dependencies": [12],
+        "priority": "high",
+        "details": "ISF = 4 premiers caractères du NIM (ou ISF configuré dans devices). Opérateur = invoice.operator_name. Commentaires: 8 lignes max (A-H), label + contenu si renseigné. Paiements: tableau type + montant. Tout dans useInvoicePdf.ts.",
+        "testStrategy": "PDF contient ISF, opérateur, commentaires (si renseignés), détail paiements.",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "PHASE 7 — Validation adresse cadastrale (SSSS LLL PPPP)",
+        "description": "Valider le format adresse cadastrale (11 caractères numériques: SSSS LLL PPPP) dans Company et Client. Réf. Spéc. SFE §3(c).",
+        "status": "pending",
+        "dependencies": [4, 13],
+        "priority": "high",
+        "details": "Regex: /^\\d{4} \\d{3} \\d{4}$/. Validation dans: SettingsPage (profil entreprise), ClientsPage (création/édition client), InvoiceEditorPage (si adresse client affichée). Afficher message d'erreur explicite si format invalide. Le champ address_cadastral existe déjà dans Company et Client.",
+        "testStrategy": "Format invalide rejeté, format valide accepté, message d'erreur clair.",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "PHASE 7 — Référence facture: séquence DB ininterrompue par année",
+        "description": "Remplacer le comptage local (invoices.value.filter) par une séquence DB garantissant l'unicité et la continuité par type+année. Réf. Spéc. SFE §2.18.",
+        "status": "pending",
+        "dependencies": [10],
+        "priority": "high",
+        "details": "Créer une table invoice_sequences (company_id, type, year, last_number) avec UNIQUE (company_id, type, year). Edge Function ou trigger qui incrémente atomiquement last_number et retourne la nouvelle référence TYPE-YYYY-NNNNN. Aucun trou autorisé dans la séquence. En cas de concurrence, retry automatique.",
+        "testStrategy": "Références uniques, séquence continue, pas de doublons même en concurrence.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Créer la table invoice_sequences + trigger/function d'incrémentation atomique",
+            "description": "DDL pour la table et la function PostgreSQL next_invoice_reference()",
+            "dependencies": [],
+            "status": "pending",
+            "testStrategy": "La séquence s'incrémente correctement, pas de gap"
+          },
+          {
+            "id": 2,
+            "title": "Modifier invoice-store.createDraft() pour utiliser la séquence DB",
+            "description": "Appeler la function DB au lieu du comptage local",
+            "dependencies": [1],
+            "status": "pending",
+            "testStrategy": "Références correctes en base, pas de doublons"
+          }
+        ]
+      },
+      {
+        "id": 29,
+        "title": "PHASE 7 — Taxe spécifique: base TVA augmentée",
+        "description": "Corriger useTaxCalculation pour que la base taxable de la TVA soit augmentée de la taxe spécifique si applicable. Réf. Spéc. SFE §6.9.",
+        "status": "pending",
+        "dependencies": [7],
+        "priority": "high",
+        "details": "Actuellement, specificTax est ajouté au lineTotal directement. Selon la spec: 'Prix HT = sans taxe spécifique. Si taxe spécifique applicable, base taxable TVA augmentée de la taxe spécifique'. Donc: baseTVA = montantHT + specificTax, puis TVA = baseTVA × tauxTVA. Le montant TTC = montantHT + specificTax + TVA. Modifier calculateItemTax() dans useTaxCalculation.ts.",
+        "testStrategy": "Calcul conforme: HT=1000, specificTax=50, tauxTVA=18% → TVA=(1000+50)×0.18=189, TTC=1000+50+189=1239.",
+        "subtasks": []
+      },
+      {
+        "id": 30,
+        "title": "PHASE 7 — Facture d'avoir: nature obligatoire (COR/RAN/RAM/RRR) + référence originale",
+        "description": "Lors de la création d'une FA ou EA, obliger la sélection de la nature (COR/RAN/RAM/RRR) et la référence de la facture originale. Réf. Spéc. SFE §2.28-2.29.",
+        "status": "pending",
+        "dependencies": [9, 11],
+        "priority": "high",
+        "details": "Ajouter un champ 'credit_note_nature' (COR/RAN/RAM/RRR) dans l'interface Invoice et la table invoices. Dans InvoiceEditorPage: si type FA ou EA, afficher un sélecteur de nature + un sélecteur de facture originale (original_invoice_id déjà existant). Nature COR=Correction, RAN=Annulation sans livraison, RAM=Après livraison, RRR=Rabais/Remise/Ristourne (référence='RRR'). Validation: nature obligatoire, montant avoir ≤ montant original.",
+        "testStrategy": "FA sans nature rejetée, référence originale obligatoire, montant contrôlé.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Ajouter colonne credit_note_nature à la table invoices + type TypeScript",
+            "description": "Migration DB + mise à jour interface Invoice",
+            "dependencies": [],
+            "status": "pending",
+            "testStrategy": "Colonne existe, type compilé"
+          },
+          {
+            "id": 2,
+            "title": "UI: sélecteur nature d'avoir + facture originale dans InvoiceEditorPage",
+            "description": "Composant conditionnel si type FA/EA",
+            "dependencies": [1],
+            "status": "pending",
+            "testStrategy": "Sélecteurs visibles pour FA/EA, cachés pour les autres types"
+          },
+          {
+            "id": 3,
+            "title": "Validation: nature requise, montant ≤ original, référence RRR pour rabais",
+            "description": "Logique de validation côté client",
+            "dependencies": [2],
+            "status": "pending",
+            "testStrategy": "Validation bloque si nature manquante ou montant excessif"
+          }
+        ]
+      },
+      {
+        "id": 31,
+        "title": "PHASE 7 — Facture d'exportation: IFU client format libre",
+        "description": "Pour les factures EV/ET/EA, permettre un IFU client en format libre (pas de validation format DGI). Réf. Spéc. SFE §7 (Types du client).",
+        "status": "pending",
+        "dependencies": [11, 13],
+        "priority": "medium",
+        "details": "Dans InvoiceEditorPage et ClientsPage: si le type de facture est EV/ET/EA, désactiver la validation regex de l'IFU client. L'IFU peut être un identifiant étranger au format libre. Ajouter la mention EXPORTATION automatiquement.",
+        "testStrategy": "IFU libre accepté pour export, IFU strict pour local.",
+        "subtasks": []
+      },
+      {
+        "id": 32,
+        "title": "PHASE 7 — Duplicata facture",
+        "description": "Permettre la génération d'un duplicata de facture (copie avec mention DUPLICATA, même référence, même Code SECeF/DGI). Réf. Spéc. SFE §2.11.",
+        "status": "pending",
+        "dependencies": [11, 12],
+        "priority": "medium",
+        "details": "Bouton 'Duplicata' sur les factures certified. Génère un PDF identique avec mention DUPLICATA en rouge en haut. La référence et tous les éléments de sécurité restent identiques à l'original. Le duplicata a le même CPIT que l'original (spec §2.10.4). Option: stocker le duplicata comme entrée dans une table duplicates ou simplement régénérer le PDF à la volée.",
+        "testStrategy": "Duplicata génère un PDF identique avec mention DUPLICATA.",
+        "subtasks": []
+      },
+      {
+        "id": 33,
+        "title": "PHASE 8 — A-Rapport (rapport détaillé articles)",
+        "description": "Implémenter le A-Rapport: détail complet de chaque article vendu avec quantités, montants, stock. Réf. Spéc. SFE §5.",
+        "status": "pending",
+        "dependencies": [15],
+        "priority": "medium",
+        "details": "Ajouter dans FiscalReportsPage ou ReportsPage: bouton 'Générer A-Rapport'. Contenu: nom commercial, IFU, date/heure, ISF, puis pour chaque article: code, nom, prix unitaire, taux d'impôt, quantité vendue, quantité retournée, quantité en stock. Depuis le dernier A-Rapport. Sauvegarder dans fiscal_reports avec type='A'.",
+        "testStrategy": "A-Rapport généré avec détails articles, sauvegardé en base.",
+        "subtasks": []
+      },
+      {
+        "id": 34,
+        "title": "PHASE 8 — Gestion d'inventaire / stock articles",
+        "description": "Module de gestion d'inventaire: entrées/sorties de stock, état d'inventaire. Réf. Spéc. SFE §2.19-2.20.",
+        "status": "pending",
+        "dependencies": [4],
+        "priority": "medium",
+        "details": "Nouvelle table articles (company_id, code, name, type, unit_price, unit, tax_group, stock_quantity). Nouvelle page ArticlesPage.vue: CRUD articles, entrées/sorties stock, rapport d'état d'inventaire. Lien avec InvoiceEditorPage: sélection d'articles depuis la base au lieu de saisie manuelle. Mise à jour automatique du stock lors de la certification d'une facture.",
+        "testStrategy": "CRUD articles, stock mis à jour après certification, rapport inventaire.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Créer table articles + RLS + type TypeScript",
+            "description": "DDL + migration + interface Article dans types/index.ts",
+            "dependencies": [],
+            "status": "pending",
+            "testStrategy": "Table existe, RLS fonctionne"
+          },
+          {
+            "id": 2,
+            "title": "Page ArticlesPage.vue: CRUD articles + gestion stock",
+            "description": "Liste, création, édition, entrée/sortie stock",
+            "dependencies": [1],
+            "status": "pending",
+            "testStrategy": "CRUD fonctionne, stock modifiable"
+          },
+          {
+            "id": 3,
+            "title": "Intégration InvoiceEditorPage: sélection articles depuis la base",
+            "description": "Autocomplete articles existants + création rapide",
+            "dependencies": [2],
+            "status": "pending",
+            "testStrategy": "Articles sélectionnables, prix/taxe pré-remplis"
+          },
+          {
+            "id": 4,
+            "title": "Trigger: mise à jour stock après certification facture",
+            "description": "Décrémenter le stock de chaque article lors du passage à certified",
+            "dependencies": [3],
+            "status": "pending",
+            "testStrategy": "Stock diminue correctement après certification"
+          }
+        ]
+      },
+      {
+        "id": 35,
+        "title": "PHASE 8 — Dépôts et retraits de numéraires",
+        "description": "Enregistrer les dépôts et retraits de numéraires dans le SFE. Réf. Spéc. SFE §2.13.",
+        "status": "pending",
+        "dependencies": [14],
+        "priority": "low",
+        "details": "Dans TreasuryPage: ajouter une section dédiée aux mouvements de caisse (dépôts/retraits). Distinguer des mouvements liés aux factures. Ces mouvements doivent apparaître dans les rapports Z/X.",
+        "testStrategy": "Dépôts/retraits enregistrés, apparaissent dans les rapports.",
+        "subtasks": []
+      },
+      {
+        "id": 36,
+        "title": "PHASE 8 — Alerte MCF hors ligne > 7 jours",
+        "description": "Afficher un avertissement quotidien si le MCF n'est pas connecté à l'Administration depuis plus de 7 jours. Réf. Spéc. SFE §2.31.",
+        "status": "pending",
+        "dependencies": [8, 19],
+        "priority": "medium",
+        "details": "Dans useFnecApi ou useDegradedMode: au chargement de l'app, appeler getStatus(). Si lastAuditRemote > 7 jours ou deviceStatus !== 'ACTIF', afficher un QNotify warning persistant. Vérifier quotidiennement (localStorage timestamp). Afficher aussi dans le Dashboard (carte d'alerte rouge).",
+        "testStrategy": "Alerte visible si MCF offline > 7j, disparaît si connexion OK.",
+        "subtasks": []
+      },
+      {
+        "id": 37,
+        "title": "PHASE 9 — Storage bucket PDFs + upload après génération",
+        "description": "Créer un bucket InsForge Storage pour les PDFs de factures. Uploader automatiquement le PDF après génération et stocker l'URL dans invoices.pdf_url.",
+        "status": "pending",
+        "dependencies": [12],
+        "priority": "medium",
+        "details": "Créer bucket 'invoice-pdfs' via MCP create-bucket. Dans useInvoicePdf ou invoice-store: après generatePdf(), convertir en Blob, uploader via insforge.storage.upload('invoice-pdfs', path, blob). Mettre à jour invoices.pdf_url. Permettre le téléchargement depuis la liste des factures via l'URL stockée.",
+        "testStrategy": "PDF uploadé, URL stockée, téléchargement fonctionne.",
+        "subtasks": []
+      },
+      {
+        "id": 38,
+        "title": "PHASE 9 — Fix: route Register manquante dans routes.ts",
+        "description": "La page RegisterPage.vue existe mais n'est pas dans les routes. Ajouter la route /auth/register.",
+        "status": "pending",
+        "dependencies": [6],
+        "priority": "high",
+        "details": "Dans routes.ts, dans le children de /auth, ajouter: { path: 'register', name: 'register', component: () => import('pages/auth/RegisterPage.vue'), meta: { title: 'Inscription' } }.",
+        "testStrategy": "/auth/register accessible et fonctionne.",
+        "subtasks": []
+      },
+      {
+        "id": 39,
+        "title": "PHASE 10 — Tests unitaires composables critiques",
+        "description": "Tests unitaires pour useTaxCalculation, useInvoiceWorkflow, useFnecApi (mock). Vitest.",
+        "status": "pending",
+        "dependencies": [7, 8, 9],
+        "priority": "medium",
+        "details": "Installer vitest + @vue/test-utils. Tests useTaxCalculation: chaque groupe taxation, modes HT/TTC, timbre, arrondi, taxe spécifique. Tests useInvoiceWorkflow: transitions valides/invalides, anti-fraude. Tests useFnecApi: mock Edge Function, retry, erreurs.",
+        "testStrategy": "100% des cas de test passent, coverage > 80% sur les composables critiques.",
+        "subtasks": []
+      },
+      {
+        "id": 40,
+        "title": "PHASE 10 — Tests e2e (Playwright)",
+        "description": "Tests end-to-end: parcours complet création facture → certification, workflow multi-rôle, rapports.",
+        "status": "pending",
+        "dependencies": [39],
+        "priority": "medium",
+        "details": "Installer @playwright/test. Scénarios: (1) Login admin → créer facture → articles → soumettre. (2) Login superviseur → approuver → valider. (3) Certification FNEC → vérifier PDF. (4) Créer FA avec nature. (5) Rapports Z/X. (6) RBAC: accès refusé pour rôle non autorisé.",
+        "testStrategy": "Tous les scénarios e2e passent.",
+        "subtasks": []
+      },
+      {
+        "id": 41,
+        "title": "PHASE 10 — Audit sécurité (RLS, triggers, inaltérabilité)",
+        "description": "Vérifier exhaustivement les RLS, triggers d'inaltérabilité, et la sécurité de l'application.",
+        "status": "pending",
+        "dependencies": [2],
+        "priority": "high",
+        "details": "Vérifier: (1) RLS sur toutes les tables (company isolation). (2) Trigger BEFORE UPDATE/DELETE sur invoices bloque si validated/certified. (3) Trigger BEFORE UPDATE/DELETE sur audit_log bloque toujours. (4) Pas de fuite de données cross-company. (5) API keys chatbot hashées. (6) Secrets chiffrés AES-256. (7) JWT validation sur Edge Functions.",
+        "testStrategy": "Aucune violation de sécurité détectée, tests manuels de contournement échouent.",
+        "subtasks": []
+      },
+      {
+        "id": 42,
+        "title": "PHASE 11 — Guide d'installation (français)",
+        "description": "Documentation technique d'installation pour l'homologation DGI. Réf. Spéc. MCF §2.4.2(a).",
+        "status": "pending",
+        "dependencies": [22, 23, 24, 25, 26, 27, 28, 29, 30],
+        "priority": "medium",
+        "details": "Document Markdown/PDF: prérequis (navigateur, connexion internet), installation (inscription, configuration entreprise IFU/RCCM, connexion MCF/NIM), premier lancement, configuration initiale (groupes taxation, comptes bancaires, utilisateurs). En français uniquement.",
+        "testStrategy": "Un utilisateur non-technique peut installer et configurer en suivant le guide.",
+        "subtasks": []
+      },
+      {
+        "id": 43,
+        "title": "PHASE 11 — Manuel de l'utilisateur (français)",
+        "description": "Manuel utilisateur complet pour l'homologation DGI. Réf. Spéc. MCF §2.4.2(b).",
+        "status": "pending",
+        "dependencies": [42],
+        "priority": "medium",
+        "details": "Document complet: création factures (6 types), gestion clients, paiements, workflow validation, certification, PDF, duplicata, avoir, export, rapports Z/X/A, trésorerie, paramètres. Captures d'écran de chaque page. En français.",
+        "testStrategy": "Chaque fonctionnalité couverte avec captures d'écran.",
+        "subtasks": []
+      },
+      {
+        "id": 44,
+        "title": "PHASE 11 — Manuel de l'agent des impôts (français)",
+        "description": "Manuel spécifique pour les agents DGI: vérification factures, audit, éléments de sécurité. Réf. Spéc. MCF §2.4.2(c).",
+        "status": "pending",
+        "dependencies": [43],
+        "priority": "medium",
+        "details": "Document: comment vérifier une FEC (QR Code, Code SECeF/DGI, compteurs, NIM), comment faire un audit local/distant, comment vérifier l'intégrité des données, accès journal d'audit, rapports fiscaux. En français.",
+        "testStrategy": "Un agent DGI peut vérifier une facture en suivant le manuel.",
+        "subtasks": []
+      },
+      {
+        "id": 45,
+        "title": "PHASE 11 — Dossier technique homologation DGI",
+        "description": "Dossier complet pour le comité d'homologation: conformité aux spécifications techniques, architecture, sécurité.",
+        "status": "pending",
+        "dependencies": [42, 43, 44],
+        "priority": "medium",
+        "details": "Compilation: architecture technique (SFE→MCF→SYGMEF), conformité point par point (chaque § des spécifications), matrice de conformité, résultats des tests, documentation sécurité (chiffrement, inaltérabilité, RLS), environnement d'exploitation, performance. Soumission au comité d'homologation pour obtenir l'attestation de conformité et l'ISF.",
+        "testStrategy": "Dossier complet, chaque point de conformité documenté.",
+        "subtasks": []
+      },
+      {
+        "id": 46,
+        "title": "PHASE 12 — Multi-company switching UI",
+        "description": "Interface pour basculer entre les entreprises (SaaS multi-tenant). Sélecteur dans le header MainLayout.",
+        "status": "pending",
+        "dependencies": [20],
+        "priority": "low",
+        "details": "company-store a déjà loadCompanies et setActiveCompany. Ajouter un QSelect dans MainLayout header qui liste les companies de l'utilisateur et permet de basculer. Recharger les données (invoices, clients, etc.) après changement.",
+        "testStrategy": "Basculement d'entreprise fonctionne, données isolées.",
+        "subtasks": []
+      },
+      {
+        "id": 47,
+        "title": "PHASE 12 — Optimisation PWA + performance",
+        "description": "Optimisation PWA (service worker, cache), lazy loading, code splitting, performance.",
+        "status": "pending",
+        "dependencies": [46],
+        "priority": "low",
+        "details": "Service worker pour offline basique (shell). Code splitting par route (déjà en lazy import). Optimisation bundle (tree-shaking, compression). Lighthouse score > 90. Cache API responses. Prefetch routes fréquentes.",
+        "testStrategy": "Lighthouse PWA > 90, temps de chargement < 3s.",
+        "subtasks": []
+      },
+      {
+        "id": 48,
+        "title": "PHASE 12 — Déploiement production",
+        "description": "Déploiement de l'application sur un hébergement production via InsForge deployment ou autre.",
+        "status": "pending",
+        "dependencies": [41, 47],
+        "priority": "low",
+        "details": "Build production (quasar build). Déployer via MCP create-deployment ou Netlify. Configurer domaine wimrux.bf. Vérifier HTTPS, performance, sécurité. Backup strategy pour la DB.",
+        "testStrategy": "Application accessible publiquement, HTTPS, performance OK.",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "projectName": "WIMRUX FINANCES",
+      "version": "3.0",
+      "totalTasks": 48,
+      "doneTasks": 21,
+      "pendingTasks": 27,
+      "updated": "2026-02-12T01:15:00.000Z",
+      "description": "Tâches alignées sur les spécifications DGI Burkina Faso (SECeF/SFE/MCF) — Audit complet du code existant effectué le 12/02/2026",
+      "deadline": "2026-07-01T00:00:00.000Z",
+      "phases": {
+        "phase0_infrastructure": {"tasks": [1,2,3], "status": "done"},
+        "phase1_architecture": {"tasks": [4,5,6], "status": "done"},
+        "phase2_facturation_core": {"tasks": [7,8,9,10,11,12], "status": "done"},
+        "phase3_modules_metier": {"tasks": [13,14,15,16], "status": "done"},
+        "phase4_ia_chatbot": {"tasks": [17,18], "status": "done"},
+        "phase5_securite_ux": {"tasks": [19,20,21], "status": "done"},
+        "phase6_conformite_pdf_fec": {"tasks": [22,23,24,25,26], "status": "pending", "priority": "CRITIQUE"},
+        "phase7_conformite_validation": {"tasks": [27,28,29,30,31,32], "status": "pending", "priority": "CRITIQUE"},
+        "phase8_rapports_inventaire": {"tasks": [33,34,35,36], "status": "pending"},
+        "phase9_storage_fixes": {"tasks": [37,38], "status": "pending"},
+        "phase10_tests": {"tasks": [39,40,41], "status": "pending"},
+        "phase11_documentation_homologation": {"tasks": [42,43,44,45], "status": "pending"},
+        "phase12_production": {"tasks": [46,47,48], "status": "pending"}
+      }
+    }
+  }
+}

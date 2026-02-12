@@ -1,16 +1,25 @@
 import type { RouteRecordRaw } from 'vue-router';
-import type { UserRole } from 'src/types';
+import type { UserRole, Permission } from 'src/types';
 
 declare module 'vue-router' {
   interface RouteMeta {
     requiresAuth?: boolean;
     isAuthRoute?: boolean;
     roles?: UserRole[];
+    permissions?: Permission[];
     title?: string;
   }
 }
 
 const routes: RouteRecordRaw[] = [
+  // Landing page (public)
+  {
+    path: '/',
+    name: 'landing',
+    component: () => import('pages/LandingPage.vue'),
+    meta: { title: 'WIMRUX FINANCES - Facturation Électronique' },
+  },
+
   // Auth pages (no layout, public)
   {
     path: '/auth',
@@ -25,23 +34,23 @@ const routes: RouteRecordRaw[] = [
 
   // App pages (main layout, authenticated)
   {
-    path: '/',
+    path: '/app',
     component: () => import('layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
     children: [
-      { path: '', name: 'dashboard', component: () => import('pages/IndexPage.vue'), meta: { title: 'Tableau de bord', roles: ['admin', 'caissier', 'auditeur'] } },
-      { path: 'invoices', name: 'invoices', component: () => import('pages/invoices/InvoicesListPage.vue'), meta: { title: 'Factures', roles: ['admin', 'caissier'] } },
-      { path: 'invoices/new', name: 'invoice-new', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Nouvelle facture', roles: ['admin', 'caissier'] } },
-      { path: 'invoices/:id', name: 'invoice-edit', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Facture', roles: ['admin', 'caissier'] } },
-      { path: 'clients', name: 'clients', component: () => import('pages/clients/ClientsPage.vue'), meta: { title: 'Clients', roles: ['admin', 'caissier'] } },
-      { path: 'treasury', name: 'treasury', component: () => import('pages/treasury/TreasuryPage.vue'), meta: { title: 'Trésorerie', roles: ['admin'] } },
-      { path: 'reports', name: 'reports', component: () => import('pages/reports/ReportsPage.vue'), meta: { title: 'Rapports', roles: ['admin', 'auditeur'] } },
-      { path: 'reports/fiscal', name: 'fiscal-reports', component: () => import('pages/reports/FiscalReportsPage.vue'), meta: { title: 'Rapports fiscaux', roles: ['admin'] } },
-      { path: 'audit', name: 'audit', component: () => import('pages/audit/AuditLogPage.vue'), meta: { title: 'Journal d\'audit', roles: ['admin', 'auditeur'] } },
-      { path: 'ai-assistant', name: 'ai-assistant', component: () => import('pages/ai/AiAssistantPage.vue'), meta: { title: 'Assistant IA', roles: ['admin', 'caissier', 'auditeur'] } },
-      { path: 'admin/ai-usage', name: 'admin-ai-usage', component: () => import('pages/admin/AdminAiUsagePage.vue'), meta: { title: 'Suivi IA Admin', roles: ['admin'] } },
-      { path: 'admin/chatbot', name: 'admin-chatbot', component: () => import('pages/admin/AdminChatbotPage.vue'), meta: { title: 'Chatbot Admin', roles: ['admin'] } },
-      { path: 'settings', name: 'settings', component: () => import('pages/settings/SettingsPage.vue'), meta: { title: 'Paramètres', roles: ['admin'] } },
+      { path: '', name: 'dashboard', component: () => import('pages/IndexPage.vue'), meta: { title: 'Tableau de bord', permissions: ['dashboard.view'] } },
+      { path: 'invoices', name: 'invoices', component: () => import('pages/invoices/InvoicesListPage.vue'), meta: { title: 'Factures', permissions: ['invoices.read'] } },
+      { path: 'invoices/new', name: 'invoice-new', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Nouvelle facture', permissions: ['invoices.create'] } },
+      { path: 'invoices/:id', name: 'invoice-edit', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Facture', permissions: ['invoices.read'] } },
+      { path: 'clients', name: 'clients', component: () => import('pages/clients/ClientsPage.vue'), meta: { title: 'Clients', permissions: ['clients.read'] } },
+      { path: 'treasury', name: 'treasury', component: () => import('pages/treasury/TreasuryPage.vue'), meta: { title: 'Trésorerie', permissions: ['treasury.read'] } },
+      { path: 'reports', name: 'reports', component: () => import('pages/reports/ReportsPage.vue'), meta: { title: 'Rapports', permissions: ['reports.read'] } },
+      { path: 'reports/fiscal', name: 'fiscal-reports', component: () => import('pages/reports/FiscalReportsPage.vue'), meta: { title: 'Rapports fiscaux', permissions: ['reports.fiscal'] } },
+      { path: 'audit', name: 'audit', component: () => import('pages/audit/AuditLogPage.vue'), meta: { title: 'Journal d\'audit', permissions: ['audit.read'] } },
+      { path: 'ai-assistant', name: 'ai-assistant', component: () => import('pages/ai/AiAssistantPage.vue'), meta: { title: 'Assistant IA', permissions: ['ai.use'] } },
+      { path: 'admin/ai-usage', name: 'admin-ai-usage', component: () => import('pages/admin/AdminAiUsagePage.vue'), meta: { title: 'Suivi IA Admin', permissions: ['settings.manage'] } },
+      { path: 'admin/chatbot', name: 'admin-chatbot', component: () => import('pages/admin/AdminChatbotPage.vue'), meta: { title: 'Chatbot Admin', permissions: ['settings.manage'] } },
+      { path: 'settings', name: 'settings', component: () => import('pages/settings/SettingsPage.vue'), meta: { title: 'Paramètres', permissions: ['settings.manage'] } },
     ],
   },
 

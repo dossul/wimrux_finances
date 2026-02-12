@@ -51,10 +51,24 @@
       </q-card-section>
     </q-card>
 
+    <!-- MCF/SECeF connectivity alert -->
+    <q-banner v-if="mcfOnline === false" class="bg-red-1 text-red-9 q-mb-md rounded-borders" dense>
+      <template v-slot:avatar><q-icon name="cloud_off" color="red" /></template>
+      <strong>Alerte SECeF :</strong> Le serveur MCF/SYGMEF est injoignable. Les certifications utiliseront le mode dégradé.
+      <span v-if="lastMcfCheck" class="text-caption q-ml-sm">(Dernière vérif. : {{ new Date(lastMcfCheck).toLocaleTimeString('fr-FR') }})</span>
+      <template v-slot:action>
+        <q-btn flat no-caps color="red" label="Revérifier" icon="refresh" @click="recheckMcf" />
+      </template>
+    </q-banner>
+    <q-banner v-else-if="mcfOnline === true" class="bg-green-1 text-green-9 q-mb-md rounded-borders" dense>
+      <template v-slot:avatar><q-icon name="cloud_done" color="green" /></template>
+      <strong>SECeF connecté</strong> — Dispositif {{ mcfDeviceStatus || 'ACTIF' }}
+    </q-banner>
+
     <!-- Mode Dégradé banner -->
     <q-banner v-if="pendingQueueCount > 0" class="bg-orange-1 text-orange-9 q-mb-md rounded-borders" dense>
       <template v-slot:avatar><q-icon name="wifi_off" color="orange" /></template>
-      <strong>Mode dégradé :</strong> {{ pendingQueueCount }} facture(s) en attente de certification FNEC.
+      <strong>Mode dégradé :</strong> {{ pendingQueueCount }} facture(s) en attente de certification SECeF.
       <template v-slot:action>
         <q-btn flat no-caps color="orange" label="Relancer tout" icon="replay" :loading="retrying" @click="retryAllPending" />
       </template>
@@ -79,10 +93,12 @@ import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useDegradedMode } from 'src/composables/useDegradedMode';
+import { useMcfAlert } from 'src/composables/useMcfAlert';
 import type { Invoice } from 'src/types';
 
 const $q = useQuasar();
 const { queue: pendingQueue, loadQueue, retryAll } = useDegradedMode();
+const { mcfOnline, lastCheck: lastMcfCheck, deviceStatus: mcfDeviceStatus, checkStatus: recheckMcf } = useMcfAlert();
 const loading = ref(false);
 const retrying = ref(false);
 const pendingQueueCount = ref(0);

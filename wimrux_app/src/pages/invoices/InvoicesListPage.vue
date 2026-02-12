@@ -4,7 +4,7 @@
       <div class="text-h5">Factures</div>
       <q-space />
       <q-btn outline color="primary" icon="download" label="Export CSV" no-caps class="q-mr-sm" @click="exportCsv" />
-      <q-btn-dropdown color="primary" icon="add" label="Nouvelle facture" no-caps>
+      <q-btn-dropdown v-if="!isReadOnly" color="primary" icon="add" label="Nouvelle facture" no-caps>
         <q-list>
           <q-item clickable v-close-popup v-for="t in invoiceTypeOptions" :key="t.value" @click="createInvoice(t.value)">
             <q-item-section avatar><q-icon name="receipt_long" /></q-item-section>
@@ -56,8 +56,8 @@
       </template>
       <template v-slot:body-cell-actions="props">
         <q-td :props="props">
-          <q-btn flat dense icon="visibility" size="sm" @click="$router.push(`/invoices/${props.row.id}`)" />
-          <q-btn v-if="props.row.status === 'draft'" flat dense icon="edit" size="sm" @click="$router.push(`/invoices/${props.row.id}`)" />
+          <q-btn flat dense icon="visibility" size="sm" @click="$router.push(`/app/invoices/${props.row.id}`)" />
+          <q-btn v-if="props.row.status === 'draft'" flat dense icon="edit" size="sm" @click="$router.push(`/app/invoices/${props.row.id}`)" />
         </q-td>
       </template>
     </q-table>
@@ -70,11 +70,13 @@ import { useRouter } from 'vue-router';
 import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useExportCsv } from 'src/composables/useExportCsv';
-import type { Invoice } from 'src/types';
+import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
+import type { Invoice, InvoiceStatus } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const { exportInvoices } = useExportCsv();
+const { isReadOnly } = useInvoiceWorkflow();
 
 const invoices = ref<Invoice[]>([]);
 const loading = ref(false);
@@ -91,12 +93,10 @@ const invoiceTypeOptions = [
   { label: 'Export avoir', value: 'EA' },
 ];
 
-const statusOptions = [
-  { label: 'Brouillon', value: 'draft' },
-  { label: 'Validée', value: 'validated' },
-  { label: 'Certifiée', value: 'certified' },
-  { label: 'Annulée', value: 'cancelled' },
-];
+const statusOptions = Object.entries(STATUS_CONFIG).map(([value, cfg]) => ({
+  label: cfg.label,
+  value,
+}));
 
 const columns = [
   { name: 'type', label: 'Type', field: 'type', align: 'center' as const, sortable: true },
@@ -124,13 +124,11 @@ function typeColor(t: string) {
 }
 
 function statusColor(s: string) {
-  const map: Record<string, string> = { draft: 'grey', validated: 'amber-8', certified: 'green', cancelled: 'red' };
-  return map[s] || 'grey';
+  return STATUS_CONFIG[s as InvoiceStatus]?.color || 'grey';
 }
 
 function statusLabel(s: string) {
-  const map: Record<string, string> = { draft: 'Brouillon', validated: 'Validée', certified: 'Certifiée', cancelled: 'Annulée' };
-  return map[s] || s;
+  return STATUS_CONFIG[s as InvoiceStatus]?.label || s;
 }
 
 function formatCurrency(n: number) {
@@ -178,7 +176,7 @@ async function createInvoice(type: string) {
     .single();
 
   if (!error && data) {
-    await router.push(`/invoices/${(data as Invoice).id}`);
+    await router.push(`/app/invoices/${(data as Invoice).id}`);
   }
 }
 

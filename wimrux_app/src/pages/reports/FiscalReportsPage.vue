@@ -1,7 +1,7 @@
 <template>
   <q-page padding>
     <div class="row items-center q-mb-md">
-      <div class="text-h5">Rapports fiscaux (FNEC)</div>
+      <div class="text-h5">Rapports fiscaux (MCF/SYGMEF)</div>
       <q-space />
       <q-badge color="teal" label="DGI Burkina Faso" class="q-px-sm q-py-xs" />
     </div>
@@ -111,7 +111,7 @@
 import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
-import { useFnecApi } from 'src/composables/useFnecApi';
+import { useMcfApi } from 'src/composables/useMcfApi';
 
 interface ReportDetail {
   group: string;
@@ -136,7 +136,7 @@ interface FiscalReport {
 }
 
 const $q = useQuasar();
-const fnecApi = useFnecApi();
+const mcfApi = useMcfApi();
 
 const reportType = ref<'Z' | 'X'>('Z');
 const generating = ref(false);
@@ -164,8 +164,8 @@ async function generateFiscalReport() {
   generating.value = true;
   try {
     const result = reportType.value === 'Z'
-      ? await fnecApi.getZReport()
-      : await fnecApi.getXReport();
+      ? await mcfApi.getZReport()
+      : await mcfApi.getXReport();
 
     if (result.error) {
       $q.notify({ type: 'negative', message: result.error.message });
