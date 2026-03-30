@@ -94,7 +94,7 @@ export type UserRole =
 | `invoices.submit` | Facturation | Soumettre pour validation | send |
 | `invoices.approve` | Facturation | Approuver les factures | thumb_up |
 | `invoices.validate` | Facturation | Valider définitivement | check_circle |
-| `invoices.certify` | Facturation | Certifier via FNEC | verified |
+| `invoices.certify` | Facturation | Certifier via MCF | verified |
 | `clients.create` | Clients | Créer des clients | person_add |
 | `clients.read` | Clients | Consulter les clients | people |
 | `clients.update` | Clients | Modifier les clients | edit |

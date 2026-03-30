@@ -58,6 +58,7 @@
         <q-td :props="props">
           <q-btn flat dense icon="visibility" size="sm" @click="$router.push(`/app/invoices/${props.row.id}`)" />
           <q-btn v-if="props.row.status === 'draft'" flat dense icon="edit" size="sm" @click="$router.push(`/app/invoices/${props.row.id}`)" />
+          <q-btn v-if="props.row.status === 'draft'" flat dense icon="delete" size="sm" color="negative" @click="confirmDeleteDraft(props.row)" />
         </q-td>
       </template>
     </q-table>
@@ -67,14 +68,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
+import { useInvoiceStore } from 'src/stores/invoice-store';
 import { useExportCsv } from 'src/composables/useExportCsv';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
 import type { Invoice, InvoiceStatus } from 'src/types';
 
 const router = useRouter();
+const $q = useQuasar();
 const authStore = useAuthStore();
+const invoiceStore = useInvoiceStore();
 const { exportInvoices } = useExportCsv();
 const { isReadOnly } = useInvoiceWorkflow();
 
@@ -91,6 +96,7 @@ const invoiceTypeOptions = [
   { label: 'Export vente', value: 'EV' },
   { label: 'Export acompte', value: 'ET' },
   { label: 'Export avoir', value: 'EA' },
+  { label: 'Proforma', value: 'PF' },
 ];
 
 const statusOptions = Object.entries(STATUS_CONFIG).map(([value, cfg]) => ({
@@ -119,7 +125,7 @@ const filteredInvoices = computed(() => {
 });
 
 function typeColor(t: string) {
-  const map: Record<string, string> = { FV: 'blue', FT: 'teal', FA: 'orange', EV: 'indigo', ET: 'cyan', EA: 'deep-orange' };
+  const map: Record<string, string> = { FV: 'blue', FT: 'teal', FA: 'orange', EV: 'indigo', ET: 'cyan', EA: 'deep-orange', PF: 'purple' };
   return map[t] || 'grey';
 }
 
@@ -159,15 +165,21 @@ async function loadInvoices() {
 async function createInvoice(type: string) {
   const now = new Date();
   const year = now.getFullYear();
-  const count = invoices.value.filter(i => i.type === type).length + 1;
-  const reference = `${type}-${year}-${String(count).padStart(5, '0')}`;
+
+  const { data: refData, error: refError } = await insforge.database
+    .rpc('next_invoice_reference', { p_company_id: authStore.companyId, p_type: type, p_year: year });
+
+  if (refError) {
+    $q.notify({ type: 'negative', message: 'Erreur lors de la génération de la référence' });
+    return;
+  }
 
   const { data, error } = await insforge.database
     .from('invoices')
     .insert({
       company_id: authStore.companyId,
       type,
-      reference,
+      reference: refData as string,
       status: 'draft',
       price_mode: 'TTC',
       operator_name: authStore.fullName,
@@ -178,6 +190,26 @@ async function createInvoice(type: string) {
   if (!error && data) {
     await router.push(`/app/invoices/${(data as Invoice).id}`);
   }
+}
+
+async function doDeleteDraft(inv: Invoice) {
+  const { error } = await invoiceStore.deleteDraft(inv.id);
+  if (error) {
+    $q.notify({ type: 'negative', message: error.message || 'Erreur lors de la suppression' });
+  } else {
+    invoices.value = invoices.value.filter(i => i.id !== inv.id);
+    $q.notify({ type: 'positive', message: `Brouillon ${inv.reference} supprimé` });
+  }
+}
+
+function confirmDeleteDraft(inv: Invoice) {
+  $q.dialog({
+    title: 'Supprimer le brouillon',
+    message: `Voulez-vous vraiment supprimer le brouillon ${inv.reference} ? Cette action est irréversible.`,
+    cancel: { label: 'Annuler', flat: true },
+    ok: { label: 'Supprimer', color: 'negative' },
+    persistent: true,
+  }).onOk(() => { void doDeleteDraft(inv); });
 }
 
 function exportCsv() {

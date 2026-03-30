@@ -1,6 +1,6 @@
-import type { TaxGroup, PriceMode, PaymentType, InvoiceItem } from 'src/types';
+import type { TaxGroup, PriceMode, PaymentType, InvoiceItem, TaxGroupConfig, StampDutyThreshold } from 'src/types';
 
-// --- 16 Groupes de taxation A-P ---
+// --- 16 Groupes de taxation A-P (BF hardcodé — fallback par défaut) ---
 export const TAX_GROUP_RATES: Record<TaxGroup, { description: string; tva: number; psvb: number }> = {
   A: { description: 'Exonéré', tva: 0, psvb: 0.02 },
   B: { description: 'TVA taxable 1', tva: 0.18, psvb: 0.02 },
@@ -33,9 +33,9 @@ export interface ItemTaxResult {
 }
 
 export interface TaxSummary {
-  totalHT: Record<TaxGroup, number>;
-  tva: Record<TaxGroup, number>;
-  psvb: Record<TaxGroup, number>;
+  totalHT: Record<string, number>;
+  tva: Record<string, number>;
+  psvb: Record<string, number>;
   grandTotalHT: number;
   grandTotalTVA: number;
   grandTotalPSVB: number;
@@ -43,14 +43,29 @@ export interface TaxSummary {
   stampDuty: number;
 }
 
-function initGroupMap(): Record<TaxGroup, number> {
-  const map = {} as Record<TaxGroup, number>;
-  const groups: TaxGroup[] = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'];
-  groups.forEach(g => { map[g] = 0; });
+function initGroupMap(groups?: string[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  const keys = groups ?? ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'];
+  keys.forEach(g => { map[g] = 0; });
   return map;
 }
 
-export function useTaxCalculation() {
+export interface FiscalCalcConfig {
+  taxGroups?: Record<string, TaxGroupConfig>;
+  stampDutyEnabled?: boolean;
+  stampDutyThresholds?: StampDutyThreshold[];
+  psvbEnabled?: boolean;
+}
+
+export function useTaxCalculation(fiscalCalcConfig?: FiscalCalcConfig) {
+
+  function getGroupRates(taxGroup: string): { tva: number; psvb: number } {
+    if (fiscalCalcConfig?.taxGroups) {
+      const g = fiscalCalcConfig.taxGroups[taxGroup];
+      if (g) return { tva: g.tva, psvb: fiscalCalcConfig.psvbEnabled !== false ? g.psvb : 0 };
+    }
+    return TAX_GROUP_RATES[taxGroup as TaxGroup] ?? { tva: 0, psvb: 0 };
+  }
 
   // Conforme DGI BF — Spéc. SFE §6.9
   // Base taxable TVA = montant HT + taxe spécifique (si applicable)
@@ -64,7 +79,7 @@ export function useTaxCalculation() {
     discount = 0,
     specificTax = 0,
   ): ItemTaxResult {
-    const rates = TAX_GROUP_RATES[taxGroup];
+    const rates = getGroupRates(taxGroup);
 
     let ht: number;
     if (priceMode === 'TTC') {
@@ -92,11 +107,23 @@ export function useTaxCalculation() {
   }
 
   function calculateStampDuty(totalTTC: number, payments: { type: PaymentType; amount: number }[]): number {
+    if (fiscalCalcConfig?.stampDutyEnabled === false) return 0;
+
     const cashAmount = payments
       .filter(p => p.type === 'ESPECES')
       .reduce((sum, p) => sum + (p.amount || 0), 0);
 
     if (cashAmount <= 0) return 0;
+
+    // Use configurable thresholds if provided
+    if (fiscalCalcConfig?.stampDutyThresholds?.length) {
+      for (const t of fiscalCalcConfig.stampDutyThresholds) {
+        if (t.max === null || totalTTC <= t.max) return t.amount;
+      }
+      return 0;
+    }
+
+    // BF defaults
     if (totalTTC < 5000) return 0;
     if (totalTTC <= 25000) return 100;
     if (totalTTC <= 50000) return 200;
@@ -109,9 +136,10 @@ export function useTaxCalculation() {
     priceMode: PriceMode,
     payments: { type: PaymentType; amount: number }[] = [],
   ): TaxSummary {
-    const totalHT = initGroupMap();
-    const tva = initGroupMap();
-    const psvb = initGroupMap();
+    const groupKeys = fiscalCalcConfig?.taxGroups ? Object.keys(fiscalCalcConfig.taxGroups) : undefined;
+    const totalHT = initGroupMap(groupKeys);
+    const tva = initGroupMap(groupKeys);
+    const psvb = initGroupMap(groupKeys);
 
     let grandTotalHT = 0;
     let grandTotalTVA = 0;
@@ -128,9 +156,9 @@ export function useTaxCalculation() {
         item.specific_tax,
       );
 
-      totalHT[item.tax_group] = round2(totalHT[item.tax_group] + result.amountHT);
-      tva[item.tax_group] = round2(tva[item.tax_group] + result.amountTVA);
-      psvb[item.tax_group] = round2(psvb[item.tax_group] + result.amountPSVB);
+      totalHT[item.tax_group] = round2((totalHT[item.tax_group] ?? 0) + result.amountHT);
+      tva[item.tax_group] = round2((tva[item.tax_group] ?? 0) + result.amountTVA);
+      psvb[item.tax_group] = round2((psvb[item.tax_group] ?? 0) + result.amountPSVB);
 
       grandTotalHT += result.amountHT;
       grandTotalTVA += result.amountTVA;

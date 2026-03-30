@@ -38,7 +38,7 @@
 
         <template v-for="nav in navItems" :key="nav.route">
           <q-item
-            v-if="canAccess(nav.permissions)"
+            v-if="canAccess(nav)"
             :to="nav.route"
             exact
             clickable
@@ -65,7 +65,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useRealtimeNotifications } from 'src/composables/useRealtimeNotifications';
-import type { Permission } from 'src/types';
+import type { Permission, UserRole } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -77,24 +77,28 @@ interface NavItem {
   icon: string;
   route: string;
   permissions: Permission[];
+  roleRequired?: UserRole;
 }
 
 const navItems: NavItem[] = [
   { label: 'Tableau de bord', icon: 'dashboard', route: '/app', permissions: ['dashboard.view'] },
   { label: 'Factures', icon: 'receipt_long', route: '/app/invoices', permissions: ['invoices.read'] },
+  { label: 'Articles', icon: 'inventory_2', route: '/app/articles', permissions: ['invoices.create'] },
   { label: 'Clients', icon: 'people', route: '/app/clients', permissions: ['clients.read'] },
   { label: 'Trésorerie', icon: 'account_balance', route: '/app/treasury', permissions: ['treasury.read'] },
   { label: 'Rapports', icon: 'assessment', route: '/app/reports', permissions: ['reports.read'] },
   { label: 'Rapports fiscaux', icon: 'description', route: '/app/reports/fiscal', permissions: ['reports.fiscal'] },
+  { label: 'A-Rapport', icon: 'summarize', route: '/app/reports/a-report', permissions: ['reports.fiscal'] },
   { label: 'Journal d\'audit', icon: 'history', route: '/app/audit', permissions: ['audit.read'] },
   { label: 'Assistant IA', icon: 'smart_toy', route: '/app/ai-assistant', permissions: ['ai.use'] },
-  { label: 'Suivi IA', icon: 'analytics', route: '/app/admin/ai-usage', permissions: ['settings.manage'] },
-  { label: 'Chatbot API', icon: 'hub', route: '/app/admin/chatbot', permissions: ['settings.manage'] },
+  { label: 'Suivi IA', icon: 'analytics', route: '/app/admin/ai-usage', permissions: ['settings.manage'], roleRequired: 'project_admin' },
+  { label: 'Chatbot API', icon: 'hub', route: '/app/admin/chatbot', permissions: ['settings.manage'], roleRequired: 'project_admin' },
   { label: 'Paramètres', icon: 'settings', route: '/app/settings', permissions: ['settings.manage'] },
 ];
 
-function canAccess(permissions: Permission[]): boolean {
-  return authStore.hasAnyPermission(permissions);
+function canAccess(nav: NavItem): boolean {
+  if (nav.roleRequired && authStore.role !== nav.roleRequired) return false;
+  return authStore.hasAnyPermission(nav.permissions);
 }
 
 function toggleLeftDrawer() {

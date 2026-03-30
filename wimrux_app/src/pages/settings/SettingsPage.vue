@@ -5,11 +5,13 @@
     <q-tabs v-model="tab" dense align="left" class="q-mb-md text-grey" active-color="primary" indicator-color="primary">
       <q-tab name="company" label="Entreprise" icon="business" no-caps />
       <q-tab name="devices" label="Appareils SFE" icon="devices" no-caps />
+      <q-tab name="secef-logs" label="Logs SECeF" icon="receipt_long" no-caps />
       <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
       <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
-      <q-tab name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
+      <q-tab v-if="isProjectAdmin" name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
       <q-tab name="chatbot" label="Chatbot API" icon="smart_toy" no-caps />
       <q-tab name="rbac" label="RBAC / Permissions" icon="admin_panel_settings" no-caps />
+      <q-tab name="fiscal" label="Profil Fiscal" icon="account_balance" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -28,21 +30,156 @@
                 <q-input v-model="companyForm.tax_regime" label="Régime fiscal" filled class="col" />
                 <q-input v-model="companyForm.tax_office" label="Centre des impôts" filled class="col" />
               </div>
-              <q-input v-model="companyForm.address_cadastral" label="Adresse cadastrale (SSSS LLL PPPP)" filled mask="#### ### ####" :rules="[v => !v || isValidCadastralAddress(v) || 'Format invalide (SSSS LLL PPPP)']" hint="Section (4 chiffres) Lot (3 chiffres) Parcelle (4 chiffres)" />
+              <q-input
+                v-model="companyForm.address_cadastral"
+                label="Adresse cadastrale (SSSS LLL PPPP)"
+                filled
+                mask="#### ### ####"
+                fill-mask="_"
+                reactive-rules
+                :rules="[v => !v || !v.replace(/[_ ]/g, '') || isValidCadastralAddress(v.replace(/_/g, '').trim()) ? true : 'Format invalide — 11 chiffres : Section (4) Ilot (3) Parcelle (4)']"
+                hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
+                bottom-slots
+              />
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" />
                 <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" />
               </div>
+              <q-input
+                v-model="companyForm.qr_scan_base_url"
+                label="URL de scan QR (optionnel)"
+                filled
+                clearable
+                hint="Préfixe URL pour le QR Code — ex: https://votre-app.com. Vide = format DGI standard BF;..."
+                bottom-slots
+              />
+
+              <!-- Comptes bancaires -->
+              <div class="text-subtitle2 text-weight-medium q-mt-md q-mb-xs">Comptes bancaires</div>
+              <div v-for="(bank, idx) in companyForm.bank_accounts" :key="idx" class="row q-gutter-sm q-mb-sm items-center">
+                <q-input v-model="bank.bank_name" label="Nom de la banque" filled class="col" />
+                <q-input v-model="bank.account_number" label="Numéro de compte" filled class="col" />
+                <q-input v-model="bank.iban" label="IBAN (optionnel)" filled class="col" />
+                <q-btn flat round icon="delete" color="negative" @click="removeBankAccount(idx)" />
+              </div>
+              <q-btn flat no-caps icon="add" label="Ajouter un compte bancaire" color="primary" class="q-mb-md" @click="addBankAccount" />
+
               <div class="row justify-end q-mt-md">
                 <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps :loading="saving" />
               </div>
             </q-form>
           </q-card-section>
         </q-card>
+
+        <!-- Logo & Charte Graphique -->
+        <q-card flat bordered class="q-mt-md">
+          <q-card-section>
+            <div class="text-subtitle1 text-weight-medium q-mb-md">Logo &amp; Charte Graphique</div>
+
+            <div class="text-subtitle2 text-weight-medium q-mb-sm">Logo de l'entreprise</div>
+            <div class="row q-gutter-md items-start q-mb-md">
+              <q-img
+                v-if="companyStore.company?.logo_url"
+                :src="companyStore.company.logo_url"
+                style="width:120px;max-height:60px;object-fit:contain;border:1px solid #eee;border-radius:4px"
+              />
+              <div v-else class="text-grey-5 text-caption flex flex-center" style="width:120px;height:60px;border:1px dashed #bbb;border-radius:4px">
+                Aucun logo
+              </div>
+              <div class="column q-gutter-xs">
+                <q-file v-model="logoFile" label="Sélectionner un logo (PNG/JPG, max 2Mo)" accept="image/*" filled style="width:300px">
+                  <template #prepend><q-icon name="image" /></template>
+                </q-file>
+                <div class="row q-gutter-sm">
+                  <q-btn :loading="uploadingLogo" color="primary" no-caps label="Téléverser" icon="upload" size="sm" @click="handleLogoUpload" :disable="!logoFile" />
+                  <q-btn v-if="companyStore.company?.logo_url" flat color="negative" no-caps label="Supprimer" icon="delete" size="sm" @click="handleLogoDelete" />
+                </div>
+              </div>
+            </div>
+
+            <div class="row q-gutter-lg items-center q-mb-md">
+              <q-toggle v-model="invoiceSettingsForm.show_logo" label="Afficher le logo sur la facture PDF" />
+              <q-btn-toggle
+                v-show="invoiceSettingsForm.show_logo"
+                v-model="invoiceSettingsForm.logo_position"
+                :options="[{label:'Gauche',value:'left'},{label:'Centre',value:'center'},{label:'Droite',value:'right'}]"
+                no-caps flat toggle-color="primary" size="sm"
+              />
+            </div>
+
+            <div class="text-subtitle2 text-weight-medium q-mt-md q-mb-sm">Couleurs de la facture <span class="text-caption text-grey-6">(cliquez sur une couleur pour la modifier)</span></div>
+            <div class="row q-gutter-md q-mb-md">
+              <div v-for="cf in COLOR_FIELDS" :key="cf.key" class="column items-center">
+                <div
+                  :style="{background:invoiceSettingsForm.colors[cf.key],width:'38px',height:'38px',borderRadius:'6px',border:'1px solid #ddd',cursor:'pointer'}"
+                >
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-color v-model="invoiceSettingsForm.colors[cf.key]" format-model="hex" />
+                  </q-popup-proxy>
+                </div>
+                <div class="text-caption q-mt-xs text-center" style="max-width:80px;font-size:10px;line-height:1.2">{{ cf.label }}</div>
+                <div class="text-caption text-grey" style="font-size:9px">{{ invoiceSettingsForm.colors[cf.key] }}</div>
+              </div>
+            </div>
+
+            <div class="row q-gutter-sm justify-end">
+              <q-btn flat no-caps label="Réinitialiser" icon="restart_alt" @click="resetColors" />
+              <q-btn color="primary" no-caps label="Enregistrer charte" icon="palette" :loading="savingInvoiceSettings" @click="saveInvoiceSettings" />
+            </div>
+          </q-card-section>
+        </q-card>
       </q-tab-panel>
 
       <!-- Devices -->
       <q-tab-panel name="devices">
+        <!-- Simulator control card -->
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="row items-center q-mb-sm">
+              <q-icon name="router" size="sm" class="q-mr-sm" :color="simulatorGlobalEnabled ? 'green' : 'red'" />
+              <div class="text-subtitle1 text-weight-medium">Serveur SECeF simulé</div>
+              <q-space />
+              <q-btn
+                flat
+                round
+                icon="refresh"
+                size="sm"
+                :loading="pingLoading"
+                color="grey"
+                @click="doPing"
+              >
+                <q-tooltip>Vérifier maintenant</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="row items-center q-gutter-md">
+              <q-badge
+                :color="simulatorGlobalEnabled ? 'green' : 'red-7'"
+                :label="simulatorGlobalEnabled ? 'ACTIF' : 'ARRÊTÉ'"
+                class="text-body2 q-pa-sm"
+              />
+              <span v-if="pingLatency !== null" class="text-caption text-grey-7">
+                Latence : {{ pingLatency }} ms
+              </span>
+              <span v-if="pingTime" class="text-caption text-grey-6">
+                Dernière vérif. : {{ new Date(pingTime).toLocaleTimeString('fr-FR') }}
+              </span>
+            </div>
+            <div v-if="devices.length > 0" class="q-mt-md">
+              <div class="text-caption text-grey-8 q-mb-xs">Activer / désactiver par appareil :</div>
+              <div v-for="d in devices" :key="d.nim" class="row items-center q-gutter-sm q-mb-xs">
+                <q-toggle
+                  :model-value="d.simulator_enabled !== false"
+                  :label="d.name || d.nim"
+                  :color="d.simulator_enabled !== false ? 'green' : 'red'"
+                  :loading="togglingNim === d.nim"
+                  @update:model-value="val => toggleSimulator(d.nim, val)"
+                />
+                <q-badge :color="d.simulator_enabled !== false ? 'green' : 'red-7'" :label="d.nim" outline />
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+
         <q-card flat bordered>
           <q-card-section>
             <div class="row items-center q-mb-md">
@@ -53,7 +190,7 @@
             <q-table
               :rows="devices"
               :columns="deviceColumns"
-              row-key="id"
+              row-key="nim"
               :loading="loadingDevices"
               flat
               dense
@@ -61,7 +198,117 @@
             >
               <template v-slot:body-cell-status="props">
                 <q-td :props="props">
-                  <q-badge :color="props.row.status === 'active' ? 'green' : 'grey'" :label="props.row.status === 'active' ? 'Actif' : 'Inactif'" />
+                  <q-badge :color="props.row.status === 'ACTIF' ? 'green' : 'grey'" :label="props.row.status" />
+                </q-td>
+              </template>
+              <template v-slot:body-cell-simulator_enabled="props">
+                <q-td :props="props" class="text-center">
+                  <q-icon
+                    :name="props.row.simulator_enabled !== false ? 'check_circle' : 'cancel'"
+                    :color="props.row.simulator_enabled !== false ? 'green' : 'red'"
+                    size="xs"
+                  />
+                </q-td>
+              </template>
+            </q-table>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
+
+      <!-- Logs SECeF -->
+      <q-tab-panel name="secef-logs">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="row items-center q-mb-md">
+              <div class="text-subtitle1 text-weight-medium">Journaux d'interactions SECeF</div>
+              <q-space />
+              <q-btn flat no-caps size="sm" icon="download" color="primary" label="Exporter CSV" @click="exportMcfLogs" />
+              <q-btn flat round icon="refresh" size="sm" color="grey" :loading="logsLoading" class="q-ml-xs" @click="loadMcfLogs" />
+            </div>
+
+            <!-- Filters -->
+            <div class="row q-gutter-sm q-mb-md">
+              <q-input
+                v-model="logsFilter.nim"
+                label="Filtrer par NIM"
+                outlined
+                dense
+                clearable
+                style="width:160px"
+                @update:model-value="loadMcfLogs"
+              />
+              <q-select
+                v-model="logsFilter.status"
+                :options="logsStatusOptions"
+                emit-value
+                map-options
+                label="Statut"
+                outlined
+                dense
+                clearable
+                style="width:140px"
+                @update:model-value="loadMcfLogs"
+              />
+              <q-input
+                v-model="logsFilter.from"
+                type="date"
+                label="Du"
+                outlined
+                dense
+                style="width:160px"
+                @update:model-value="loadMcfLogs"
+              />
+              <q-input
+                v-model="logsFilter.to"
+                type="date"
+                label="Au"
+                outlined
+                dense
+                style="width:160px"
+                @update:model-value="loadMcfLogs"
+              />
+            </div>
+
+            <q-table
+              :rows="mcfLogs"
+              :columns="mcfLogColumns"
+              row-key="id"
+              :loading="logsLoading"
+              flat
+              dense
+              :pagination="{ rowsPerPage: 25 }"
+              no-data-label="Aucun log trouvé"
+            >
+              <template v-slot:body-cell-status_code="props">
+                <q-td :props="props">
+                  <q-badge
+                    :color="props.row.status_code < 300 ? 'green' : props.row.status_code < 500 ? 'orange' : 'red'"
+                    :label="String(props.row.status_code)"
+                  />
+                </q-td>
+              </template>
+              <template v-slot:body-cell-endpoint="props">
+                <q-td :props="props">
+                  <span class="text-caption text-mono">{{ props.row.endpoint }}</span>
+                </q-td>
+              </template>
+              <template v-slot:body-cell-duration_ms="props">
+                <q-td :props="props" class="text-right">
+                  <span :class="props.row.duration_ms > 1000 ? 'text-orange' : ''">
+                    {{ props.row.duration_ms !== null ? props.row.duration_ms + ' ms' : '—' }}
+                  </span>
+                </q-td>
+              </template>
+              <template v-slot:body-cell-created_at="props">
+                <q-td :props="props">
+                  {{ new Date(props.row.created_at).toLocaleString('fr-FR') }}
+                </q-td>
+              </template>
+              <template v-slot:body-cell-details="props">
+                <q-td :props="props">
+                  <q-btn flat round size="xs" icon="info" color="grey" @click="openLogDetail(props.row)">
+                    <q-tooltip>Détail</q-tooltip>
+                  </q-btn>
                 </q-td>
               </template>
             </q-table>
@@ -76,13 +323,13 @@
             <div class="row items-center q-mb-md">
               <div class="text-subtitle1 text-weight-medium">Utilisateurs</div>
               <q-space />
-              <q-btn color="primary" icon="person_add" label="Inviter" no-caps size="sm" disabled />
+              <q-btn color="primary" icon="person_add" label="Nouvel utilisateur" no-caps size="sm" @click="rbacUserDialogOpen = true" />
             </div>
             <q-table
-              :rows="users"
-              :columns="userColumns"
+              :rows="rbacUsers"
+              :columns="rbacUserColumns"
               row-key="id"
-              :loading="loadingUsers"
+              :loading="rbacUsersLoading"
               flat
               dense
               :pagination="{ rowsPerPage: 10 }"
@@ -90,6 +337,25 @@
               <template v-slot:body-cell-role="props">
                 <q-td :props="props">
                   <q-badge :color="roleColor(props.row.role)" :label="props.row.role" />
+                  <q-badge v-if="isCustomRole(props.row.role)" color="purple" label="personnalisé" class="q-ml-xs" outline />
+                </q-td>
+              </template>
+              <template v-slot:body-cell-extra_roles="props">
+                <q-td :props="props">
+                  <template v-if="props.row.extra_roles && props.row.extra_roles.length">
+                    <q-badge v-for="r in props.row.extra_roles" :key="r" :color="roleColor(r)" :label="r" class="q-mr-xs q-mb-xs" outline />
+                  </template>
+                  <span v-else class="text-grey-5 text-caption">—</span>
+                </q-td>
+              </template>
+              <template v-slot:body-cell-actions="props">
+                <q-td :props="props">
+                  <q-btn flat dense size="sm" icon="edit" color="primary" @click="openEditUserRoleDialog(props.row)">
+                    <q-tooltip>Modifier le rôle</q-tooltip>
+                  </q-btn>
+                  <q-btn flat dense size="sm" icon="add_circle" color="teal" @click="openAssignRoleDialog(props.row)">
+                    <q-tooltip>Ajouter un rôle cumulé</q-tooltip>
+                  </q-btn>
                 </q-td>
               </template>
             </q-table>
@@ -613,10 +879,23 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
             outlined
             dense
             style="min-width: 280px"
-          />
-          <q-btn flat dense icon="restart_alt" label="Réinitialiser ce rôle" no-caps color="orange" @click="onResetRole" />
+          >
+            <template v-slot:option="scope">
+              <q-item v-bind="scope.itemProps">
+                <q-item-section>
+                  <q-item-label>{{ scope.opt.label }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="scope.opt.isCustom">
+                  <q-badge color="purple" label="personnalisé" outline />
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
+          <q-btn flat dense icon="restart_alt" label="Réinitialiser" no-caps color="orange" @click="onResetRole" />
+          <q-btn v-if="isCustomRole(rbacSelectedRole)" flat dense icon="delete" label="Supprimer ce profil" no-caps color="red" @click="onDeleteCustomRole" />
           <q-space />
-          <q-btn color="primary" icon="save" label="Enregistrer les permissions" no-caps :loading="rbacSaving" @click="onSaveRbac" />
+          <q-btn outline color="purple" icon="add" label="Créer un profil" no-caps @click="openCustomRoleDialog" />
+          <q-btn color="primary" icon="save" label="Enregistrer" no-caps :loading="rbacSaving" @click="onSaveRbac" />
         </div>
 
         <!-- Permission matrix -->
@@ -709,6 +988,91 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
                 </q-td>
               </template>
             </q-table>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
+
+      <!-- Profil Fiscal -->
+      <q-tab-panel name="fiscal">
+        <q-card flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="text-subtitle1 text-weight-medium q-mb-md">
+              <q-icon name="account_balance" class="q-mr-sm" />Profil Fiscal
+            </div>
+
+            <div class="row q-gutter-md q-mb-md">
+              <div class="col-12 col-md-4">
+                <q-select
+                  v-model="fiscalForm.fiscal_profile"
+                  :options="[{ label: 'Burkina Faso (BF) — SECeF', value: 'BF' }, { label: 'Générique (autre pays)', value: 'GENERIC' }]"
+                  emit-value map-options label="Profil" outlined dense
+                />
+              </div>
+              <div class="col-12 col-md-3">
+                <q-input v-model="fiscalForm.country" label="Pays (code)" outlined dense hint="Ex: BF, SN, CI" />
+              </div>
+              <div class="col-12 col-md-2">
+                <q-input v-model="fiscalForm.currency" label="Devise (code)" outlined dense hint="Ex: XOF, EUR" />
+              </div>
+              <div class="col-12 col-md-2">
+                <q-input v-model="fiscalForm.currency_label" label="Libellé devise" outlined dense hint="Ex: FCFA, €" />
+              </div>
+            </div>
+
+            <div class="row q-gutter-md q-mb-md">
+              <div class="col-12 col-md-4">
+                <q-select
+                  v-model="fiscalForm.tax_category"
+                  :options="[{ label: 'BIC — Bénéfices Industriels et Commerciaux', value: 'BIC' }, { label: 'BNC — Bénéfices Non Commerciaux', value: 'BNC' }, { label: 'BA — Bénéfices Agricoles', value: 'BA' }, { label: 'IS — Impôt sur les Sociétés', value: 'IS' }, { label: 'Non applicable', value: null }]"
+                  emit-value map-options label="Catégorie fiscale" outlined dense clearable
+                />
+              </div>
+              <div class="col-12 col-md-3">
+                <q-select
+                  v-model="fiscalForm.tax_sub_regime"
+                  :options="fiscalSubRegimeOptions"
+                  emit-value map-options label="Sous-régime" outlined dense clearable
+                />
+              </div>
+            </div>
+
+            <div class="row q-gutter-md q-mb-md">
+              <div class="col-auto">
+                <q-toggle v-model="fiscalForm.secef_enabled" label="SECeF activé" color="green" />
+              </div>
+              <div class="col-auto">
+                <q-toggle v-model="fiscalForm.psvb_enabled" :label="fiscalForm.psvb_label + ' activé'" color="blue" />
+              </div>
+              <div class="col-12 col-md-2" v-if="fiscalForm.psvb_enabled">
+                <q-input v-model="fiscalForm.psvb_label" label="Libellé taxe (PSVB/AIB)" outlined dense />
+              </div>
+              <div class="col-auto">
+                <q-toggle v-model="fiscalForm.stamp_duty_enabled" label="Timbre quittance" color="orange" />
+              </div>
+            </div>
+
+            <!-- Groupes de taxation -->
+            <q-separator class="q-my-md" />
+            <div class="row items-center q-mb-sm">
+              <div class="text-subtitle2 text-weight-medium">Groupes de taxation</div>
+              <q-space />
+              <q-btn outline size="sm" icon="add" label="Ajouter un groupe" no-caps color="primary" @click="addTaxGroup" />
+            </div>
+            <div class="row q-gutter-xs q-mb-md">
+              <q-card v-for="(grp, key) in fiscalForm.tax_groups" :key="key" flat bordered class="q-pa-sm" style="min-width:220px">
+                <div class="row items-center q-gutter-xs">
+                  <div class="text-weight-bold col-auto" style="width:30px">{{ key }}</div>
+                  <q-input v-model="grp.description" dense outlined label="Description" class="col" style="min-width:100px" />
+                  <q-input v-model.number="grp.tva" dense outlined label="TVA" type="number" step="0.01" class="col" style="min-width:60px" />
+                  <q-input v-model.number="grp.psvb" dense outlined :label="fiscalForm.psvb_label || 'PSVB'" type="number" step="0.001" class="col" style="min-width:60px" />
+                  <q-btn flat dense icon="delete" color="red" size="sm" @click="removeTaxGroup(key)" />
+                </div>
+              </q-card>
+            </div>
+
+            <div class="row justify-end q-mt-md">
+              <q-btn color="primary" icon="save" label="Enregistrer le profil fiscal" no-caps :loading="fiscalSaving" @click="saveFiscalConfig" />
+            </div>
           </q-card-section>
         </q-card>
       </q-tab-panel>
@@ -853,6 +1217,135 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
       </q-card>
     </q-dialog>
 
+    <!-- Create custom role dialog -->
+    <q-dialog v-model="customRoleDialogOpen" persistent>
+      <q-card style="min-width: 600px; max-width: 90vw">
+        <q-card-section>
+          <div class="text-h6">Créer un profil personnalisé</div>
+          <div class="text-caption text-grey-7">Ce profil sera disponible uniquement pour votre entreprise</div>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <div class="row q-gutter-sm">
+            <q-input
+              v-model="customRoleForm.role_key"
+              label="Clé du profil (slug)"
+              filled
+              dense
+              class="col"
+              :rules="[v => !!v || 'Requis', v => v.length <= 20 || 'Max 20 caractères', v => /^[a-z0-9_]+$/.test(v) || 'Minuscules, chiffres et _ uniquement']"
+              hint="Ex: assistant, stagiaire, directeur_adj"
+            />
+            <q-input v-model="customRoleForm.label" label="Nom affiché" filled dense class="col" :rules="[v => !!v || 'Requis']" hint="Ex: Assistant comptable" />
+          </div>
+          <q-input v-model="customRoleForm.description" label="Description (optionnel)" filled dense type="textarea" autogrow />
+          <q-select
+            v-model="customRoleForm.base_role"
+            :options="[{ label: '(Aucun — permissions vides)', value: '' }, ...Object.entries(SAAS_ROLE_LABELS).map(([k, l]) => ({ label: l, value: k }))]"
+            emit-value
+            map-options
+            label="Copier les permissions d'un rôle existant"
+            filled
+            dense
+            @update:model-value="onBaseRoleChange"
+          />
+          <div class="text-subtitle2 q-mt-md q-mb-sm">Permissions</div>
+          <div v-for="cat in PERMISSION_CATEGORIES" :key="cat" class="q-mb-sm">
+            <div class="text-caption text-weight-bold text-grey-8 q-mb-xs">{{ cat }}</div>
+            <div class="row">
+              <div v-for="p in ALL_PERMISSIONS.filter(pp => PERMISSION_LABELS[pp].category === cat)" :key="p" class="col-6 col-md-4">
+                <q-checkbox v-model="customRoleForm.permissions" :val="p" :label="PERMISSION_LABELS[p].label" dense />
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn color="purple" icon="add" label="Créer le profil" no-caps :loading="rbacSaving" @click="onCreateCustomRole" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Edit user role dialog -->
+    <q-dialog v-model="editUserRoleDialogOpen" persistent>
+      <q-card style="min-width: 400px">
+        <q-card-section>
+          <div class="text-h6">Modifier le rôle principal</div>
+          <div class="text-caption text-grey">{{ editUserRoleTarget?.full_name }}</div>
+        </q-card-section>
+        <q-card-section>
+          <q-select
+            v-model="editUserRoleValue"
+            :options="rbacRoleOptions"
+            emit-value
+            map-options
+            label="Nouveau rôle"
+            filled
+          >
+            <template v-slot:option="scope">
+              <q-item v-bind="scope.itemProps">
+                <q-item-section>
+                  <q-item-label>{{ scope.opt.label }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="scope.opt.isCustom">
+                  <q-badge color="purple" label="personnalisé" outline />
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn color="primary" label="Enregistrer" no-caps :loading="rbacSaving" @click="onEditUserRole" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- MCF Log detail dialog -->
+    <q-dialog v-model="logDetailOpen" maximized transition-show="slide-up" transition-hide="slide-down">
+      <q-card>
+        <q-bar>
+          <q-icon name="receipt_long" />
+          <div class="q-ml-sm">Détail interaction SECeF</div>
+          <q-space />
+          <q-btn dense flat icon="close" v-close-popup />
+        </q-bar>
+        <q-card-section v-if="selectedLog">
+          <div class="row q-gutter-md">
+            <div class="col">
+              <div class="text-caption text-grey-7 q-mb-xs">Endpoint</div>
+              <code class="text-body2">{{ selectedLog.method }} {{ selectedLog.endpoint }}</code>
+            </div>
+            <div>
+              <div class="text-caption text-grey-7 q-mb-xs">Statut</div>
+              <q-badge :color="selectedLog.status_code < 300 ? 'green' : selectedLog.status_code < 500 ? 'orange' : 'red'" :label="String(selectedLog.status_code)" class="text-body2" />
+            </div>
+            <div>
+              <div class="text-caption text-grey-7 q-mb-xs">Durée</div>
+              <span>{{ selectedLog.duration_ms !== null ? selectedLog.duration_ms + ' ms' : '—' }}</span>
+            </div>
+            <div>
+              <div class="text-caption text-grey-7 q-mb-xs">Horodatage</div>
+              <span>{{ new Date(selectedLog.created_at).toLocaleString('fr-FR') }}</span>
+            </div>
+            <div>
+              <div class="text-caption text-grey-7 q-mb-xs">NIM</div>
+              <span>{{ selectedLog.nim || '—' }}</span>
+            </div>
+          </div>
+          <div class="row q-gutter-md q-mt-md">
+            <div class="col">
+              <div class="text-subtitle2 q-mb-sm">Requête</div>
+              <pre class="bg-grey-2 rounded-borders q-pa-md overflow-auto" style="max-height:300px;font-size:12px">{{ JSON.stringify(selectedLog.request_body, null, 2) }}</pre>
+            </div>
+            <div class="col">
+              <div class="text-subtitle2 q-mb-sm">Réponse</div>
+              <pre class="bg-grey-2 rounded-borders q-pa-md overflow-auto" style="max-height:300px;font-size:12px">{{ JSON.stringify(selectedLog.response_body, null, 2) }}</pre>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
     <!-- Add device dialog -->
     <q-dialog v-model="deviceDialogOpen" persistent>
       <q-card style="min-width: 400px">
@@ -882,6 +1375,7 @@ import { useQuasar } from 'quasar';
 import { createClient } from '@insforge/sdk';
 import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { useAuthStore } from 'src/stores/auth-store';
 import { usePermissions } from 'src/composables/usePermissions';
 import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
 import { useAiUsage } from 'src/composables/useAiUsage';
@@ -889,24 +1383,129 @@ import { useCrypto } from 'src/composables/useCrypto';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import { useChatbotSkill } from 'src/composables/useChatbotSkill';
 import { isValidIFU, isValidCadastralAddress } from 'src/utils/validators';
-import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission } from 'src/types';
-import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS } from 'src/types';
+import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission, McfLog, SfeDevice, BankAccount, InvoiceColors, FiscalProfile, FiscalConfig, TaxGroupConfig, TaxCategory, TaxSubRegime } from 'src/types';
+import { DEFAULT_INVOICE_COLORS } from 'src/composables/useInvoicePdf';
+import { useFiscalProfile, DEFAULT_BF_FISCAL_CONFIG } from 'src/composables/useFiscalProfile';
+import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
+import type { Permission as PermissionType } from 'src/types';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
+const authStore = useAuthStore();
 const rbacPerms = usePermissions();
+
+const isProjectAdmin = computed(() => authStore.role === 'project_admin');
 const { encrypt, decrypt } = useCrypto();
 
 const tab = ref('company');
 const saving = ref(false);
 const loadingDevices = ref(false);
-const loadingUsers = ref(false);
 const deviceDialogOpen = ref(false);
 
-interface Device { id: string; nim: string; name: string; status: string; created_at: string }
+// --- Profil Fiscal ---
+const { taxSubRegimeOptions } = useFiscalProfile();
+const fiscalSaving = ref(false);
+
+const fiscalForm = reactive<{
+  fiscal_profile: FiscalProfile;
+  country: string;
+  currency: string;
+  currency_label: string;
+  secef_enabled: boolean;
+  tax_category: TaxCategory | null;
+  tax_sub_regime: TaxSubRegime | null;
+  tax_groups: Record<string, TaxGroupConfig>;
+  psvb_enabled: boolean;
+  psvb_label: string;
+  stamp_duty_enabled: boolean;
+}>({
+  fiscal_profile: 'BF',
+  country: 'BF',
+  currency: 'XOF',
+  currency_label: 'FCFA',
+  secef_enabled: true,
+  tax_category: 'BIC',
+  tax_sub_regime: 'RNI',
+  tax_groups: { ...DEFAULT_BF_FISCAL_CONFIG.tax_groups },
+  psvb_enabled: true,
+  psvb_label: 'PSVB',
+  stamp_duty_enabled: true,
+});
+
+const fiscalSubRegimeOptions = computed(() => {
+  const cat = fiscalForm.tax_category;
+  if (!cat) return [];
+  return taxSubRegimeOptions[cat] ?? [];
+});
+
+function initFiscalForm() {
+  const cfg = companyStore.company?.fiscal_config ?? DEFAULT_BF_FISCAL_CONFIG;
+  fiscalForm.fiscal_profile = companyStore.company?.fiscal_profile ?? 'BF';
+  fiscalForm.country = cfg.country;
+  fiscalForm.currency = cfg.currency;
+  fiscalForm.currency_label = cfg.currency_label;
+  fiscalForm.secef_enabled = cfg.secef_enabled;
+  fiscalForm.tax_category = cfg.tax_category;
+  fiscalForm.tax_sub_regime = cfg.tax_sub_regime;
+  fiscalForm.tax_groups = JSON.parse(JSON.stringify(cfg.tax_groups));
+  fiscalForm.psvb_enabled = cfg.psvb_enabled;
+  fiscalForm.psvb_label = cfg.psvb_label;
+  fiscalForm.stamp_duty_enabled = cfg.stamp_duty_enabled;
+}
+
+function addTaxGroup() {
+  const existing = Object.keys(fiscalForm.tax_groups);
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const next = letters.split('').find(l => !existing.includes(l)) ?? `G${existing.length}`;
+  fiscalForm.tax_groups[next] = { description: '', tva: 0, psvb: 0 };
+}
+
+function removeTaxGroup(key: string) {
+  delete fiscalForm.tax_groups[key];
+}
+
+async function saveFiscalConfig() {
+  fiscalSaving.value = true;
+  try {
+    const config: FiscalConfig = {
+      country: fiscalForm.country,
+      currency: fiscalForm.currency,
+      currency_label: fiscalForm.currency_label,
+      secef_enabled: fiscalForm.secef_enabled,
+      tax_category: fiscalForm.tax_category,
+      tax_sub_regime: fiscalForm.tax_sub_regime,
+      tax_groups: fiscalForm.tax_groups,
+      psvb_enabled: fiscalForm.psvb_enabled,
+      psvb_label: fiscalForm.psvb_label,
+      stamp_duty_enabled: fiscalForm.stamp_duty_enabled,
+      stamp_duty_thresholds: companyStore.company?.fiscal_config?.stamp_duty_thresholds ?? DEFAULT_BF_FISCAL_CONFIG.stamp_duty_thresholds,
+      invoice_types: companyStore.company?.fiscal_config?.invoice_types ?? DEFAULT_BF_FISCAL_CONFIG.invoice_types,
+      client_types: companyStore.company?.fiscal_config?.client_types ?? DEFAULT_BF_FISCAL_CONFIG.client_types,
+      article_types: companyStore.company?.fiscal_config?.article_types ?? DEFAULT_BF_FISCAL_CONFIG.article_types,
+    };
+    await companyStore.updateFiscalConfig(fiscalForm.fiscal_profile, config);
+    $q.notify({ type: 'positive', message: 'Profil fiscal enregistré' });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Erreur lors de la sauvegarde du profil fiscal' });
+  } finally {
+    fiscalSaving.value = false;
+  }
+}
+
 interface UserRow { id: string; full_name: string; role: string; created_at: string }
 
-const companyForm = ref({
+const companyForm = ref<{
+  name: string;
+  ifu: string;
+  rccm: string;
+  address_cadastral: string;
+  phone: string;
+  email: string;
+  tax_regime: string;
+  tax_office: string;
+  qr_scan_base_url: string;
+  bank_accounts: BankAccount[];
+}>({
   name: '',
   ifu: '',
   rccm: '',
@@ -915,7 +1514,74 @@ const companyForm = ref({
   email: '',
   tax_regime: '',
   tax_office: '',
+  qr_scan_base_url: '',
+  bank_accounts: [],
 });
+
+function addBankAccount() {
+  companyForm.value.bank_accounts.push({ bank_name: '', account_number: '', iban: '' });
+}
+function removeBankAccount(idx: number) {
+  companyForm.value.bank_accounts.splice(idx, 1);
+}
+
+const COLOR_FIELDS: { label: string; key: keyof InvoiceColors }[] = [
+  { label: 'Couleur principale', key: 'primary' },
+  { label: 'En-tête fond', key: 'header_bg' },
+  { label: 'En-tête texte', key: 'header_text' },
+  { label: 'Lignes impaires', key: 'row_odd_bg' },
+  { label: 'Fond totaux', key: 'total_bg' },
+  { label: 'Cert. bordure', key: 'cert_border' },
+  { label: 'Cert. titre', key: 'cert_title' },
+];
+
+const invoiceSettingsForm = ref<{
+  show_logo: boolean;
+  logo_position: 'left' | 'center' | 'right';
+  colors: InvoiceColors;
+}>({
+  show_logo: false,
+  logo_position: 'left',
+  colors: { ...DEFAULT_INVOICE_COLORS },
+});
+const logoFile = ref<File | null>(null);
+const uploadingLogo = ref(false);
+const savingInvoiceSettings = ref(false);
+
+async function handleLogoUpload() {
+  if (!logoFile.value) return;
+  uploadingLogo.value = true;
+  try {
+    const { error } = await companyStore.uploadLogo(logoFile.value);
+    if (error) {
+      $q.notify({ type: 'negative', message: `Erreur upload : ${error.message}` });
+    } else {
+      $q.notify({ type: 'positive', message: 'Logo uploadé avec succès' });
+      logoFile.value = null;
+    }
+  } finally {
+    uploadingLogo.value = false;
+  }
+}
+
+async function handleLogoDelete() {
+  await companyStore.deleteLogo();
+  $q.notify({ type: 'positive', message: 'Logo supprimé' });
+}
+
+async function saveInvoiceSettings() {
+  savingInvoiceSettings.value = true;
+  try {
+    await companyStore.updateInvoiceSettings(invoiceSettingsForm.value);
+    $q.notify({ type: 'positive', message: 'Charte graphique enregistrée' });
+  } finally {
+    savingInvoiceSettings.value = false;
+  }
+}
+
+function resetColors() {
+  invoiceSettingsForm.value.colors = { ...DEFAULT_INVOICE_COLORS };
+}
 
 const showApiKey = ref(false);
 const aiForm = ref({
@@ -1032,20 +1698,46 @@ async function loadUsageStats() {
 }
 
 const deviceForm = ref({ nim: '', ifu: '', jwt_secret: '', name: '' });
-const devices = ref<Device[]>([]);
-const users = ref<UserRow[]>([]);
+const devices = ref<SfeDevice[]>([]);
+const togglingNim = ref<string | null>(null);
+const pingLoading = ref(false);
+const pingLatency = ref<number | null>(null);
+const pingTime = ref<string | null>(null);
+
+const simulatorGlobalEnabled = computed(() =>
+  devices.value.length === 0 ? true : devices.value.some(d => d.simulator_enabled !== false)
+);
 
 const deviceColumns = [
   { name: 'nim', label: 'NIM', field: 'nim', align: 'left' as const },
   { name: 'name', label: 'Nom', field: 'name', align: 'left' as const },
-  { name: 'status', label: 'Statut', field: 'status', align: 'center' as const },
-  { name: 'created_at', label: 'Créé le', field: 'created_at', align: 'left' as const },
+  { name: 'status', label: 'Statut SECeF', field: 'status', align: 'center' as const },
+  { name: 'simulator_enabled', label: 'Simulateur', field: 'simulator_enabled', align: 'center' as const },
+  { name: 'created_at', label: 'Créé le', field: 'created_at', align: 'left' as const,
+    format: (v: string) => v ? new Date(v).toLocaleDateString('fr-FR') : '' },
 ];
 
-const userColumns = [
-  { name: 'full_name', label: 'Nom', field: 'full_name', align: 'left' as const },
-  { name: 'role', label: 'Rôle', field: 'role', align: 'center' as const },
-  { name: 'created_at', label: 'Créé le', field: 'created_at', align: 'left' as const },
+// --- MCF Logs ---
+const mcfLogs = ref<McfLog[]>([]);
+const logsLoading = ref(false);
+const logDetailOpen = ref(false);
+const selectedLog = ref<McfLog | null>(null);
+const logsFilter = ref({ nim: '', status: null as string | null, from: '', to: '' });
+
+const logsStatusOptions = [
+  { label: '2xx Succès', value: '2xx' },
+  { label: '4xx Client', value: '4xx' },
+  { label: '5xx Serveur', value: '5xx' },
+];
+
+const mcfLogColumns = [
+  { name: 'created_at', label: 'Horodatage', field: 'created_at', align: 'left' as const, sortable: true },
+  { name: 'nim', label: 'NIM', field: 'nim', align: 'left' as const },
+  { name: 'method', label: 'Méthode', field: 'method', align: 'center' as const },
+  { name: 'endpoint', label: 'Endpoint', field: 'endpoint', align: 'left' as const },
+  { name: 'status_code', label: 'Statut', field: 'status_code', align: 'center' as const, sortable: true },
+  { name: 'duration_ms', label: 'Durée', field: 'duration_ms', align: 'right' as const, sortable: true },
+  { name: 'details', label: '', field: 'id', align: 'center' as const },
 ];
 
 function roleColor(r: string) {
@@ -1060,11 +1752,19 @@ function loadCompanyForm() {
       name: c.name,
       ifu: c.ifu,
       rccm: c.rccm,
+      qr_scan_base_url: c.qr_scan_base_url || '',
       address_cadastral: c.address_cadastral,
       phone: c.phone,
       email: c.email,
-      tax_regime: c.tax_regime,
+      tax_regime: '',
       tax_office: c.tax_office,
+      bank_accounts: c.bank_accounts ? [...c.bank_accounts] : [],
+    };
+    const s = c.invoice_settings;
+    invoiceSettingsForm.value = {
+      show_logo: s?.show_logo ?? false,
+      logo_position: s?.logo_position ?? 'left',
+      colors: { ...DEFAULT_INVOICE_COLORS, ...(s?.colors ?? {}) },
     };
     aiForm.value = {
       ai_enabled: c.ai_enabled ?? true,
@@ -1124,7 +1824,11 @@ async function saveAiConfig() {
 async function saveCompany() {
   saving.value = true;
   try {
-    const result = await companyStore.updateCompany(companyForm.value);
+    const cleaned = {
+      ...companyForm.value,
+      address_cadastral: companyForm.value.address_cadastral?.replace(/_/g, '').trim() || '',
+    };
+    const result = await companyStore.updateCompany(cleaned);
     if (result?.error) {
       $q.notify({ type: 'negative', message: result.error.message });
     } else {
@@ -1139,21 +1843,110 @@ async function loadDevices() {
   loadingDevices.value = true;
   try {
     const { data } = await insforge.database.from('devices').select('*').order('created_at', { ascending: false });
-    if (data) devices.value = data as Device[];
+    if (data) devices.value = data as SfeDevice[];
   } finally {
     loadingDevices.value = false;
   }
 }
 
-async function loadUsers() {
-  loadingUsers.value = true;
+async function toggleSimulator(nim: string, enabled: boolean) {
+  togglingNim.value = nim;
   try {
-    const { data } = await insforge.database.from('user_profiles').select('*').order('full_name', { ascending: true });
-    if (data) users.value = data as UserRow[];
+    const { error } = await insforge.database
+      .from('devices')
+      .update({ simulator_enabled: enabled })
+      .eq('nim', nim);
+    if (error) {
+      $q.notify({ type: 'negative', message: error.message });
+    } else {
+      const d = devices.value.find(x => x.nim === nim);
+      if (d) d.simulator_enabled = enabled;
+      $q.notify({
+        type: enabled ? 'positive' : 'warning',
+        message: enabled ? `Simulateur SECeF activé (${nim})` : `Simulateur SECeF désactivé (${nim})`,
+        icon: enabled ? 'router' : 'power_off',
+      });
+    }
   } finally {
-    loadingUsers.value = false;
+    togglingNim.value = null;
   }
 }
+
+async function doPing() {
+  pingLoading.value = true;
+  const t0 = Date.now();
+  try {
+    const { data, error } = await insforge.functions.invoke('mcf-simulator', {
+      method: 'POST',
+      body: { _path: '/bf/mcf/ping', _method: 'GET' },
+    });
+    pingLatency.value = Date.now() - t0;
+    pingTime.value = new Date().toISOString();
+    if (!error && data?.status === true) {
+      $q.notify({ type: 'positive', message: `SECeF opérationnel — ${pingLatency.value} ms`, icon: 'router' });
+    } else {
+      $q.notify({ type: 'warning', message: 'SECeF injoignable', icon: 'cloud_off' });
+    }
+  } catch {
+    pingLatency.value = null;
+    pingTime.value = new Date().toISOString();
+    $q.notify({ type: 'negative', message: 'Erreur lors du ping SECeF' });
+  } finally {
+    pingLoading.value = false;
+  }
+}
+
+async function loadMcfLogs() {
+  logsLoading.value = true;
+  try {
+    let q = insforge.database
+      .from('mcf_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (logsFilter.value.nim) q = q.eq('nim', logsFilter.value.nim);
+    if (logsFilter.value.from) q = q.gte('created_at', logsFilter.value.from + 'T00:00:00');
+    if (logsFilter.value.to) q = q.lte('created_at', logsFilter.value.to + 'T23:59:59');
+    if (logsFilter.value.status === '2xx') q = q.gte('status_code', 200).lt('status_code', 300);
+    else if (logsFilter.value.status === '4xx') q = q.gte('status_code', 400).lt('status_code', 500);
+    else if (logsFilter.value.status === '5xx') q = q.gte('status_code', 500);
+
+    const { data } = await q;
+    if (data) mcfLogs.value = data as McfLog[];
+  } finally {
+    logsLoading.value = false;
+  }
+}
+
+function openLogDetail(log: McfLog) {
+  selectedLog.value = log;
+  logDetailOpen.value = true;
+}
+
+function exportMcfLogs() {
+  if (!mcfLogs.value.length) return;
+  const headers = ['Horodatage', 'NIM', 'Méthode', 'Endpoint', 'Statut', 'Durée (ms)', 'User ID'];
+  const rows = mcfLogs.value.map(l => [
+    new Date(l.created_at).toLocaleString('fr-FR'),
+    l.nim || '',
+    l.method,
+    l.endpoint,
+    String(l.status_code),
+    l.duration_ms !== null ? String(l.duration_ms) : '',
+    l.user_id || '',
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mcf_logs_${new Date().toISOString().substring(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  $q.notify({ type: 'positive', message: `${mcfLogs.value.length} logs exportés` });
+}
+
 
 async function addDevice() {
   saving.value = true;
@@ -1336,16 +2129,16 @@ const rbacShowPwd = ref(false);
 const rbacUsersLoading = ref(false);
 const rbacUsers = ref<(UserRow & { user_id?: string; extra_roles?: string[] })[]>([]);
 
-const rbacRoleOptions = [
-  { label: 'Superviseur / Chef comptable', value: 'superviseur' },
-  { label: 'Comptable', value: 'comptable' },
-  { label: 'Trésorier', value: 'tresorier' },
-  { label: 'Caissier', value: 'caissier' },
-  { label: 'Manager / Direction', value: 'manager' },
-  { label: 'Auditeur', value: 'auditeur' },
-  { label: 'Contrôleur interne', value: 'controleur' },
-  { label: 'Consultant externe', value: 'consultant' },
-];
+const rbacRoleOptions = computed(() => rbacPerms.getAllRoleOptions());
+
+// Custom role creation
+const customRoleDialogOpen = ref(false);
+const customRoleForm = ref({ role_key: '', label: '', description: '', base_role: '' as string, permissions: [] as PermissionType[] });
+
+// Edit user role
+const editUserRoleDialogOpen = ref(false);
+const editUserRoleTarget = ref<(UserRow & { user_id?: string }) | null>(null);
+const editUserRoleValue = ref('');
 
 const rbacUserColumns = [
   { name: 'full_name', label: 'Nom', field: 'full_name', align: 'left' as const, sortable: true },
@@ -1445,6 +2238,99 @@ function onResetRole() {
   });
 }
 
+// --- Custom role management ---
+function openCustomRoleDialog() {
+  customRoleForm.value = { role_key: '', label: '', description: '', base_role: '', permissions: [] };
+  customRoleDialogOpen.value = true;
+}
+
+function onBaseRoleChange() {
+  const base = customRoleForm.value.base_role;
+  if (base) {
+    const defaults = (DEFAULT_ROLE_PERMISSIONS as Record<string, PermissionType[]>)[base] ?? [];
+    customRoleForm.value.permissions = [...defaults];
+  }
+}
+
+async function onCreateCustomRole() {
+  const f = customRoleForm.value;
+  if (!f.role_key || !f.label) return;
+  rbacSaving.value = true;
+  try {
+    const result = await rbacPerms.createCustomRole(
+      f.role_key, f.label, f.description,
+      f.base_role || null,
+      f.permissions,
+    );
+    if (result.error) {
+      $q.notify({ type: 'negative', message: result.error });
+    } else {
+      customRoleDialogOpen.value = false;
+      $q.notify({ type: 'positive', message: `Profil « ${f.label} » créé` });
+      rbacSelectedRole.value = f.role_key;
+      initEditMatrix();
+    }
+  } finally {
+    rbacSaving.value = false;
+  }
+}
+
+function isCustomRole(roleKey: string): boolean {
+  return rbacPerms.customRoles.value.some(r => r.role_key === roleKey);
+}
+
+function onDeleteCustomRole() {
+  const role = rbacSelectedRole.value;
+  if (!isCustomRole(role)) return;
+  const label = rbacPerms.customRoles.value.find(r => r.role_key === role)?.label || role;
+  $q.dialog({
+    title: 'Supprimer le profil',
+    message: `Supprimer définitivement le profil personnalisé « ${label} » et toutes ses permissions ?`,
+    cancel: true,
+    persistent: true,
+  }).onOk(() => {
+    rbacSaving.value = true;
+    void rbacPerms.deleteCustomRole(role).then((result) => {
+      if (result.error) {
+        $q.notify({ type: 'negative', message: result.error });
+      } else {
+        rbacSelectedRole.value = 'superviseur';
+        initEditMatrix();
+        $q.notify({ type: 'positive', message: `Profil « ${label} » supprimé` });
+      }
+    }).finally(() => {
+      rbacSaving.value = false;
+    });
+  });
+}
+
+// --- Edit user role ---
+function openEditUserRoleDialog(row: UserRow & { user_id?: string }) {
+  editUserRoleTarget.value = row;
+  editUserRoleValue.value = row.role;
+  editUserRoleDialogOpen.value = true;
+}
+
+async function onEditUserRole() {
+  if (!editUserRoleTarget.value?.user_id || !editUserRoleValue.value) return;
+  rbacSaving.value = true;
+  try {
+    const { error } = await insforge.database
+      .from('user_profiles')
+      .update({ role: editUserRoleValue.value })
+      .eq('user_id', editUserRoleTarget.value.user_id);
+    if (error) {
+      $q.notify({ type: 'negative', message: error.message });
+    } else {
+      editUserRoleDialogOpen.value = false;
+      $q.notify({ type: 'positive', message: `Rôle modifié en « ${editUserRoleValue.value} »` });
+      await loadRbacUsers();
+    }
+  } finally {
+    rbacSaving.value = false;
+  }
+}
+
 // --- User management in RBAC tab ---
 async function loadRbacUsers() {
   rbacUsersLoading.value = true;
@@ -1472,11 +2358,11 @@ const assignRoleTarget = ref<(UserRow & { user_id?: string; extra_roles?: string
 const assignRoleForm = ref({ role: '', expires_at: '' as string });
 
 const assignRoleAvailableOptions = computed(() => {
-  if (!assignRoleTarget.value) return rbacRoleOptions;
+  if (!assignRoleTarget.value) return rbacRoleOptions.value;
   const primaryRole = assignRoleTarget.value.role;
   const extras = assignRoleTarget.value.extra_roles ?? [];
   const taken = new Set([primaryRole, ...extras]);
-  return rbacRoleOptions.filter(o => !taken.has(o.value));
+  return rbacRoleOptions.value.filter(o => !taken.has(o.value));
 });
 
 function openAssignRoleDialog(row: UserRow & { user_id?: string; extra_roles?: string[] }) {
@@ -1543,15 +2429,61 @@ async function onCreateRbacUser() {
     const anonKey = import.meta.env.VITE_INSFORGE_ANON_KEY as string;
     const adminClient = createClient({ baseUrl, anonKey });
 
-    const { data: signUpData, error: signUpErr } = await adminClient.auth.signUp({
-      email: rbacUserForm.value.email,
-      password: rbacUserForm.value.password,
-      name: rbacUserForm.value.full_name,
-    });
-    if (signUpErr) throw new Error(signUpErr.message);
+    // Check if user already exists
+    const { data: existingUsers } = await adminClient.database
+      .from('users')
+      .select('id')
+      .eq('email', rbacUserForm.value.email)
+      .limit(1);
 
-    const newUserId = signUpData?.user?.id;
-    if (!newUserId) throw new Error('Impossible de récupérer l\'ID utilisateur');
+    let newUserId = existingUsers?.[0]?.id;
+
+    if (!newUserId) {
+      // User doesn't exist, create them
+      const { data: signUpData, error: signUpErr } = await adminClient.auth.signUp({
+        email: rbacUserForm.value.email,
+        password: rbacUserForm.value.password,
+        name: rbacUserForm.value.full_name,
+      });
+      if (signUpErr) {
+        // Check if it's a "user already exists" error
+        if (signUpErr.message?.includes('already') || signUpErr.message?.includes('exist') || signUpErr.statusCode === 409) {
+          throw new Error('Un utilisateur avec cet email existe déjà');
+        }
+        throw new Error(signUpErr.message);
+      }
+
+      newUserId = signUpData?.user?.id;
+
+      // If user ID is not available (email verification required), query by email
+      if (!newUserId) {
+        const { data: users, error: usersErr } = await adminClient.database
+          .from('users')
+          .select('id')
+          .eq('email', rbacUserForm.value.email)
+          .limit(1);
+        
+        if (usersErr || !users || users.length === 0) {
+          throw new Error('Utilisateur créé mais impossible de récupérer son ID. Il devra vérifier son email.');
+        }
+        newUserId = users[0]?.id;
+        if (!newUserId) {
+          throw new Error('Utilisateur créé mais ID non trouvé.');
+        }
+      }
+    } else {
+      // User already exists - check if they already have a profile for this company
+      const { data: existingProfile } = await insforge.database
+        .from('user_profiles')
+        .select('id')
+        .eq('user_id', newUserId)
+        .eq('company_id', companyStore.company?.id)
+        .limit(1);
+
+      if (existingProfile && existingProfile.length > 0) {
+        throw new Error('Cet utilisateur existe déjà dans cette entreprise');
+      }
+    }
 
     const { error: profileErr } = await insforge.database
       .from('user_profiles')
@@ -1574,11 +2506,17 @@ async function onCreateRbacUser() {
   }
 }
 
+// Load logs when switching to secef-logs tab
+watch(tab, (newTab) => {
+  if (newTab === 'secef-logs') void loadMcfLogs();
+});
+
 onMounted(async () => {
   loadCompanyForm();
   loadRoutingForm();
   loadChatbotState();
   initEditMatrix();
-  await Promise.all([loadDevices(), loadUsers(), chatbot.loadApiKeys(), loadRbacUsers()]);
+  initFiscalForm();
+  await Promise.all([loadDevices(), chatbot.loadApiKeys(), loadRbacUsers()]);
 });
 </script>

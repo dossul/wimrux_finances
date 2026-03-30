@@ -10,7 +10,7 @@
 |-----|--------|
 | **URL API** | `https://gfe4bd9y.eu-central.insforge.app` |
 | **Anon Key** | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NTAwNjN9.J71GoMBih3RietpuMmXLeLEU3664bu1jzI3KFZg3dPU` |
-| **FNEC Simulator** | `https://gfe4bd9y.eu-central.insforge.app/functions/v1/fnec-simulator` |
+| **MCF Simulator** | `https://gfe4bd9y.eu-central.insforge.app/functions/v1/mcf-simulator` |
 
 ---
 
@@ -29,7 +29,7 @@
 
 ---
 
-## 3. Appareil SFE (Certification FNEC)
+## 3. Appareil SFE (Certification MCF)
 
 | Champ | Valeur |
 |-------|--------|
@@ -72,7 +72,7 @@ L'app sera disponible sur `http://localhost:9000`
 Une fois connecté en tant qu'Admin, vous aurez accès à :
 
 - Tableau de bord (Dashboard)
-- Factures (création, validation, certification FNEC)
+- Factures (création, validation, certification MCF)
 - Clients
 - Trésorerie
 - Rapports (Synthèse, Compte de résultat, Balance âgée)
@@ -87,7 +87,7 @@ Une fois connecté en tant qu'Admin, vous aurez accès à :
 
 | Fonction | Slug | Description |
 |----------|------|-------------|
-| **FNEC Simulator** | `fnec-simulator` | API FNEC simulée (auth, submit, confirm, Z/X reports) |
+| **MCF Simulator** | `mcf-simulator` | API MCF simulée (auth, submit, confirm, Z/X reports) |
 | **Crypto AES-256** | `crypto-aes256` | Chiffrement/déchiffrement AES-256-CBC |
 
 ---

@@ -142,6 +142,30 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<UserRole, 'project_admin'>
   ],
 };
 
+// Row in company_custom_roles table
+export interface CompanyCustomRole {
+  id: string;
+  company_id: string;
+  role_key: string;
+  label: string;
+  description: string | null;
+  base_role: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// SaaS-provided role labels (used in UI alongside custom roles)
+export const SAAS_ROLE_LABELS: Record<string, string> = {
+  superviseur: 'Superviseur / Chef comptable',
+  comptable: 'Comptable',
+  tresorier: 'Trésorier',
+  caissier: 'Caissier',
+  manager: 'Manager / Direction',
+  auditeur: 'Auditeur',
+  controleur: 'Contrôleur interne',
+  consultant: 'Consultant externe',
+};
+
 // Row in company_role_permissions table
 export interface CompanyRolePermission {
   id: string;
@@ -177,9 +201,11 @@ export interface Company {
   phone: string;
   email: string;
   bank_accounts: BankAccount[];
-  tax_regime: string;
   tax_office: string;
+  fiscal_profile: FiscalProfile;
+  fiscal_config: FiscalConfig | null;
   logo_url: string | null;
+  invoice_settings: InvoiceSettings | null;
   ai_model: string | null;
   ai_fallback_model: string | null;
   ai_system_prompt: string | null;
@@ -187,6 +213,7 @@ export interface Company {
   openrouter_api_key: string | null;
   ai_routing: AiRouting | null;
   chatbot_enabled: boolean;
+  qr_scan_base_url: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -260,6 +287,25 @@ export interface BankAccount {
   iban: string;
 }
 
+export interface InvoiceColors {
+  primary: string;
+  header_bg: string;
+  header_text: string;
+  row_odd_bg: string;
+  row_even_bg: string;
+  row_text: string;
+  total_bg: string;
+  total_text: string;
+  cert_border: string;
+  cert_title: string;
+}
+
+export interface InvoiceSettings {
+  show_logo: boolean;
+  logo_position: 'left' | 'center' | 'right';
+  colors: Partial<InvoiceColors>;
+}
+
 // --- Profil utilisateur ---
 export interface UserProfile {
   id: string;
@@ -270,19 +316,70 @@ export interface UserProfile {
   created_at: string;
 }
 
+// --- Profil fiscal modulable par SaaS ---
+export type FiscalProfile = 'BF' | 'GENERIC';
+export type TaxCategory = 'BIC' | 'BNC' | 'BA' | 'IS';
+export type TaxSubRegime = 'RNI' | 'RSI' | 'CME' | 'CSE' | 'ND';
+export type SecefType = 'MCF' | 'EMCF';
+
+export interface TaxGroupConfig {
+  description: string;
+  tva: number;
+  psvb: number;
+}
+
+export interface StampDutyThreshold {
+  max: number | null;
+  amount: number;
+}
+
+export interface FiscalConfig {
+  country: string;
+  currency: string;
+  currency_label: string;
+  secef_enabled: boolean;
+  secef_type?: SecefType;
+  tax_category: TaxCategory | null;
+  tax_sub_regime: TaxSubRegime | null;
+  tax_groups: Record<string, TaxGroupConfig>;
+  psvb_enabled: boolean;
+  psvb_label: string;
+  stamp_duty_enabled: boolean;
+  stamp_duty_thresholds: StampDutyThreshold[];
+  invoice_types: string[];
+  client_types: string[];
+  article_types: string[];
+}
+
 // --- Types de factures ---
-export type InvoiceType = 'FV' | 'FT' | 'FA' | 'EV' | 'ET' | 'EA';
+export type InvoiceType = 'FV' | 'FT' | 'FA' | 'EV' | 'ET' | 'EA' | 'PF';
 export type InvoiceStatus =
   | 'draft'
   | 'pending_validation'
   | 'approved'
   | 'validated'
   | 'certified'
+  | 'sent'
+  | 'accepted'
+  | 'rejected'
   | 'cancelled';
 export type PriceMode = 'HT' | 'TTC';
 
 // --- Types d'articles ---
 export type ArticleType = 'LOCBIE' | 'LOCSER' | 'IMPBIE' | 'IMPSER';
+
+export interface Article {
+  id: string;
+  company_id: string;
+  code: string;
+  name: string;
+  type: ArticleType;
+  tax_group: TaxGroup;
+  unit_price: number;
+  specific_tax: number;
+  is_active: boolean;
+  created_at: string;
+}
 
 // --- Types de clients ---
 export type ClientType = 'CC' | 'PM' | 'PP' | 'PC';
@@ -350,7 +447,7 @@ export interface Invoice {
   total_ttc: number;
   stamp_duty: number;
   total_payment: number;
-  fnec_uid: string | null;
+  mcf_uid: string | null;
   fiscal_number: string | null;
   code_secef_dgi: string | null;
   qr_code: string | null;
@@ -358,6 +455,7 @@ export interface Invoice {
   nim: string | null;
   counters: string | null;
   certification_datetime: string | null;
+  proforma_converted_to: string | null;
   pdf_url: string | null;
   created_at: string;
   validated_at: string | null;
@@ -393,9 +491,9 @@ export interface TaxGroupRates {
 }
 
 export interface TaxCalculationResult {
-  totalHT: Record<TaxGroup, number>;
-  tva: Record<TaxGroup, number>;
-  psvb: Record<TaxGroup, number>;
+  totalHT: Record<string, number>;
+  tva: Record<string, number>;
+  psvb: Record<string, number>;
   totalTTC: number;
   stampDuty: number;
 }
@@ -637,4 +735,32 @@ export interface ChatbotUsageStats {
   actions_denied: number;
   by_channel: Record<ChatbotChannel, number>;
   by_action: Record<string, number>;
+}
+
+// --- SFE Devices & MCF Logs ---
+export interface SfeDevice {
+  nim: string;
+  ifu: string;
+  name: string | null;
+  status: 'ACTIF' | 'BLOQUÉ' | 'DÉSACTIVÉ';
+  simulator_enabled: boolean;
+  activation_counter: number;
+  last_audit_remote: string | null;
+  created_at: string;
+  company_id: string;
+  jwt_secret: string;
+}
+
+export interface McfLog {
+  id: string;
+  company_id: string | null;
+  nim: string | null;
+  endpoint: string;
+  method: string;
+  request_body: Record<string, unknown> | null;
+  response_body: Record<string, unknown> | null;
+  status_code: number;
+  duration_ms: number | null;
+  user_id: string | null;
+  created_at: string;
 }

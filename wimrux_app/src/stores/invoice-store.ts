@@ -144,6 +144,27 @@ export const useInvoiceStore = defineStore('invoice', () => {
     return { data, error };
   }
 
+  async function deleteDraft(id: string) {
+    // Sécurité : seuls les brouillons peuvent être supprimés
+    const target = invoices.value.find(i => i.id === id);
+    if (target && target.status !== 'draft') {
+      return { data: null, error: { message: 'Seuls les brouillons peuvent être supprimés' } };
+    }
+
+    // Supprimer les lignes d'abord (FK)
+    await insforge.database.from('invoice_items').delete().eq('invoice_id', id);
+    const { error } = await insforge.database.from('invoices').delete().eq('id', id);
+
+    if (!error) {
+      invoices.value = invoices.value.filter(i => i.id !== id);
+      if (currentInvoice.value?.id === id) {
+        currentInvoice.value = null;
+        currentItems.value = [];
+      }
+    }
+    return { data: null, error };
+  }
+
   function clearCurrent() {
     currentInvoice.value = null;
     currentItems.value = [];
@@ -164,6 +185,7 @@ export const useInvoiceStore = defineStore('invoice', () => {
     createDraft,
     updateInvoice,
     saveItems,
+    deleteDraft,
     clearCurrent,
   };
 });

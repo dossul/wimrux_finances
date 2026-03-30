@@ -3,7 +3,9 @@
     <div class="row items-center q-mb-md">
       <div class="text-h5">Trésorerie</div>
       <q-space />
-      <q-btn color="primary" icon="add" label="Nouveau mouvement" no-caps @click="openDialog()" />
+      <q-btn color="green-7" icon="arrow_downward" label="Dépôt caisse" no-caps class="q-mr-sm" @click="openCashDialog('credit')" />
+      <q-btn color="red-7" icon="arrow_upward" label="Retrait caisse" no-caps class="q-mr-sm" @click="openCashDialog('debit')" />
+      <q-btn color="primary" icon="add" label="Mouvement" no-caps @click="openDialog()" />
     </div>
 
     <!-- Account summary cards -->
@@ -34,6 +36,7 @@
     <div class="row q-gutter-sm q-mb-md">
       <q-select v-model="filterAccount" :options="accountOptions" emit-value map-options outlined dense clearable placeholder="Compte" class="col" />
       <q-select v-model="filterType" :options="movementTypeOptions" emit-value map-options outlined dense clearable placeholder="Type" style="min-width: 140px" />
+      <q-toggle v-model="filterCashOnly" label="Caisse uniquement" dense />
       <q-input v-model="dateFrom" outlined dense type="date" label="Du" style="width: 160px" />
       <q-input v-model="dateTo" outlined dense type="date" label="Au" style="width: 160px" />
     </div>
@@ -132,6 +135,7 @@ interface TreasuryMovement {
   payment_type: string;
   reference: string | null;
   invoice_id: string | null;
+  is_cash_operation: boolean;
   created_at: string;
 }
 
@@ -147,6 +151,7 @@ const accountDialogOpen = ref(false);
 
 const filterAccount = ref<string | null>(null);
 const filterType = ref<string | null>(null);
+const filterCashOnly = ref(false);
 const dateFrom = ref('');
 const dateTo = ref('');
 
@@ -157,6 +162,7 @@ const form = ref({
   description: '',
   payment_type: 'ESPECES',
   reference: '',
+  is_cash_operation: false,
 });
 
 const accountForm = ref({
@@ -195,6 +201,7 @@ const filteredMovements = computed(() => {
   let result = movements.value;
   if (filterAccount.value) result = result.filter(m => m.account_id === filterAccount.value);
   if (filterType.value) result = result.filter(m => m.type === filterType.value);
+  if (filterCashOnly.value) result = result.filter(m => m.is_cash_operation);
   return result;
 });
 
@@ -208,7 +215,21 @@ function formatDate(d: string) {
 }
 
 function openDialog() {
-  form.value = { account_id: accounts.value[0]?.id || '', type: 'credit', amount: 0, description: '', payment_type: 'ESPECES', reference: '' };
+  form.value = { account_id: accounts.value[0]?.id || '', type: 'credit', amount: 0, description: '', payment_type: 'ESPECES', reference: '', is_cash_operation: false };
+  dialogOpen.value = true;
+}
+
+function openCashDialog(type: 'credit' | 'debit') {
+  const cashAccount = accounts.value.find(a => a.type === 'caisse');
+  form.value = {
+    account_id: cashAccount?.id || accounts.value[0]?.id || '',
+    type,
+    amount: 0,
+    description: type === 'credit' ? 'Dépôt de numéraires' : 'Retrait de numéraires',
+    payment_type: 'ESPECES',
+    reference: '',
+    is_cash_operation: true,
+  };
   dialogOpen.value = true;
 }
 
@@ -242,6 +263,7 @@ async function saveMovement() {
       description: form.value.description,
       payment_type: form.value.payment_type,
       reference: form.value.reference || null,
+      is_cash_operation: form.value.is_cash_operation,
     });
     if (error) throw new Error(error.message);
 

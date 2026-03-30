@@ -25,7 +25,7 @@
         <q-banner v-if="companyFound" class="bg-green-1 text-green-9 rounded-borders q-mb-sm" dense>
           <template v-slot:avatar><q-icon name="check_circle" color="green" /></template>
           <strong>{{ companyFound.name }}</strong><br />
-          <span class="text-caption">RCCM: {{ companyFound.rccm }} · {{ companyFound.tax_regime }}</span>
+          <span class="text-caption">RCCM: {{ companyFound.rccm }}</span>
         </q-banner>
 
         <q-input

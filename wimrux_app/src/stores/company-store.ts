@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { insforge } from 'src/boot/insforge';
-import type { Company } from 'src/types';
+import type { Company, InvoiceSettings, FiscalProfile, FiscalConfig } from 'src/types';
 
 export const useCompanyStore = defineStore('company', () => {
   const company = ref<Company | null>(null);
@@ -50,6 +50,40 @@ export const useCompanyStore = defineStore('company', () => {
     return { data, error };
   }
 
+  async function uploadLogo(file: File): Promise<{ url: string | null; error: Error | null }> {
+    if (!company.value) return { url: null, error: new Error('No company') };
+    const ext = file.name.split('.').pop() ?? 'png';
+    const path = `${company.value.id}/logo.${ext}`;
+    const { data, error } = await insforge.storage
+      .from('company-logos')
+      .upload(path, file);
+    if (error || !data) return { url: null, error: error as Error };
+    const url: string = (data as { url: string }).url;
+    await updateCompany({ logo_url: url });
+    return { url, error: null };
+  }
+
+  async function deleteLogo(): Promise<void> {
+    if (!company.value?.logo_url) return;
+    const path = company.value.logo_url.split('/company-logos/').pop() ?? '';
+    await insforge.storage.from('company-logos').remove(path);
+    await updateCompany({ logo_url: null });
+  }
+
+  async function updateFiscalConfig(
+    profile: FiscalProfile,
+    config: FiscalConfig,
+  ): Promise<void> {
+    await updateCompany({ fiscal_profile: profile, fiscal_config: config });
+  }
+
+  async function updateInvoiceSettings(settings: Partial<InvoiceSettings>): Promise<void> {
+    if (!company.value) return;
+    const current = company.value.invoice_settings ?? {};
+    const merged = { ...current, ...settings, colors: { ...(current as InvoiceSettings).colors, ...(settings.colors ?? {}) } };
+    await updateCompany({ invoice_settings: merged as InvoiceSettings });
+  }
+
   async function createCompany(newCompany: Omit<Company, 'id' | 'created_at'>) {
     const { data, error } = await insforge.database
       .from('companies')
@@ -76,5 +110,9 @@ export const useCompanyStore = defineStore('company', () => {
     setActiveCompany,
     updateCompany,
     createCompany,
+    uploadLogo,
+    deleteLogo,
+    updateFiscalConfig,
+    updateInvoiceSettings,
   };
 });

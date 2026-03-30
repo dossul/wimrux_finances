@@ -96,7 +96,7 @@ export function useDegradedMode() {
       if (cert) {
         await insforge.database.from('invoices').update({
           status: 'certified',
-          fnec_uid: uid,
+          mcf_uid: uid,
           fiscal_number: cert.fiscalNumber,
           code_secef_dgi: cert.codeSECeFDGI,
           qr_code: cert.qrCode,

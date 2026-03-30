@@ -74,12 +74,12 @@
 - [ ] Cliquer "Valider"
 - [ ] Statut passe à `validated`
 
-### 3.4 Certifier Facture (FNEC)
+### 3.4 Certifier Facture (MCF)
 - [ ] Cliquer "Certifier"
-- [ ] Attendre réponse FNEC
+- [ ] Attendre réponse MCF
 - [ ] Vérifier:
   - Statut `certified`
-  - UID FNEC affiché
+  - UID MCF affiché
   - Signature générée
 
 ### 3.5 Générer PDF

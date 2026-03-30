@@ -25,23 +25,23 @@
       },
       {
         "id": 3,
-        "title": "PHASE 0 — Edge Functions (fnec-simulator, crypto-aes256, chatbot-gateway)",
-        "description": "Déploiement des 3 Edge Functions sur InsForge: simulateur FNEC (11 endpoints), chiffrement AES-256, gateway chatbot.",
+        "title": "PHASE 0 — Edge Functions (mcf-simulator, crypto-aes256, chatbot-gateway)",
+        "description": "Déploiement des 3 Edge Functions sur InsForge: simulateur MCF (11 endpoints), chiffrement AES-256, gateway chatbot.",
         "status": "done",
         "dependencies": [2],
         "priority": "high",
-        "details": "fnec-simulator: 11 endpoints REST (/bf/fnec/auth/token, /status, /invoices, /invoices/:uid/confirm, /cancel, /info/taxGroups, /invoiceTypes, /paymentTypes, /reports/z, /reports/x). Codes erreur BF001-BF099. crypto-aes256: encrypt/decrypt AES-256-CBC. chatbot-gateway: auth API key, permission check, AI intent, 11 actions.",
+        "details": "mcf-simulator: 11 endpoints REST (/bf/mcf/auth/token, /status, /invoices, /invoices/:uid/confirm, /cancel, /info/taxGroups, /invoiceTypes, /paymentTypes, /reports/z, /reports/x). Codes erreur BF001-BF099. crypto-aes256: encrypt/decrypt AES-256-CBC. chatbot-gateway: auth API key, permission check, AI intent, 11 actions.",
         "testStrategy": "Chaque Edge Function répond correctement via insforge.functions.invoke().",
         "subtasks": []
       },
       {
         "id": 4,
         "title": "PHASE 1 — Types & Interfaces TypeScript (640 lignes)",
-        "description": "Définition complète des types dans src/types/index.ts: 10 rôles, 20 permissions, 6 types factures, 4 types clients, 4 types articles, 16 groupes taxation, 7 modes paiement, interfaces Invoice/InvoiceItem/Client/Company/FNEC/Audit/Treasury/Chatbot/RBAC.",
+        "description": "Définition complète des types dans src/types/index.ts: 10 rôles, 20 permissions, 6 types factures, 4 types clients, 4 types articles, 16 groupes taxation, 7 modes paiement, interfaces Invoice/InvoiceItem/Client/Company/MCF/Audit/Treasury/Chatbot/RBAC.",
         "status": "done",
         "dependencies": [1],
         "priority": "high",
-        "details": "UserRole (10), Permission (20), ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS. InvoiceType (FV/FT/FA/EV/ET/EA), InvoiceStatus (6), PriceMode (HT/TTC), ArticleType (LOCBIE/LOCSER/IMPBIE/IMPSER), ClientType (CC/PM/PP/PC), TaxGroup (A-P), PaymentType (7). Company avec bank_accounts, tax_regime, tax_office, ai_routing, chatbot_enabled. Invoice avec tous champs certification (code_secef_dgi, qr_code, nim, counters, signature, fiscal_number). FNEC types complets. Chatbot types (6 interfaces). RBAC types (CompanyRolePermission, UserRoleAssignment).",
+        "details": "UserRole (10), Permission (20), ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS. InvoiceType (FV/FT/FA/EV/ET/EA), InvoiceStatus (6), PriceMode (HT/TTC), ArticleType (LOCBIE/LOCSER/IMPBIE/IMPSER), ClientType (CC/PM/PP/PC), TaxGroup (A-P), PaymentType (7). Company avec bank_accounts, tax_regime, tax_office, ai_routing, chatbot_enabled. Invoice avec tous champs certification (code_secef_dgi, qr_code, nim, counters, signature, fiscal_number). MCF types complets. Chatbot types (6 interfaces). RBAC types (CompanyRolePermission, UserRoleAssignment).",
         "testStrategy": "vue-tsc clean, aucune erreur de type.",
         "subtasks": []
       },
@@ -80,12 +80,12 @@
       },
       {
         "id": 8,
-        "title": "PHASE 2 — API FNEC composable (useFnecApi)",
-        "description": "Composable useFnecApi: communication avec Edge Function fnec-simulator, retry automatique, 11 endpoints, codes erreur BF001-BF099.",
+        "title": "PHASE 2 — API MCF composable (useMcfApi)",
+        "description": "Composable useMcfApi: communication avec Edge Function mcf-simulator, retry automatique, 11 endpoints, codes erreur BF001-BF099.",
         "status": "done",
         "dependencies": [3, 4],
         "priority": "high",
-        "details": "callFnec<T>: wrapper générique avec retry (2x), gestion erreurs. getToken(), getStatus(), submitInvoice(), confirmInvoice(), cancelInvoice(), getInvoiceDetails(), getTaxGroups(), getInvoiceTypes(), getPaymentTypes(), getZReport(), getXReport(). ERROR_MESSAGES: 20 codes erreur BF001-BF099 traduits en français.",
+        "details": "callMcf<T>: wrapper générique avec retry (2x), gestion erreurs. getToken(), getStatus(), submitInvoice(), confirmInvoice(), cancelInvoice(), getInvoiceDetails(), getTaxGroups(), getInvoiceTypes(), getPaymentTypes(), getZReport(), getXReport(). ERROR_MESSAGES: 20 codes erreur BF001-BF099 traduits en français.",
         "testStrategy": "Chaque endpoint retourne les données attendues, retries fonctionnent, erreurs propagées.",
         "subtasks": []
       },
@@ -114,11 +114,11 @@
       {
         "id": 11,
         "title": "PHASE 2 — Pages Factures (Liste + Éditeur)",
-        "description": "InvoicesListPage.vue: liste avec filtres (statut, type, période), badges statut, actions. InvoiceEditorPage.vue: formulaire complet (client, articles, calcul fiscal, workflow, certification FNEC).",
+        "description": "InvoicesListPage.vue: liste avec filtres (statut, type, période), badges statut, actions. InvoiceEditorPage.vue: formulaire complet (client, articles, calcul fiscal, workflow, certification MCF).",
         "status": "done",
         "dependencies": [7, 8, 9, 10],
         "priority": "high",
-        "details": "InvoicesListPage: table Quasar, filtres colonnes, recherche, tri, pagination. InvoiceEditorPage: sélection type facture, mode prix HT/TTC, ajout/suppression articles avec calcul auto, sélection client, paiements, workflow actions, certification FNEC (submit + confirm), affichage éléments de sécurité.",
+        "details": "InvoicesListPage: table Quasar, filtres colonnes, recherche, tri, pagination. InvoiceEditorPage: sélection type facture, mode prix HT/TTC, ajout/suppression articles avec calcul auto, sélection client, paiements, workflow actions, certification MCF (submit + confirm), affichage éléments de sécurité.",
         "testStrategy": "Création/édition/soumission/certification fonctionne end-to-end.",
         "subtasks": []
       },
@@ -158,7 +158,7 @@
       {
         "id": 15,
         "title": "PHASE 3 — Module Rapports + Rapports Fiscaux Z/X",
-        "description": "ReportsPage.vue: KPIs par période. FiscalReportsPage.vue: génération Z-Rapport et X-Rapport via FNEC API.",
+        "description": "ReportsPage.vue: KPIs par période. FiscalReportsPage.vue: génération Z-Rapport et X-Rapport via MCF API.",
         "status": "done",
         "dependencies": [8, 11],
         "priority": "high",
@@ -502,7 +502,7 @@
         "status": "pending",
         "dependencies": [8, 19],
         "priority": "medium",
-        "details": "Dans useFnecApi ou useDegradedMode: au chargement de l'app, appeler getStatus(). Si lastAuditRemote > 7 jours ou deviceStatus !== 'ACTIF', afficher un QNotify warning persistant. Vérifier quotidiennement (localStorage timestamp). Afficher aussi dans le Dashboard (carte d'alerte rouge).",
+        "details": "Dans useMcfApi ou useDegradedMode: au chargement de l'app, appeler getStatus(). Si lastAuditRemote > 7 jours ou deviceStatus !== 'ACTIF', afficher un QNotify warning persistant. Vérifier quotidiennement (localStorage timestamp). Afficher aussi dans le Dashboard (carte d'alerte rouge).",
         "testStrategy": "Alerte visible si MCF offline > 7j, disparaît si connexion OK.",
         "subtasks": []
       },
@@ -531,11 +531,11 @@
       {
         "id": 39,
         "title": "PHASE 10 — Tests unitaires composables critiques",
-        "description": "Tests unitaires pour useTaxCalculation, useInvoiceWorkflow, useFnecApi (mock). Vitest.",
+        "description": "Tests unitaires pour useTaxCalculation, useInvoiceWorkflow, useMcfApi (mock). Vitest.",
         "status": "pending",
         "dependencies": [7, 8, 9],
         "priority": "medium",
-        "details": "Installer vitest + @vue/test-utils. Tests useTaxCalculation: chaque groupe taxation, modes HT/TTC, timbre, arrondi, taxe spécifique. Tests useInvoiceWorkflow: transitions valides/invalides, anti-fraude. Tests useFnecApi: mock Edge Function, retry, erreurs.",
+        "details": "Installer vitest + @vue/test-utils. Tests useTaxCalculation: chaque groupe taxation, modes HT/TTC, timbre, arrondi, taxe spécifique. Tests useInvoiceWorkflow: transitions valides/invalides, anti-fraude. Tests useMcfApi: mock Edge Function, retry, erreurs.",
         "testStrategy": "100% des cas de test passent, coverage > 80% sur les composables critiques.",
         "subtasks": []
       },
@@ -546,7 +546,7 @@
         "status": "pending",
         "dependencies": [39],
         "priority": "medium",
-        "details": "Installer @playwright/test. Scénarios: (1) Login admin → créer facture → articles → soumettre. (2) Login superviseur → approuver → valider. (3) Certification FNEC → vérifier PDF. (4) Créer FA avec nature. (5) Rapports Z/X. (6) RBAC: accès refusé pour rôle non autorisé.",
+        "details": "Installer @playwright/test. Scénarios: (1) Login admin → créer facture → articles → soumettre. (2) Login superviseur → approuver → valider. (3) Certification MCF → vérifier PDF. (4) Créer FA avec nature. (5) Rapports Z/X. (6) RBAC: accès refusé pour rôle non autorisé.",
         "testStrategy": "Tous les scénarios e2e passent.",
         "subtasks": []
       },

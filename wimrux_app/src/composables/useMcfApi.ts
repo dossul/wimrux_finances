@@ -54,8 +54,8 @@ async function callMcf<T>(
   retries = 0,
 ): Promise<McfResult<T>> {
   try {
-    const { data, error } = await insforge.functions.invoke('fnec-simulator', {
-      method,
+    const { data, error } = await insforge.functions.invoke('mcf-simulator', {
+      method: 'POST',
       body: { _path: path, _method: method, ...body },
       ...(headers ? { headers } : {}),
     });
@@ -89,7 +89,7 @@ export function useMcfApi() {
   let authToken: string | null = null;
 
   async function getToken(req: McfAuthRequest): Promise<McfResult<McfAuthResponse>> {
-    const result = await callMcf<McfAuthResponse>('/bf/fnec/auth/token', 'POST', req as unknown as Record<string, unknown>);
+    const result = await callMcf<McfAuthResponse>('/bf/mcf/auth/token', 'POST', req as unknown as Record<string, unknown>);
     if (result.data?.access_token) {
       authToken = result.data.access_token;
     }
@@ -97,51 +97,56 @@ export function useMcfApi() {
   }
 
   function getAuthHeaders(): Record<string, string> {
-    return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    return authToken ? { 'X-MCF-Authorization': `Bearer ${authToken}` } : {};
+  }
+
+  async function ping(): Promise<McfResult<{ status: boolean; version: string; serverDateTime: string; message: string }>> {
+    return callMcf<{ status: boolean; version: string; serverDateTime: string; message: string }>('/bf/mcf/ping', 'GET');
   }
 
   async function getStatus(): Promise<McfResult<McfStatusResponse>> {
-    return callMcf<McfStatusResponse>('/bf/fnec/status', 'GET', undefined, getAuthHeaders());
+    return callMcf<McfStatusResponse>('/bf/mcf/status', 'GET', undefined, getAuthHeaders());
   }
 
   async function submitInvoice(invoiceData: Record<string, unknown>): Promise<McfResult<McfSubmitResponse>> {
-    return callMcf<McfSubmitResponse>('/bf/fnec/invoices', 'POST', invoiceData, getAuthHeaders());
+    return callMcf<McfSubmitResponse>('/bf/mcf/invoices', 'POST', invoiceData, getAuthHeaders());
   }
 
   async function confirmInvoice(uid: string): Promise<McfResult<McfConfirmResponse>> {
-    return callMcf<McfConfirmResponse>(`/bf/fnec/invoices/${uid}/confirm`, 'PUT', undefined, getAuthHeaders());
+    return callMcf<McfConfirmResponse>(`/bf/mcf/invoices/${uid}/confirm`, 'PUT', undefined, getAuthHeaders());
   }
 
   async function cancelInvoice(uid: string): Promise<McfResult<{ uid: string; status: string; dateTime: string }>> {
-    return callMcf(`/bf/fnec/invoices/${uid}/cancel`, 'PUT', undefined, getAuthHeaders());
+    return callMcf(`/bf/mcf/invoices/${uid}/cancel`, 'PUT', undefined, getAuthHeaders());
   }
 
   async function getInvoiceDetails(uid: string): Promise<McfResult<Record<string, unknown>>> {
-    return callMcf(`/bf/fnec/invoices/${uid}`, 'GET', undefined, getAuthHeaders());
+    return callMcf(`/bf/mcf/invoices/${uid}`, 'GET', undefined, getAuthHeaders());
   }
 
   async function getTaxGroups(): Promise<McfResult<Record<string, TaxGroupRates>>> {
-    return callMcf('/bf/fnec/info/taxGroups');
+    return callMcf('/bf/mcf/info/taxGroups');
   }
 
   async function getInvoiceTypes(): Promise<McfResult<{ type: string; description: string }[]>> {
-    return callMcf('/bf/fnec/info/invoiceTypes');
+    return callMcf('/bf/mcf/info/invoiceTypes');
   }
 
   async function getPaymentTypes(): Promise<McfResult<string[]>> {
-    return callMcf('/bf/fnec/info/paymentTypes');
+    return callMcf('/bf/mcf/info/paymentTypes');
   }
 
   async function getZReport(): Promise<McfResult<Record<string, unknown>>> {
-    return callMcf('/bf/fnec/reports/z', 'GET', undefined, getAuthHeaders());
+    return callMcf('/bf/mcf/reports/z', 'GET', undefined, getAuthHeaders());
   }
 
   async function getXReport(): Promise<McfResult<Record<string, unknown>>> {
-    return callMcf('/bf/fnec/reports/x', 'GET', undefined, getAuthHeaders());
+    return callMcf('/bf/mcf/reports/x', 'GET', undefined, getAuthHeaders());
   }
 
   return {
     getToken,
+    ping,
     getStatus,
     submitInvoice,
     confirmInvoice,

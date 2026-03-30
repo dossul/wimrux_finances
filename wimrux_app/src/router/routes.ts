@@ -43,15 +43,25 @@ const routes: RouteRecordRaw[] = [
       { path: 'invoices/new', name: 'invoice-new', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Nouvelle facture', permissions: ['invoices.create'] } },
       { path: 'invoices/:id', name: 'invoice-edit', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Facture', permissions: ['invoices.read'] } },
       { path: 'clients', name: 'clients', component: () => import('pages/clients/ClientsPage.vue'), meta: { title: 'Clients', permissions: ['clients.read'] } },
+      { path: 'articles', name: 'articles', component: () => import('pages/articles/ArticlesPage.vue'), meta: { title: 'Articles', permissions: ['invoices.create'] } },
       { path: 'treasury', name: 'treasury', component: () => import('pages/treasury/TreasuryPage.vue'), meta: { title: 'Trésorerie', permissions: ['treasury.read'] } },
       { path: 'reports', name: 'reports', component: () => import('pages/reports/ReportsPage.vue'), meta: { title: 'Rapports', permissions: ['reports.read'] } },
       { path: 'reports/fiscal', name: 'fiscal-reports', component: () => import('pages/reports/FiscalReportsPage.vue'), meta: { title: 'Rapports fiscaux', permissions: ['reports.fiscal'] } },
+      { path: 'reports/a-report', name: 'a-report', component: () => import('pages/reports/AReportPage.vue'), meta: { title: 'A-Rapport', permissions: ['reports.fiscal'] } },
       { path: 'audit', name: 'audit', component: () => import('pages/audit/AuditLogPage.vue'), meta: { title: 'Journal d\'audit', permissions: ['audit.read'] } },
       { path: 'ai-assistant', name: 'ai-assistant', component: () => import('pages/ai/AiAssistantPage.vue'), meta: { title: 'Assistant IA', permissions: ['ai.use'] } },
-      { path: 'admin/ai-usage', name: 'admin-ai-usage', component: () => import('pages/admin/AdminAiUsagePage.vue'), meta: { title: 'Suivi IA Admin', permissions: ['settings.manage'] } },
-      { path: 'admin/chatbot', name: 'admin-chatbot', component: () => import('pages/admin/AdminChatbotPage.vue'), meta: { title: 'Chatbot Admin', permissions: ['settings.manage'] } },
+      { path: 'admin/ai-usage', name: 'admin-ai-usage', component: () => import('pages/admin/AdminAiUsagePage.vue'), meta: { title: 'Suivi IA Admin', roles: ['project_admin'] } },
+      { path: 'admin/chatbot', name: 'admin-chatbot', component: () => import('pages/admin/AdminChatbotPage.vue'), meta: { title: 'Chatbot Admin', roles: ['project_admin'] } },
       { path: 'settings', name: 'settings', component: () => import('pages/settings/SettingsPage.vue'), meta: { title: 'Paramètres', permissions: ['settings.manage'] } },
     ],
+  },
+
+  // Public invoice verification (QR scan)
+  {
+    path: '/verify',
+    name: 'verify',
+    component: () => import('pages/VerifyPage.vue'),
+    meta: { title: 'Vérification de facture' },
   },
 
   // 404

@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { insforge } from 'src/boot/insforge';
-import type { Permission, CompanyRolePermission, UserRoleAssignment } from 'src/types';
-import { DEFAULT_ROLE_PERMISSIONS, ALL_PERMISSIONS } from 'src/types';
+import type { Permission, CompanyRolePermission, UserRoleAssignment, CompanyCustomRole } from 'src/types';
+import { DEFAULT_ROLE_PERMISSIONS, ALL_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
 
 // ============================================================================
 // Granular RBAC + Multi-Role Fusion — WIMRUX® FINANCES
@@ -24,6 +24,7 @@ import { DEFAULT_ROLE_PERMISSIONS, ALL_PERMISSIONS } from 'src/types';
 
 const companyOverrides = ref<CompanyRolePermission[]>([]);
 const userRoleAssignments = ref<UserRoleAssignment[]>([]);
+const customRoles = ref<CompanyCustomRole[]>([]);
 const loaded = ref(false);
 const loading = ref(false);
 
@@ -44,10 +45,10 @@ export function usePermissions() {
 
   // Load all company overrides + user role assignments
   async function loadCompanyPermissions(): Promise<void> {
-    if (!_companyId) return;
+    if (!_companyId || !_currentUserId) return;
     loading.value = true;
     try {
-      const [permRes, assignRes] = await Promise.all([
+      const [permRes, assignRes, rolesRes] = await Promise.all([
         insforge.database
           .from('company_role_permissions')
           .select('*')
@@ -56,13 +57,27 @@ export function usePermissions() {
           .from('user_role_assignments')
           .select('*')
           .eq('company_id', _companyId),
+        insforge.database
+          .from('company_custom_roles')
+          .select('*')
+          .eq('company_id', _companyId)
+          .order('label', { ascending: true }),
       ]);
 
       if (!permRes.error && permRes.data) {
         companyOverrides.value = permRes.data as CompanyRolePermission[];
+      } else if (permRes.error) {
+        console.error('[Permissions] Error loading company_role_permissions:', permRes.error);
       }
       if (!assignRes.error && assignRes.data) {
         userRoleAssignments.value = assignRes.data as UserRoleAssignment[];
+      } else if (assignRes.error) {
+        console.error('[Permissions] Error loading user_role_assignments:', assignRes.error);
+      }
+      if (!rolesRes.error && rolesRes.data) {
+        customRoles.value = rolesRes.data as CompanyCustomRole[];
+      } else if (rolesRes.error) {
+        console.error('[Permissions] Error loading company_custom_roles:', rolesRes.error);
       }
       loaded.value = true;
     } finally {
@@ -222,11 +237,105 @@ export function usePermissions() {
     return userRoleAssignments.value.filter(a => a.user_id === userId);
   }
 
+  // ---- Custom role management ----
+
+  function getAllRoleOptions(): { label: string; value: string; isCustom: boolean }[] {
+    const saas = Object.entries(SAAS_ROLE_LABELS).map(([key, label]) => ({
+      label, value: key, isCustom: false,
+    }));
+    const custom = customRoles.value.map(r => ({
+      label: r.label, value: r.role_key, isCustom: true,
+    }));
+    return [...saas, ...custom];
+  }
+
+  async function createCustomRole(
+    roleKey: string,
+    label: string,
+    description: string,
+    baseRole: string | null,
+    permissions: Permission[],
+  ): Promise<{ error?: string }> {
+    if (!_companyId) return { error: 'Pas de company_id' };
+
+    const { error: roleErr } = await insforge.database
+      .from('company_custom_roles')
+      .insert({
+        company_id: _companyId,
+        role_key: roleKey,
+        label,
+        description: description || null,
+        base_role: baseRole || null,
+        created_by: _fullName || _currentUserId || '',
+      });
+    if (roleErr) return { error: roleErr.message };
+
+    if (permissions.length > 0) {
+      const grantedBy = _fullName || _currentUserId || '';
+      const now = new Date().toISOString();
+      const rows = permissions.map(p => ({
+        company_id: _companyId,
+        role: roleKey,
+        permission: p,
+        granted: true,
+        granted_by: grantedBy,
+        updated_at: now,
+      }));
+      const { error: permErr } = await insforge.database
+        .from('company_role_permissions')
+        .upsert(rows, { onConflict: 'company_id,role,permission' });
+      if (permErr) return { error: permErr.message };
+    }
+
+    await loadCompanyPermissions();
+    return {};
+  }
+
+  async function updateCustomRole(
+    roleKey: string,
+    label: string,
+    description: string,
+  ): Promise<{ error?: string }> {
+    if (!_companyId) return { error: 'Pas de company_id' };
+
+    const { error } = await insforge.database
+      .from('company_custom_roles')
+      .update({ label, description: description || null })
+      .eq('company_id', _companyId)
+      .eq('role_key', roleKey);
+
+    if (error) return { error: error.message };
+    await loadCompanyPermissions();
+    return {};
+  }
+
+  async function deleteCustomRole(roleKey: string): Promise<{ error?: string }> {
+    if (!_companyId) return { error: 'Pas de company_id' };
+
+    const { error: permErr } = await insforge.database
+      .from('company_role_permissions')
+      .delete()
+      .eq('company_id', _companyId)
+      .eq('role', roleKey);
+    if (permErr) return { error: permErr.message };
+
+    const { error: roleErr } = await insforge.database
+      .from('company_custom_roles')
+      .delete()
+      .eq('company_id', _companyId)
+      .eq('role_key', roleKey);
+    if (roleErr) return { error: roleErr.message };
+
+    await loadCompanyPermissions();
+    return {};
+  }
+
   return {
     loaded,
     loading,
     companyOverrides,
     userRoleAssignments,
+    customRoles,
     setContext,
     loadCompanyPermissions,
     getUserRoles,
@@ -240,6 +349,10 @@ export function usePermissions() {
     assignRole,
     revokeRole,
     getAssignmentsForUser,
+    getAllRoleOptions,
+    createCustomRole,
+    updateCustomRole,
+    deleteCustomRole,
     ALL_PERMISSIONS,
   };
 }

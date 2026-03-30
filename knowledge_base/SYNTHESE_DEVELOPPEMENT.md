@@ -33,7 +33,7 @@ et techniques pour guider le développement à 100%.
 - [x] Conditions d'édition de la facture normalisée — `InvoiceEditorPage.vue` (6 types: FV, FA, FT, EV, ET, EA)
 - [x] Éléments de sécurité obligatoires sur la facture — QR Code, signature, NIM, Code SECeF, numéro fiscal
 - [x] Procédures d'homologation SFE — Gestion appareils dans `SettingsPage.vue` (NIM, IFU, jwt_secret)
-- [x] Spécifications du MCF (Module de Contrôle de Facturation) — `fnec-simulator` Edge Function + `useFnecApi.ts`
+- [x] Spécifications du MCF (Module de Contrôle de Facturation) — `mcf-simulator` Edge Function + `useMcfApi.ts`
 - [x] Format et contenu du Code SECeF — champ `code_secef_dgi` sur factures, retourné par certification
 - [x] Exigences de la signature électronique — champ `signature` stocké depuis réponse MCF
 - [x] Règles du mode dégradé (bufferisation) — `useDegradedMode.ts`, table `pending_certification_queue`, auto-queue + retry
@@ -53,11 +53,11 @@ et techniques pour guider le développement à 100%.
 
 ### Éléments Techniques Clés:
 
-- [x] Protocole de communication SFE ↔ MCF — `useFnecApi.ts` (REST API JSON)
+- [x] Protocole de communication SFE ↔ MCF — `useMcfApi.ts` (REST API JSON)
 - [x] Format des données échangées (XML/JSON) — JSON via Edge Function API
 - [x] Algorithmes de chiffrement requis — AES-256-CBC `crypto-aes256` Edge Function + `useCrypto.ts`
 - [x] Format du QR Code de sécurité — champ `qr_code` dans factures, inclus dans PDF
-- [x] Spécifications de la signature électronique — champ `signature` depuis certification FNEC
+- [x] Spécifications de la signature électronique — champ `signature` depuis certification MCF
 - [x] Séquençage des numéros de facture — Référence + `fiscal_number` du MCF
 - [x] Compteurs MCF (horaire, séquentiel) — champ JSON `counters` stocké depuis certification
 - [x] Exigences de performance (latence < 3s) — Flux asynchrone + mode dégradé pour timeouts
@@ -77,8 +77,8 @@ et techniques pour guider le développement à 100%.
 ### Modules à Développer:
 
 - [x] **Auth & RBAC** — `auth-store.ts`, `LoginPage`, `RegisterPage`, rôles admin/caissier/auditeur, guards
-- [x] **Facturation** — `InvoiceEditorPage`, `InvoicesListPage`, 6 types, validation, certification FNEC
-- [x] **Driver SFE-MCF** — `useFnecApi.ts` + `fnec-simulator` Edge Function (auth, submit, confirm)
+- [x] **Facturation** — `InvoiceEditorPage`, `InvoicesListPage`, 6 types, validation, certification MCF
+- [x] **Driver SFE-MCF** — `useMcfApi.ts` + `mcf-simulator` Edge Function (auth, submit, confirm)
 - [x] **PDF Generator** — `useInvoicePdf.ts` (jsPDF + QR Code + bloc sécurité)
 - [x] **Trésorerie** — `TreasuryPage.vue`, tables `treasury_accounts` / `treasury_movements`
 - [x] **Taxes** — `useTaxCalculation.ts` (groupes A-P, TVA 0-18%, PSVB, timbre quittance)

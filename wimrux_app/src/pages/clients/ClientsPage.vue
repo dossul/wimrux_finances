@@ -58,7 +58,17 @@
               <q-input v-model="companyForm.name" label="Raison sociale" filled :rules="[val => !!val || 'Nom requis']" />
               <q-input v-model="companyForm.ifu" label="IFU" filled :rules="[val => !!val || 'IFU requis']" />
               <q-input v-model="companyForm.rccm" label="RCCM" filled />
-              <q-input v-model="companyForm.address_cadastral" label="Adresse cadastrale" filled />
+              <q-input
+                v-model="companyForm.address_cadastral"
+                label="Adresse cadastrale (SSSS LLL PPPP)"
+                filled
+                mask="#### ### ####"
+                fill-mask="_"
+                reactive-rules
+                :rules="[v => !v || !v.replace(/[_ ]/g, '') || isValidCadastralAddress(v.replace(/_/g, '').trim()) ? true : 'Format invalide — 11 chiffres : Section (4) Ilot (3) Parcelle (4)']"
+                hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
+                bottom-slots
+              />
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" />
                 <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" />
@@ -258,7 +268,11 @@
               label="Adresse cadastrale (SSSS LLL PPPP)"
               filled
               mask="#### ### ####"
-              hint="Section Ilot Parcelle"
+              fill-mask="_"
+              reactive-rules
+              :rules="[v => !v || !v.replace(/[_ ]/g, '') || isValidCadastralAddress(v.replace(/_/g, '').trim()) ? true : 'Format invalide — 11 chiffres : Section (4) Ilot (3) Parcelle (4)']"
+              hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
+              bottom-slots
             />
 
             <div class="row q-gutter-sm">
@@ -285,6 +299,7 @@ import { createClient } from '@insforge/sdk';
 import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
 import type { Client, ClientType, Company, UserRole } from 'src/types';
+import { isValidCadastralAddress, isValidIFU, isValidExportIFU } from 'src/utils/validators';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -416,10 +431,22 @@ const filteredClients = computed(() => {
 });
 
 const ifuRules = computed(() => {
-  if (['PM', 'PC'].includes(form.value.type)) {
-    return [(val: string) => !!val || 'IFU obligatoire pour PM et PC'];
+  if (form.value.type === 'PC') {
+    // PC (étranger): IFU obligatoire mais format libre (§7 Types du client)
+    return [
+      (val: string) => !!val || 'IFU obligatoire pour PC',
+      (val: string) => !val || isValidExportIFU(val) || 'IFU export : 1 à 20 caractères',
+    ];
   }
-  return [];
+  if (form.value.type === 'PM') {
+    // PM (local): IFU obligatoire, format DGI strict (8 chiffres)
+    return [
+      (val: string) => !!val || 'IFU obligatoire pour PM',
+      (val: string) => !val || isValidIFU(val) || 'IFU invalide (8 chiffres)',
+    ];
+  }
+  // PP/CC: IFU optionnel, format DGI si renseigné
+  return [(val: string) => !val || isValidIFU(val) || 'IFU invalide (8 chiffres)'];
 });
 
 async function toggleClientActive(client: Client, val: boolean) {
@@ -631,7 +658,10 @@ function copyAllCredentials() {
 async function saveCompany() {
   saving.value = true;
   try {
-    const payload = { ...companyForm.value };
+    const payload = {
+      ...companyForm.value,
+      address_cadastral: companyForm.value.address_cadastral?.replace(/_/g, '').trim() || null,
+    };
 
     if (editingCompany.value) {
       const { error } = await insforge.database
@@ -705,7 +735,7 @@ async function saveClient() {
       ifu: form.value.ifu || null,
       rccm: form.value.rccm || null,
       address: form.value.address || null,
-      address_cadastral: form.value.address_cadastral || null,
+      address_cadastral: form.value.address_cadastral?.replace(/_/g, '').trim() || null,
       phone: form.value.phone || null,
       email: form.value.email || null,
     };

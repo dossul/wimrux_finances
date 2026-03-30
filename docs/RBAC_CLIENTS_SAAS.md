@@ -114,7 +114,7 @@ Brouillon (draft)
     → Approuvée (approved)                            [Superviseur, Admin]
     → Rejetée → retour Brouillon (draft)              [Superviseur, Admin]
       → Validée (validated)                           [Superviseur, Admin]
-        → Certifiée FNEC (certified)                  [Système / Admin]
+        → Certifiée MCF (certified)                  [Système / Admin]
 ```
 
 ### 6.2 Étapes détaillées
@@ -126,7 +126,7 @@ Brouillon (draft)
 | 3 | **Contrôle comptable / fiscal** | Comptable | Vérifie cohérence comptes, TVA, PSVB, totaux |
 | 4 | **Approbation** | Superviseur, Admin | Approuve (→ `approved`) ou rejette avec motif (→ `draft`) |
 | 5 | **Validation définitive** | Superviseur, Admin | Verrouille la facture (→ `validated`), point de non-retour |
-| 6 | **Certification FNEC** | Système (API SFE) | Envoi au SFE, réception N° fiscal, QR code, signature (→ `certified`) |
+| 6 | **Certification MCF** | Système (API SFE) | Envoi au SFE, réception N° fiscal, QR code, signature (→ `certified`) |
 | 7 | **Envoi au client** | Caissier, Front-office | PDF, email, portail |
 | 8 | **Archivage + audit** | Auditeur, Contrôleur | Lecture seule, vérification logs |
 
@@ -157,7 +157,7 @@ Brouillon (draft)
 | `pending_validation` → `approved` | superviseur, admin |
 | `pending_validation` → `draft` (rejet) | superviseur, admin |
 | `approved` → `validated` | superviseur, admin |
-| `validated` → `certified` | admin, superviseur (via FNEC) |
+| `validated` → `certified` | admin, superviseur (via MCF) |
 | `draft` → `cancelled` | admin, superviseur |
 
 ### 6.6 Rôles en lecture seule (aucune action workflow)

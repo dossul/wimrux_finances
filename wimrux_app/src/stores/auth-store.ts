@@ -28,7 +28,12 @@ export const useAuthStore = defineStore('auth', () => {
       const { data, error } = await insforge.auth.getCurrentSession();
       if (!error && data?.session?.user) {
         user.value = data.session.user as InsForgeUser;
+        console.log('[Auth Store] Session loaded for user:', user.value.email);
         await loadProfile();
+      } else if (error) {
+        console.error('[Auth Store] Error loading session:', error);
+      } else {
+        console.log('[Auth Store] No active session found');
       }
     } finally {
       loading.value = false;
@@ -52,7 +57,12 @@ export const useAuthStore = defineStore('auth', () => {
         profile.value.company_id,
         profile.value.full_name,
       );
-      await permissions.loadCompanyPermissions();
+      // Only load permissions if we have both user_id and company_id
+      if (profile.value.company_id && user.value.id) {
+        await permissions.loadCompanyPermissions();
+      }
+    } else if (error) {
+      console.error('[Auth Store] Error loading user profile:', error);
     }
   }
 
@@ -84,6 +94,7 @@ export const useAuthStore = defineStore('auth', () => {
     profile.value = null;
     permissions.companyOverrides.value = [];
     permissions.userRoleAssignments.value = [];
+    permissions.customRoles.value = [];
     permissions.setContext(null, null, null, null);
   }
 

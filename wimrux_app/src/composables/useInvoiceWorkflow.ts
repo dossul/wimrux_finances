@@ -1,26 +1,29 @@
 import { computed } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { insforge } from 'src/boot/insforge';
-import type { Invoice, InvoiceStatus, Permission } from 'src/types';
+import type { Invoice, InvoiceStatus, InvoiceType, Permission } from 'src/types';
 
 // ============================================================================
 // Invoice Lifecycle Workflow — WIMRUX® FINANCES
 // ============================================================================
 //
-// Brouillon (draft)
-//   → Soumise pour validation (pending_validation)   [invoices.submit]
-//     → Approuvée (approved)                          [invoices.approve]
-//     → Rejetée → retour Brouillon (draft)            [invoices.approve]
-//       → Validée (validated)                         [invoices.validate]
-//         → Certifiée SECeF (certified)               [invoices.certify]
+// === Factures BF (FV/FT/FA/EV/ET/EA) ===
+// draft → pending_validation [invoices.submit]
+//   → approved              [invoices.approve — COMPTABLE, anti-fraude]
+//   → draft (rejet)         [invoices.approve]
+//     → validated           [invoices.validate]
+//       → certified SECeF   [invoices.certify]
 //
-// Séparation des pouvoirs :
-//   - Celui qui crée NE valide PAS
-//   - Celui qui valide NE certifie PAS (système)
-//   - Celui qui paie NE crée PAS
+// === Proforma (PF) ===
+// draft → pending_validation [invoices.submit]
+//   → approved              [invoices.approve — COMPTABLE, anti-fraude]
+//   → draft (rejet)         [invoices.approve]
+//     → sent                [invoices.validate]
+//       → accepted          [invoices.validate]
+//       → rejected          [invoices.validate]
+//         → [Convertir en FV automatiquement]
 //
 // Permission-based: each transition requires a specific permission key.
-// Company admins can reassign these permissions to any role.
 // ============================================================================
 
 export interface WorkflowAction {
@@ -39,6 +42,9 @@ export const STATUS_CONFIG: Record<InvoiceStatus, { label: string; color: string
   approved: { label: 'Approuvée', color: 'blue', icon: 'thumb_up' },
   validated: { label: 'Validée', color: 'amber-8', icon: 'check_circle' },
   certified: { label: 'Certifiée SECeF', color: 'green', icon: 'verified' },
+  sent: { label: 'Envoyée au client', color: 'teal', icon: 'send' },
+  accepted: { label: 'Acceptée', color: 'green-7', icon: 'check_circle_outline' },
+  rejected: { label: 'Refusée', color: 'deep-orange', icon: 'cancel_presentation' },
   cancelled: { label: 'Annulée', color: 'red', icon: 'cancel' },
 };
 
@@ -47,8 +53,11 @@ const TRANSITION_PERMISSIONS: Record<string, Permission> = {
   'draft->pending_validation': 'invoices.submit',
   'pending_validation->approved': 'invoices.approve',
   'pending_validation->draft': 'invoices.approve',       // rejection
-  'approved->validated': 'invoices.validate',
+  'approved->validated': 'invoices.validate',            // BF invoices
   'validated->certified': 'invoices.certify',
+  'approved->sent': 'invoices.validate',                 // Proforma: approved → sent
+  'sent->accepted': 'invoices.validate',                 // Proforma: client accepted
+  'sent->rejected': 'invoices.validate',                 // Proforma: client rejected
   'draft->cancelled': 'invoices.validate',
 };
 
@@ -140,13 +149,49 @@ export function useInvoiceWorkflow() {
     }
 
     if (status === 'approved') {
-      if (canTransition(invoice, 'approved', 'validated')) {
+      if (invoice.type === 'PF') {
+        // Proforma: approved → sent
+        if (canTransition(invoice, 'approved', 'sent')) {
+          actions.push({
+            key: 'send_proforma',
+            label: 'Marquer comme envoyée',
+            icon: 'send',
+            color: 'teal',
+            targetStatus: 'sent',
+          });
+        }
+      } else {
+        // Regular invoice: approved → validated
+        if (canTransition(invoice, 'approved', 'validated')) {
+          actions.push({
+            key: 'validate',
+            label: 'Valider la facture',
+            icon: 'check_circle',
+            color: 'amber-8',
+            targetStatus: 'validated',
+          });
+        }
+      }
+    }
+
+    if (status === 'sent' && invoice.type === 'PF') {
+      if (canTransition(invoice, 'sent', 'accepted')) {
         actions.push({
-          key: 'validate',
-          label: 'Valider la facture',
-          icon: 'check_circle',
-          color: 'amber-8',
-          targetStatus: 'validated',
+          key: 'accept_proforma',
+          label: 'Marquer comme acceptée',
+          icon: 'check_circle_outline',
+          color: 'green-7',
+          targetStatus: 'accepted',
+        });
+      }
+      if (canTransition(invoice, 'sent', 'rejected')) {
+        actions.push({
+          key: 'reject_proforma',
+          label: 'Marquer comme refusée',
+          icon: 'cancel_presentation',
+          color: 'deep-orange',
+          targetStatus: 'rejected',
+          needsReason: true,
         });
       }
     }
@@ -216,6 +261,66 @@ export function useInvoiceWorkflow() {
     return { success: true };
   }
 
+  // Converts an accepted Proforma to a new FV draft (automatic copy)
+  async function convertProformaToFV(
+    proforma: Invoice,
+  ): Promise<{ success: boolean; newInvoiceId?: string; error?: string }> {
+    if (proforma.type !== 'PF') return { success: false, error: 'Pas une proforma' };
+
+    const now = new Date().toISOString();
+    const year = now.slice(0, 4);
+
+    // Get next FV reference
+    const { data: refData, error: refError } = await insforge.database
+      .rpc('next_invoice_reference', { p_company_id: proforma.company_id, p_type: 'FV', p_year: Number(year) });
+    if (refError) return { success: false, error: refError.message };
+
+    // Create FV draft
+    const { data: newInv, error: invError } = await insforge.database
+      .from('invoices')
+      .insert({
+        company_id: proforma.company_id,
+        client_id: proforma.client_id,
+        type: 'FV' as InvoiceType,
+        reference: refData as string,
+        status: 'draft',
+        price_mode: proforma.price_mode,
+        operator_name: proforma.operator_name,
+        comments: proforma.comments ?? [],
+        total_ht: proforma.total_ht,
+        total_tva: proforma.total_tva,
+        total_psvb: proforma.total_psvb,
+        total_ttc: proforma.total_ttc,
+        stamp_duty: proforma.stamp_duty,
+        total_payment: proforma.total_payment,
+        tax_calculation: proforma.tax_calculation,
+        created_at: now,
+      })
+      .select('id')
+      .single();
+
+    if (invError || !newInv) return { success: false, error: invError?.message };
+
+    const newId = (newInv as { id: string }).id;
+
+    // Copy items
+    if (proforma.items && proforma.items.length > 0) {
+      const newItems = proforma.items.map(({ ...rest }) => ({
+        ...rest,
+        invoice_id: newId,
+      }));
+      await insforge.database.from('invoice_items').insert(newItems);
+    }
+
+    // Link proforma to new FV
+    await insforge.database
+      .from('invoices')
+      .update({ proforma_converted_to: newId })
+      .eq('id', proforma.id);
+
+    return { success: true, newInvoiceId: newId };
+  }
+
   // Read-only = no create/submit/approve/validate/certify permissions
   const isReadOnly = computed(() => {
     return !authStore.hasAnyPermission([
@@ -238,5 +343,6 @@ export function useInvoiceWorkflow() {
     getAvailableActions,
     executeTransition,
     canEditContent,
+    convertProformaToFV,
   };
 }

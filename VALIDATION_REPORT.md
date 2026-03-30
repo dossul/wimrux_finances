@@ -19,7 +19,7 @@
 | **Authentification** | ✅ PASS | Email/Password + OAuth (Google, GitHub) |
 | **Modules métier** | ✅ PASS | 12 modules fonctionnels |
 | **Sécurité** | ✅ PASS | RLS, chiffrement AES-256, audit inaltérable |
-| **API FNEC** | ✅ PASS | Simulateur 11 endpoints, prêt pour homologation |
+| **API MCF** | ✅ PASS | Simulateur 11 endpoints, prêt pour homologation |
 
 ---
 
@@ -150,7 +150,7 @@ wimrux_app/src/
 | Modes prix: HT, TTC | ✅ | Calcul automatique |
 | Calcul 16 groupes taxe (A-P) | ✅ | TVA + PSVB |
 | Timbre de quittance | ✅ | Selon seuils FCFA |
-| Certification FNEC | ✅ | Submit + Confirm |
+| Certification MCF | ✅ | Submit + Confirm |
 | Génération PDF | ✅ | jsPDF + QR Code |
 | Export CSV | ✅ | useExportCsv |
 | Statuts: draft, validated, certified, cancelled | ✅ | Workflow complet |
@@ -181,7 +181,7 @@ wimrux_app/src/
 |----------------|--------|-------|
 | Rapport Z (clôture) | ✅ | Fin de journée |
 | Rapport X (intermédiaire) | ✅ | Lecture compteurs |
-| Génération via FNEC | ✅ | API simulée |
+| Génération via MCF | ✅ | API simulée |
 
 ### 4.8 Journal d'Audit
 
@@ -238,23 +238,23 @@ wimrux_app/src/
 
 ## 5. Edge Functions
 
-### 5.1 fnec-simulator
+### 5.1 mcf-simulator
 
 | Endpoint | Méthode | Statut |
 |----------|---------|--------|
-| `/bf/fnec/auth/token` | POST | ✅ |
-| `/bf/fnec/status` | GET | ✅ |
-| `/bf/fnec/invoices` | POST | ✅ |
-| `/bf/fnec/invoices/:uid/confirm` | PUT | ✅ |
-| `/bf/fnec/invoices/:uid/cancel` | PUT | ✅ |
-| `/bf/fnec/invoices/:uid` | GET | ✅ |
-| `/bf/fnec/info/taxGroups` | GET | ✅ |
-| `/bf/fnec/info/invoiceTypes` | GET | ✅ |
-| `/bf/fnec/info/paymentTypes` | GET | ✅ |
-| `/bf/fnec/reports/z` | GET | ✅ |
-| `/bf/fnec/reports/x` | GET | ✅ |
+| `/bf/mcf/auth/token` | POST | ✅ |
+| `/bf/mcf/status` | GET | ✅ |
+| `/bf/mcf/invoices` | POST | ✅ |
+| `/bf/mcf/invoices/:uid/confirm` | PUT | ✅ |
+| `/bf/mcf/invoices/:uid/cancel` | PUT | ✅ |
+| `/bf/mcf/invoices/:uid` | GET | ✅ |
+| `/bf/mcf/info/taxGroups` | GET | ✅ |
+| `/bf/mcf/info/invoiceTypes` | GET | ✅ |
+| `/bf/mcf/info/paymentTypes` | GET | ✅ |
+| `/bf/mcf/reports/z` | GET | ✅ |
+| `/bf/mcf/reports/x` | GET | ✅ |
 
-**Codes erreur FNEC**: BF001-BF020, BF099 (20 codes métier)
+**Codes erreur MCF**: BF001-BF020, BF099 (20 codes métier)
 
 ### 5.2 crypto-aes256
 
@@ -290,9 +290,9 @@ wimrux_app/src/
 | `useChatbotConfig` | 358 | CRUD clés/permissions | ✅ |
 | `useChatbotSkill` | 498 | Génération .md | ✅ |
 | `useCrypto` | 45 | AES encrypt/decrypt | ✅ |
-| `useDegradedMode` | 168 | File attente FNEC | ✅ |
+| `useDegradedMode` | 168 | File attente MCF | ✅ |
 | `useExportCsv` | 56 | Export factures CSV | ✅ |
-| `useFnecApi` | 151 | API FNEC client | ✅ |
+| `useMcfApi` | 157 | API MCF client | ✅ |
 | `useInvoicePdf` | 268 | Génération PDF | ✅ |
 | `useRealtimeNotifications` | 78 | WebSocket events | ✅ |
 | `useTaxCalculation` | 157 | Calcul 16 groupes taxe | ✅ |
@@ -357,7 +357,7 @@ wimrux_app/src/
 3. Créer facture FV
 4. Ajouter articles (groupes A, B, C)
 5. Vérifier calculs TVA/PSVB/TTC
-6. Certifier via FNEC
+6. Certifier via MCF
 7. Vérifier statut `certified`
 8. Générer PDF avec QR Code
 
@@ -414,7 +414,7 @@ VITE_INSFORGE_ANON_KEY=<clé_anon_production>
 - [ ] Tester authentification OAuth (redirects production)
 - [ ] Valider certificats SSL
 - [ ] Configurer domaine personnalisé
-- [ ] Tester mode dégradé FNEC
+- [ ] Tester mode dégradé MCF
 - [ ] Former utilisateurs pilotes
 
 ### 10.3 Homologation DGI
@@ -435,7 +435,7 @@ Le système répond aux exigences:
 - ✅ **Fonctionnelles**: 12 modules métier complets
 - ✅ **Techniques**: Architecture SaaS multi-tenant
 - ✅ **Sécurité**: RLS, chiffrement, audit inaltérable
-- ✅ **Conformité**: API FNEC Burkina Faso (simulateur prêt pour homologation)
+- ✅ **Conformité**: API MCF Burkina Faso (simulateur prêt pour homologation)
 - ✅ **Qualité**: ESLint 0 erreurs, build production OK
 
 ---

@@ -1,14 +1,13 @@
-const { createClient } = require('@insforge/sdk');
-
 // ============================================================================
-// WIMRUX® FINANCES — API FNEC Simulée (Burkina Faso)
+// WIMRUX® FINANCES — API MCF/SECeF Simulée (Burkina Faso)
 // Edge Function InsForge — 11 endpoints REST
+// NOTE: createClient is a global provided by the InsForge edge runtime
 // ============================================================================
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-MCF-Authorization',
   'Content-Type': 'application/json',
 };
 
@@ -161,22 +160,53 @@ function decodeSimpleJWT(token) {
   } catch { return null; }
 }
 
-// --- DB client ---
-function getDB() {
-  return createClient({
-    baseUrl: typeof Deno !== 'undefined' ? Deno.env.get('INSFORGE_BASE_URL') : process.env.INSFORGE_BASE_URL,
-    anonKey: typeof Deno !== 'undefined' ? Deno.env.get('ANON_KEY') : process.env.ANON_KEY,
+// --- Ping handler ---
+function handlePing() {
+  return jsonResponse({
+    status: true,
+    version: '1.0-BF',
+    serverDateTime: new Date().toISOString(),
+    message: 'MCF/SECeF Simulator operational',
   });
+}
+
+// --- Interaction logger (fire-and-forget) ---
+async function logInteraction(userToken, { nim, endpoint, method, requestBody, responseBody, statusCode, durationMs, userId }) {
+  try {
+    const db = getDB(userToken);
+    await db.database.from('mcf_logs').insert([{
+      nim: nim || null,
+      endpoint,
+      method,
+      request_body: requestBody || null,
+      response_body: responseBody || null,
+      status_code: statusCode,
+      duration_ms: durationMs,
+      user_id: userId || null,
+    }]);
+  } catch { /* fire and forget — never block main flow */ }
+}
+
+// --- DB client ---
+const INSFORGE_BASE_URL = 'https://gfe4bd9y.eu-central.insforge.app';
+
+function getDB(userToken) {
+  const baseUrl = (typeof Deno !== 'undefined' ? Deno.env.get('INSFORGE_BASE_URL') : null) || INSFORGE_BASE_URL;
+  if (userToken) {
+    return createClient({ baseUrl, edgeFunctionToken: userToken });
+  }
+  const anonKey = (typeof Deno !== 'undefined' ? Deno.env.get('ANON_KEY') : null) || '';
+  return createClient({ baseUrl, anonKey });
 }
 
 // --- Route handlers ---
 
-async function handleAuth(body) {
+async function handleAuth(body, userToken) {
   if (!body.clientId || !body.clientSecret || !body.nim) {
     return errorResponse('BF001', 'IFU vendeur absent ou invalide', { required: ['clientId', 'clientSecret', 'nim'] });
   }
 
-  const db = getDB();
+  const db = getDB(userToken);
   const { data: device, error } = await db.database
     .from('devices')
     .select('*')
@@ -210,8 +240,8 @@ async function handleAuth(body) {
   });
 }
 
-async function handleStatus(claims) {
-  const db = getDB();
+async function handleStatus(claims, userToken) {
+  const db = getDB(userToken);
   const { data: device } = await db.database
     .from('devices')
     .select('*')
@@ -238,7 +268,7 @@ async function handleStatus(claims) {
   });
 }
 
-async function handleSubmitInvoice(body, claims) {
+async function handleSubmitInvoice(body, claims, userToken) {
   // Validations
   if (!body.ifu) return errorResponse('BF001', 'IFU vendeur absent ou invalide');
   if (!body.type || !['FV','FT','FA','EV','ET','EA'].includes(body.type)) return errorResponse('BF002', 'Type de facture non valide', { value: body.type });
@@ -265,7 +295,7 @@ async function handleSubmitInvoice(body, claims) {
   }
 
   // Check pending limit
-  const db = getDB();
+  const db = getDB(userToken);
   const { data: pendingCount } = await db.database
     .from('sim_invoices')
     .select('uid', { count: 'exact' })
@@ -323,8 +353,8 @@ async function handleSubmitInvoice(body, claims) {
   }, 201);
 }
 
-async function handleConfirmInvoice(uid, claims) {
-  const db = getDB();
+async function handleConfirmInvoice(uid, claims, userToken) {
+  const db = getDB(userToken);
   const { data: invoice, error } = await db.database
     .from('sim_invoices')
     .select('*')
@@ -393,8 +423,8 @@ async function handleConfirmInvoice(uid, claims) {
   });
 }
 
-async function handleCancelInvoice(uid, claims) {
-  const db = getDB();
+async function handleCancelInvoice(uid, claims, userToken) {
+  const db = getDB(userToken);
   const { data: invoice, error } = await db.database
     .from('sim_invoices')
     .select('*')
@@ -413,8 +443,8 @@ async function handleCancelInvoice(uid, claims) {
   return jsonResponse({ uid, status: 'CANCELLED', dateTime: new Date().toISOString() });
 }
 
-async function handleGetInvoice(uid, claims) {
-  const db = getDB();
+async function handleGetInvoice(uid, claims, userToken) {
+  const db = getDB(userToken);
   const { data: invoice, error } = await db.database
     .from('sim_invoices')
     .select('*')
@@ -438,8 +468,8 @@ function handlePaymentTypes() {
   return jsonResponse(PAYMENT_TYPES);
 }
 
-async function handleReport(type, claims) {
-  const db = getDB();
+async function handleReport(type, claims, userToken) {
+  const db = getDB(userToken);
   const today = new Date().toISOString().split('T')[0];
 
   const { data: invoices } = await db.database
@@ -479,77 +509,164 @@ async function handleReport(type, claims) {
 }
 
 // --- Main router ---
+// IMPORTANT: InsForge invoke() always posts to the function root URL.
+// The _path and _method are passed in the request body for routing.
 module.exports = async function(request) {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  const url = new URL(request.url);
-  const path = url.pathname.replace(/\/+$/, '');
+  const t0 = Date.now();
 
-  // Extract route segments
-  const segments = path.split('/').filter(Boolean);
-  // Expected: bf, fnec, ...
-  const route = segments.slice(0, 5).join('/');
+  // Extract user's InsForge JWT from Authorization header (auto-sent by SDK invoke)
+  const authorizationHeader = request.headers.get('Authorization') || '';
+  const userToken = authorizationHeader.startsWith('Bearer ') ? authorizationHeader.slice(7) : null;
 
-  // Auth endpoint (no JWT required)
-  if (path.endsWith('/bf/fnec/auth/token') && request.method === 'POST') {
-    const body = await request.json();
-    return handleAuth(body);
+  // Extract user_id from InsForge JWT for logging
+  let userId = null;
+  if (userToken) {
+    try { userId = JSON.parse(atob(userToken.split('.')[1]))?.sub || null; } catch { /* ignore */ }
   }
 
-  // Info endpoints (no JWT required for reference data)
-  if (path.endsWith('/bf/fnec/info/taxGroups') && request.method === 'GET') return handleTaxGroups();
-  if (path.endsWith('/bf/fnec/info/invoiceTypes') && request.method === 'GET') return handleInvoiceTypes();
-  if (path.endsWith('/bf/fnec/info/paymentTypes') && request.method === 'GET') return handlePaymentTypes();
+  let body = {};
+  let path = '';
+  let method = request.method;
 
-  // All other endpoints require JWT
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return errorResponse('BF099', 'Token d\'authentification requis', {}, 401);
+  // Parse body to extract _path and _method (InsForge invoke routing)
+  try {
+    const cloned = request.clone();
+    body = await cloned.json();
+    if (body._path) path = body._path;
+    if (body._method) method = body._method;
+  } catch {
+    const url = new URL(request.url);
+    path = url.pathname.replace(/\/+$/, '');
   }
 
-  const token = authHeader.replace('Bearer ', '');
-  const claims = decodeSimpleJWT(token);
+  if (!path) {
+    const url = new URL(request.url);
+    path = url.pathname.replace(/\/+$/, '');
+  }
+
+  // Helper: send response and log asynchronously
+  function respond(response, nim, respData) {
+    const duration = Date.now() - t0;
+    const sanitized = body.clientSecret ? { ...body, clientSecret: '***' } : body;
+    logInteraction(userToken, {
+      nim,
+      endpoint: path,
+      method,
+      requestBody: sanitized,
+      responseBody: respData || null,
+      statusCode: response.status,
+      durationMs: duration,
+      userId,
+    });
+    return response;
+  }
+
+  // PING (no auth, no logging)
+  if (path.endsWith('/bf/mcf/ping') || path === '/ping' || path === 'ping') {
+    return handlePing();
+  }
+
+  // Auth endpoint (no MCF JWT required, but uses user's InsForge token for DB)
+  if (path.endsWith('/bf/mcf/auth/token') && method === 'POST') {
+    const response = await handleAuth(body, userToken);
+    let respData = null;
+    try { const c = response.clone(); respData = await c.json(); } catch { /* ignore */ }
+    return respond(response, body.nim, respData);
+  }
+
+  // Info endpoints (no auth, no logging)
+  if (path.endsWith('/bf/mcf/info/taxGroups') && method === 'GET') return handleTaxGroups();
+  if (path.endsWith('/bf/mcf/info/invoiceTypes') && method === 'GET') return handleInvoiceTypes();
+  if (path.endsWith('/bf/mcf/info/paymentTypes') && method === 'GET') return handlePaymentTypes();
+
+  // All other endpoints require MCF JWT (via X-MCF-Authorization header)
+  const mcfAuthHeader = request.headers.get('X-MCF-Authorization') || '';
+  if (!mcfAuthHeader.startsWith('Bearer ')) {
+    return respond(errorResponse('BF099', 'Token MCF requis (X-MCF-Authorization)', {}, 401), null, null);
+  }
+
+  const mcfToken = mcfAuthHeader.slice(7);
+  const claims = decodeSimpleJWT(mcfToken);
   if (!claims || !claims.nim || !claims.ifu) {
-    return errorResponse('BF099', 'Token invalide ou expiré', {}, 401);
+    return respond(errorResponse('BF099', 'Token MCF invalide ou expiré', {}, 401), null, null);
   }
   if (claims.exp && claims.exp < Math.floor(Date.now() / 1000)) {
-    return errorResponse('BF099', 'Token expiré', {}, 401);
+    return respond(errorResponse('BF099', 'Token MCF expiré', {}, 401), claims.nim, null);
   }
 
+  // Check simulator_enabled for this device
+  try {
+    const db = getDB(userToken);
+    const { data: device } = await db.database
+      .from('devices')
+      .select('simulator_enabled')
+      .eq('nim', claims.nim)
+      .single();
+    if (device && device.simulator_enabled === false) {
+      return respond(
+        errorResponse('BF099', 'Serveur SECeF simulé désactivé — réactivez-le dans Paramètres > Appareils SFE', {}, 503),
+        claims.nim,
+        { disabled: true },
+      );
+    }
+  } catch { /* if check fails, allow through to avoid blocking real operations */ }
+
   // Status
-  if (path.endsWith('/bf/fnec/status') && request.method === 'GET') {
-    return handleStatus(claims);
+  if (path.endsWith('/bf/mcf/status') && method === 'GET') {
+    const response = await handleStatus(claims, userToken);
+    let respData = null;
+    try { const c = response.clone(); respData = await c.json(); } catch { /* ignore */ }
+    return respond(response, claims.nim, respData);
   }
 
   // Submit invoice
-  if (path.endsWith('/bf/fnec/invoices') && request.method === 'POST') {
-    const body = await request.json();
-    return handleSubmitInvoice(body, claims);
+  if (path.endsWith('/bf/mcf/invoices') && method === 'POST') {
+    const response = await handleSubmitInvoice(body, claims, userToken);
+    let respData = null;
+    try { const c = response.clone(); respData = await c.json(); } catch { /* ignore */ }
+    return respond(response, claims.nim, respData);
   }
 
   // Confirm invoice
-  if (path.match(/\/bf\/fnec\/invoices\/[^/]+\/confirm$/) && request.method === 'PUT') {
-    const uid = segments[segments.length - 2];
-    return handleConfirmInvoice(uid, claims);
+  const confirmMatch = path.match(/\/bf\/mcf\/invoices\/([^/]+)\/confirm$/);
+  if (confirmMatch && method === 'PUT') {
+    const response = await handleConfirmInvoice(confirmMatch[1], claims, userToken);
+    let respData = null;
+    try { const c = response.clone(); respData = await c.json(); } catch { /* ignore */ }
+    return respond(response, claims.nim, respData);
   }
 
   // Cancel invoice
-  if (path.match(/\/bf\/fnec\/invoices\/[^/]+\/cancel$/) && request.method === 'PUT') {
-    const uid = segments[segments.length - 2];
-    return handleCancelInvoice(uid, claims);
+  const cancelMatch = path.match(/\/bf\/mcf\/invoices\/([^/]+)\/cancel$/);
+  if (cancelMatch && method === 'PUT') {
+    const response = await handleCancelInvoice(cancelMatch[1], claims, userToken);
+    let respData = null;
+    try { const c = response.clone(); respData = await c.json(); } catch { /* ignore */ }
+    return respond(response, claims.nim, respData);
   }
 
   // Get invoice details
-  if (path.match(/\/bf\/fnec\/invoices\/[^/]+$/) && request.method === 'GET') {
-    const uid = segments[segments.length - 1];
-    return handleGetInvoice(uid, claims);
+  const getMatch = path.match(/\/bf\/mcf\/invoices\/([^/]+)$/);
+  if (getMatch && method === 'GET') {
+    const response = await handleGetInvoice(getMatch[1], claims, userToken);
+    let respData = null;
+    try { const c = response.clone(); respData = await c.json(); } catch { /* ignore */ }
+    return respond(response, claims.nim, respData);
   }
 
   // Reports
-  if (path.endsWith('/bf/fnec/reports/z') && request.method === 'GET') return handleReport('z', claims);
-  if (path.endsWith('/bf/fnec/reports/x') && request.method === 'GET') return handleReport('x', claims);
+  if (path.endsWith('/bf/mcf/reports/z') && method === 'GET') {
+    const response = await handleReport('z', claims, userToken);
+    return respond(response, claims.nim, null);
+  }
+  if (path.endsWith('/bf/mcf/reports/x') && method === 'GET') {
+    const response = await handleReport('x', claims, userToken);
+    return respond(response, claims.nim, null);
+  }
 
-  return errorResponse('BF099', 'Endpoint non trouvé', { path }, 404);
+  return respond(errorResponse('BF099', 'Endpoint non trouvé', { path, method }, 404), null, null);
 };

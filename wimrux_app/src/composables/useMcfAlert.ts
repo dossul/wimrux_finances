@@ -1,5 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { useMcfApi } from './useMcfApi';
+import { insforge } from 'src/boot/insforge';
 
 // ============================================================================
 // Alerte MCF / SECeF — Vérification périodique de la connectivité SYGMEF
@@ -8,7 +8,6 @@ import { useMcfApi } from './useMcfApi';
 const POLL_INTERVAL_MS = 60_000; // 1 minute
 
 export function useMcfAlert() {
-  const mcfApi = useMcfApi();
   const mcfOnline = ref<boolean | null>(null);
   const lastCheck = ref<string | null>(null);
   const deviceStatus = ref<string | null>(null);
@@ -16,10 +15,13 @@ export function useMcfAlert() {
 
   async function checkStatus() {
     try {
-      const result = await mcfApi.getStatus();
-      if (result.data) {
-        mcfOnline.value = result.data.status === true;
-        deviceStatus.value = result.data.deviceStatus;
+      const { data, error } = await insforge.functions.invoke('mcf-simulator', {
+        method: 'POST',
+        body: { _path: '/bf/mcf/ping', _method: 'GET' },
+      });
+      if (!error && data && data.status === true) {
+        mcfOnline.value = true;
+        deviceStatus.value = 'ACTIF';
         lastCheck.value = new Date().toISOString();
       } else {
         mcfOnline.value = false;

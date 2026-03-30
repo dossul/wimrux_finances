@@ -135,9 +135,9 @@ Le PDF doit contenir :
 
 ---
 
-## 6. API FNEC SIMULÉE (Module Fondateur)
+## 6. API MCF SIMULÉE (Module Fondateur)
 
-L'API officielle de la DGI Burkina Faso n'est pas encore publiée. Pour permettre le développement et les tests du SFE, une **API FNEC (Facture Normalisée Électronique Certifiée) simulée** sera implémentée en s'inspirant du modèle e-MECeF du Bénin, mais en respectant strictement la terminologie et les spécifications du Burkina Faso.
+L'API officielle de la DGI Burkina Faso n'est pas encore publiée. Pour permettre le développement et les tests du SFE, une **API MCF (Module de Contrôle de Facturation) simulée** sera implémentée en s'inspirant du modèle e-MECeF du Bénin, mais en respectant strictement la terminologie et les spécifications du Burkina Faso.
 
 ### 6.1 Architecture de l'API Simulée
 
@@ -148,25 +148,25 @@ L'API officielle de la DGI Burkina Faso n'est pas encore publiée. Pour permettr
 └──────────────────────┬───────────────────────────────────────┘
                        │ HTTP REST (JSON)
 ┌──────────────────────▼───────────────────────────────────────┐
-│              API FNEC SIMULÉE (Edge Function InsForge)        │
+│              API MCF SIMULÉE (Edge Function InsForge)         │
 │                                                               │
-│  POST /bf/fnec/auth/token          → Authentication JWT       │
-│  GET  /bf/fnec/status              → Statut système           │
-│  POST /bf/fnec/invoices            → Soumission facture       │
-│  PUT  /bf/fnec/invoices/{UID}/confirm → Certification         │
-│  PUT  /bf/fnec/invoices/{UID}/cancel  → Annulation            │
-│  GET  /bf/fnec/invoices/{UID}      → Détails facture          │
-│  GET  /bf/fnec/info/taxGroups      → Groupes taxation A-P     │
-│  GET  /bf/fnec/info/invoiceTypes   → Types factures           │
-│  GET  /bf/fnec/info/paymentTypes   → Modes paiement           │
-│  GET  /bf/fnec/reports/z           → Z-Rapport journalier     │
-│  GET  /bf/fnec/reports/x           → X-Rapport intermédiaire  │
+│  POST /bf/mcf/auth/token           → Authentication JWT       │
+│  GET  /bf/mcf/status               → Statut système           │
+│  POST /bf/mcf/invoices             → Soumission facture       │
+│  PUT  /bf/mcf/invoices/{UID}/confirm → Certification          │
+│  PUT  /bf/mcf/invoices/{UID}/cancel  → Annulation             │
+│  GET  /bf/mcf/invoices/{UID}       → Détails facture          │
+│  GET  /bf/mcf/info/taxGroups       → Groupes taxation A-P     │
+│  GET  /bf/mcf/info/invoiceTypes    → Types factures           │
+│  GET  /bf/mcf/info/paymentTypes    → Modes paiement           │
+│  GET  /bf/mcf/reports/z            → Z-Rapport journalier     │
+│  GET  /bf/mcf/reports/x            → X-Rapport intermédiaire  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### 6.2 Différences Bénin vs Burkina Faso
 
-| Aspect | Bénin (e-MECeF) | Burkina Faso (FNEC) |
+| Aspect | Bénin (e-MECeF) | Burkina Faso (MCF/SECeF) |
 | :--- | :--- | :--- |
 | Identifiant fiscal | IFU (13 chiffres) | IFU (format BF officiel) |
 | Code certification | Code MECeF/DGI | **Code SECeF/DGI** |
@@ -211,7 +211,7 @@ L'API officielle de la DGI Burkina Faso n'est pas encore publiée. Pour permettr
 4. `PUT /invoices/{UID}/confirm` → Certifier → reçoit **Code SECeF/DGI, QR Code, Signature, NIM, Compteurs, N° fiscal**
 5. Le SFE imprime la facture avec les éléments de sécurité
 
-### 6.5 Codes d'Erreur FNEC
+### 6.5 Codes d'Erreur MCF
 
 | Code | Description |
 | :--- | :--- |
@@ -241,7 +241,7 @@ L'API officielle de la DGI Burkina Faso n'est pas encore publiée. Pour permettr
 
 L'API simulée est conçue pour être **remplacée à chaud** par l'API officielle DGI :
 - URLs configurées via variables d'environnement
-- Logique d'appel API isolée dans un module dédié (`composables/useFnecApi.ts`)
+- Logique d'appel API isolée dans un module dédié (`composables/useMcfApi.ts`)
 - Interfaces TypeScript communes (pas de couplage fort)
 - Couche de mapping pour adapter les différences
 
@@ -251,18 +251,18 @@ L'API simulée est conçue pour être **remplacée à chaud** par l'API officiel
 
 | # | Module | Description | Priorité |
 | :--- | :--- | :--- | :--- |
-| 0 | **API FNEC Simulée** | Simulateur API FNEC Burkina (Edge Function InsForge) | **Fondateur** |
+| 0 | **API MCF Simulée** | Simulateur API MCF/SECeF Burkina (Edge Function InsForge) | **Fondateur** |
 | 1 | **Auth & RBAC** | Auth InsForge, rôles Admin/Caissier/Auditeur | Critique |
 | 2 | **Multi-Entreprise** | Isolation données, sélecteur entreprise | Critique |
 | 3 | **Facturation** | CRUD factures, validation, types FV/FA/FT/EV/ET/EA | Critique |
-| 4 | **Driver SFE-FNEC** | Composable Vue ↔ API FNEC, signature, certification | Critique |
+| 4 | **Driver SFE-MCF** | Composable Vue ↔ API MCF, signature, certification | Critique |
 | 5 | **PDF Generator** | PDF fiscal avec QR Code, bloc sécurité, NIM | Critique |
 | 6 | **Taxes** | Groupes A-P, calcul TVA/PSVB, timbre quittance | Critique |
 | 7 | **Audit Log** | Piste d'audit inaltérable (RLS + triggers) | Critique |
 | 8 | **Z-Report / X-Report** | Clôture journalière, rapports intermédiaires, archivage | Haute |
 | 9 | **Trésorerie** | Multi-comptes (Banque, Caisse, Mobile Money) | Haute |
 | 10 | **Gestion Clients** | IFU, RCCM, types CC/PM/PP/PC, validation | Haute |
-| 11 | **Mode Dégradé** | File d'attente sécurisée si API FNEC inaccessible | Haute |
+| 11 | **Mode Dégradé** | File d'attente sécurisée si API MCF inaccessible | Haute |
 | 12 | **Rapports** | Bilan, compte de résultat, balance âgée, dashboards | Moyenne |
 | 13 | **Chiffrement** | AES-256 CBC pour données sensibles | Haute |
 | 14 | **IA / Assistant** | Assistant fiscal NLP via InsForge AI | Moyenne |
@@ -281,9 +281,9 @@ L'API simulée est conçue pour être **remplacée à chaud** par l'API officiel
 
 | Phase | Période | Livrables |
 | :--- | :--- | :--- |
-| **0. API FNEC Simulée** | Février 2026 | Edge Function simulateur FNEC, endpoints, calculs fiscaux |
+| **0. API MCF Simulée** | Février 2026 | Edge Function simulateur MCF, endpoints, calculs fiscaux |
 | **1. Socle & BDD** | Février 2026 | Schema PostgreSQL InsForge, Auth, Rôles, Quasar scaffold |
-| **2. Driver SFE-FNEC** | Mars 2026 | Composable useFnecApi, intégration API simulée, chiffrement |
+| **2. Driver SFE-MCF** | Mars 2026 | Composable useMcfApi, intégration API simulée, chiffrement |
 | **3. Facturation** | Avril 2026 | UI Quasar facturation, PDF QR Code, Avoirs |
 | **4. Tests & Audit** | Mai 2026 | Tests charge, Z-Reports, dossier technique DGI |
 | **5. Homologation** | Juin 2026 | Dépôt DGI, démo comité, déploiement pilote |
@@ -312,7 +312,7 @@ L'API simulée est conçue pour être **remplacée à chaud** par l'API officiel
 - **Z-Report** — Rapport de clôture journalière
 - **IFU** — Identifiant Financier Unique
 - **FEC** — Facture Électronique Certifiée
-- **FNEC** — Facture Normalisée Électronique Certifiée (API simulée)
+- **MCF** — Module de Contrôle de Facturation (API simulée / boîtier DGI)
 - **PSVB** — Prélèvement à la Source sur Vente de Biens
 - **SYGMEF** — Plateforme serveur DGI pour la facturation
 - **InsForge** — Backend-as-a-Service utilisé pour ce projet

@@ -139,12 +139,12 @@
 
 | Réf. | Exigence | Implémentation WIMRUX |
 |------|----------|----------------------|
-| 2.4 | Générer la facture en obtenant les éléments de sécurité du MCF | `useFnecApi.confirmInvoice()` → reçoit Code SECeF/DGI, QR Code, compteurs |
+| 2.4 | Générer la facture en obtenant les éléments de sécurité du MCF | `useMcfApi.confirmInvoice()` → reçoit Code SECeF/DGI, QR Code, compteurs |
 | 2.5 | Interdiction d'émettre une facture SANS éléments de sécurité du MCF | Status `certified` requis, `code_secef_dgi` NOT NULL pour impression |
 | 2.6 | Interdiction d'enregistrer une facture sans identifier les articles | Validation formulaire : ≥ 1 article requis |
 | 2.7 | Support des 6 types de factures (FV, FT, FA, EV, ET, EA) | Type `InvoiceType` dans `src/types/index.ts` |
 | 2.11 | Enregistrement des duplicatas | Mention `DUPLICATA` sur la copie, même référence que l'original |
-| 2.12 | Génération rapports X, Z et A | Endpoints `/reports/z` et `/reports/x` via `useFnecApi` |
+| 2.12 | Génération rapports X, Z et A | Endpoints `/reports/z` et `/reports/x` via `useMcfApi` |
 | 2.14 | Type de client obligatoire (CC, PM, PP, PC) | Type `ClientType`, IFU obligatoire pour PM/PC |
 | 2.15 | 16 groupes de taxation (A–P) | `useTaxCalculation.ts` — 16 groupes complets |
 | 2.16 | 4 groupes PSVB (A, B, C, D) | Calcul PSVB intégré dans `useTaxCalculation` |
@@ -646,14 +646,14 @@ Le MCF passe en état **Bloqué** si :
 
 | Spécification DGI | Fichier WIMRUX | Statut |
 |-------------------|----------------|--------|
-| Communication SFE ↔ MCF | `src/composables/useFnecApi.ts` | Simulateur (Edge Function), migration API DGI prévue |
+| Communication SFE ↔ MCF | `src/composables/useMcfApi.ts` | Simulateur (Edge Function), migration API DGI prévue |
 | Calcul fiscal 16 groupes | `src/composables/useTaxCalculation.ts` | Implémenté (A–P, TVA, PSVB, timbre) |
 | Génération PDF FEC | `src/composables/useInvoicePdf.ts` | Implémenté (jsPDF + autoTable, QR Code, bloc sécurité) |
 | Éléments de sécurité | `invoices` table (code_secef_dgi, qr_code, nim, counters, signature) | Stockés après certification |
 | Inaltérabilité | Triggers PostgreSQL + RLS | Implémenté |
 | Piste d'audit | `audit_log` table + triggers | Implémenté (JSONB, inaltérable) |
 | Mode dégradé | `pending_certification_queue` + Realtime | Implémenté |
-| Z/X-Rapports | `useFnecApi.getZReport()`, `getXReport()` + `fiscal_reports` table | Implémenté |
+| Z/X-Rapports | `useMcfApi.getZReport()`, `getXReport()` + `fiscal_reports` table | Implémenté |
 | Types factures (6) | `InvoiceType` dans `src/types/index.ts` | FV, FT, FA, EV, ET, EA |
 | Types clients (4) | `ClientType` dans `src/types/index.ts` | CC, PM, PP, PC |
 | Types articles (4) | `ArticleType` dans `src/types/index.ts` | LOCBIE, LOCSER, IMPBIE, IMPSER |

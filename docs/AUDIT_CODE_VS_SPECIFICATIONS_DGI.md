@@ -25,7 +25,7 @@
 | Projet Quasar + Vue 3 + TS | `wimrux_app/` | ✅ |
 | InsForge SDK | `src/boot/insforge.ts` | ✅ |
 | 19 tables DB + RLS | InsForge PostgreSQL | ✅ |
-| 3 Edge Functions | fnec-simulator, crypto-aes256, chatbot-gateway | ✅ |
+| 3 Edge Functions | mcf-simulator, crypto-aes256, chatbot-gateway | ✅ |
 
 ### Types & Architecture
 | Composant | Fichier | Conforme |
@@ -51,7 +51,7 @@
 | Arrondi 2 décimales | `round2()` | ✅ Conforme Spéc. SFE §6.2 |
 | HT + TVA = TTC strictement | Logique dans `calculateItemTax` | ✅ Conforme Spéc. SFE §6.7 |
 
-### API FNEC
+### API MCF
 | Endpoint | Fonction | Conforme |
 |----------|----------|----------|
 | /auth/token | `getToken()` | ✅ |
