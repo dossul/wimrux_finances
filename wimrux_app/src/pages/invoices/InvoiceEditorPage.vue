@@ -224,9 +224,9 @@
               color="green" icon="verified" label="Certifier (SECeF)"
               class="full-width" no-caps :loading="certifying" @click="certifyInvoice"
             />
-            <!-- Convert Proforma → FV (accepted) -->
+            <!-- Convert Proforma → FV (approved, sent, accepted) -->
             <q-btn
-              v-if="invoice.type === 'PF' && invoice.status === 'accepted' && !invoice.proforma_converted_to"
+              v-if="invoice.type === 'PF' && ['approved', 'sent', 'accepted'].includes(invoice.status || '') && !invoice.proforma_converted_to"
               color="indigo" icon="transform" label="Convertir en Facture de Vente"
               class="full-width" no-caps :loading="convertingProforma" @click="doConvertProforma"
             />
