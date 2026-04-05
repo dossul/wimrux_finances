@@ -85,7 +85,7 @@
               <th class="text-left" style="min-width:250px">Désignation</th>
               <th style="width:130px">Type</th>
               <th style="width:180px">Groupe</th>
-              <th style="width:80px">Qté</th>
+              <th style="width:100px">Qté</th>
               <th style="width:130px">Prix unit.</th>
               <th style="width:120px">HT</th>
               <th style="width:110px">TVA</th>
