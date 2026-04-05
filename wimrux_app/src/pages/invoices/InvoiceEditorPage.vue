@@ -118,8 +118,8 @@
               <td>
                 <q-select v-model="item.tax_group" :options="taxGroupOptions" dense borderless emit-value map-options :disable="!canEdit" @update:model-value="recalcItem(idx)" />
               </td>
-              <td>
-                <q-input v-model.number="item.quantity" type="number" dense borderless min="1" :disable="!canEdit" @update:model-value="recalcItem(idx)" />
+              <td style="min-width:100px">
+                <q-input v-model.number="item.quantity" type="number" dense borderless min="1" :disable="!canEdit" @update:model-value="recalcItem(idx)" input-class="text-center" style="width:100%" />
               </td>
               <td>
                 <q-input v-model.number="item.price" type="number" dense borderless min="0" :disable="!canEdit" @update:model-value="recalcItem(idx)" />
