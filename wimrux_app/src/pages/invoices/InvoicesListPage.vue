@@ -66,8 +66,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
@@ -77,6 +77,7 @@ import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWor
 import type { Invoice, InvoiceStatus } from 'src/types';
 
 const router = useRouter();
+const route = useRoute();
 const $q = useQuasar();
 const authStore = useAuthStore();
 const invoiceStore = useInvoiceStore();
@@ -217,4 +218,11 @@ function exportCsv() {
 }
 
 onMounted(loadInvoices);
+
+// Recharger quand on revient sur cette page (navigation arrière)
+watch(() => route.fullPath, (newPath) => {
+  if (newPath === '/app/invoices') {
+    void loadInvoices();
+  }
+});
 </script>
