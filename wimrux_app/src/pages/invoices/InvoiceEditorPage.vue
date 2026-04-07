@@ -841,24 +841,26 @@ function doConvertProforma() {
     cancel: { label: 'Annuler', flat: true },
     ok: { label: 'Convertir', color: 'indigo' },
     persistent: true,
-  }).onOk(async (targetType: string) => {
-    convertingProforma.value = true;
-    try {
-      const result = await convertProformaToFV(invoice.value as Invoice, items.value, targetType as InvoiceType);
-      if (!result.success) {
-        $q.notify({ type: 'negative', message: result.error || 'Erreur lors de la conversion' });
-        return;
+  }).onOk((targetType: string) => {
+    void (async () => {
+      convertingProforma.value = true;
+      try {
+        const result = await convertProformaToFV(invoice.value as Invoice, items.value, targetType as InvoiceType);
+        if (!result.success) {
+          $q.notify({ type: 'negative', message: result.error || 'Erreur lors de la conversion' });
+          return;
+        }
+        invoice.value.proforma_converted_to = result.newInvoiceId ?? null;
+        $q.notify({
+          type: 'positive',
+          message: `Facture ${targetType} créée avec succès`,
+          actions: [{ label: 'Ouvrir', color: 'white', handler: () => void router.push(`/app/invoices/${result.newInvoiceId}`) }],
+          timeout: 8000,
+        });
+      } finally {
+        convertingProforma.value = false;
       }
-      invoice.value.proforma_converted_to = result.newInvoiceId ?? null;
-      $q.notify({
-        type: 'positive',
-        message: `Facture ${targetType} créée avec succès`,
-        actions: [{ label: 'Ouvrir', color: 'white', handler: () => void router.push(`/app/invoices/${result.newInvoiceId}`) }],
-        timeout: 8000,
-      });
-    } finally {
-      convertingProforma.value = false;
-    }
+    })();
   });
 }
 

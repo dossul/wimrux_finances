@@ -308,7 +308,8 @@ export function useInvoiceWorkflow() {
     // Copy items (use passed items, stripping id and invoice_id to avoid PK conflicts)
     const itemsToCopy = currentItems && currentItems.length > 0 ? currentItems : [];
     if (itemsToCopy.length > 0) {
-      const newItems = itemsToCopy.map(({ id: _id, invoice_id: _iid, ...rest }) => ({
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const newItems = itemsToCopy.map(({ id: _i, invoice_id: _ii, ...rest }) => ({
         ...rest,
         invoice_id: newId,
       }));
