@@ -2427,64 +2427,54 @@ async function onCreateRbacUser() {
   try {
     const baseUrl = import.meta.env.VITE_INSFORGE_URL as string;
     const anonKey = import.meta.env.VITE_INSFORGE_ANON_KEY as string;
-    const adminClient = createClient({ baseUrl, anonKey });
+    const freshClient = createClient({ baseUrl, anonKey });
 
-    // Check if user already exists
-    const { data: existingUsers } = await adminClient.database
-      .from('users')
-      .select('id')
-      .eq('email', rbacUserForm.value.email)
-      .limit(1);
+    let newUserId: string | undefined;
 
-    let newUserId = existingUsers?.[0]?.id;
+    // Step 1: Try signUp directly — handle "already exists" by signing in to get the ID
+    const { data: signUpData, error: signUpErr } = await freshClient.auth.signUp({
+      email: rbacUserForm.value.email,
+      password: rbacUserForm.value.password,
+      name: rbacUserForm.value.full_name,
+    });
 
-    if (!newUserId) {
-      // User doesn't exist, create them
-      const { data: signUpData, error: signUpErr } = await adminClient.auth.signUp({
-        email: rbacUserForm.value.email,
-        password: rbacUserForm.value.password,
-        name: rbacUserForm.value.full_name,
-      });
-      if (signUpErr) {
-        // Check if it's a "user already exists" error
-        if (signUpErr.message?.includes('already') || signUpErr.message?.includes('exist') || signUpErr.statusCode === 409) {
-          throw new Error('Un utilisateur avec cet email existe déjà');
+    if (signUpErr) {
+      const msg = (signUpErr.message || '').toLowerCase();
+      if (msg.includes('already') || msg.includes('exist') || (signUpErr as { statusCode?: number }).statusCode === 409) {
+        // Auth account exists — sign in to retrieve the user ID
+        const { data: loginData, error: loginErr } = await freshClient.auth.signInWithPassword({
+          email: rbacUserForm.value.email,
+          password: rbacUserForm.value.password,
+        });
+        if (loginErr || !loginData?.user?.id) {
+          throw new Error('Cet email est déjà utilisé. Vérifiez le mot de passe ou utilisez un autre email.');
         }
+        newUserId = loginData.user.id;
+        await freshClient.auth.signOut();
+      } else {
         throw new Error(signUpErr.message);
       }
-
-      newUserId = signUpData?.user?.id;
-
-      // If user ID is not available (email verification required), query by email
-      if (!newUserId) {
-        const { data: users, error: usersErr } = await adminClient.database
-          .from('users')
-          .select('id')
-          .eq('email', rbacUserForm.value.email)
-          .limit(1);
-        
-        if (usersErr || !users || users.length === 0) {
-          throw new Error('Utilisateur créé mais impossible de récupérer son ID. Il devra vérifier son email.');
-        }
-        newUserId = users[0]?.id;
-        if (!newUserId) {
-          throw new Error('Utilisateur créé mais ID non trouvé.');
-        }
-      }
     } else {
-      // User already exists - check if they already have a profile for this company
-      const { data: existingProfile } = await insforge.database
-        .from('user_profiles')
-        .select('id')
-        .eq('user_id', newUserId)
-        .eq('company_id', companyStore.company?.id)
-        .limit(1);
-
-      if (existingProfile && existingProfile.length > 0) {
-        throw new Error('Cet utilisateur existe déjà dans cette entreprise');
-      }
+      newUserId = signUpData?.user?.id;
     }
 
+    if (!newUserId) {
+      throw new Error('Impossible de récupérer l\'ID utilisateur après création.');
+    }
+
+    // Step 2: Check if profile already exists for this company
+    const { data: existingProfile } = await insforge.database
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', newUserId)
+      .eq('company_id', companyStore.company?.id)
+      .limit(1);
+
+    if (existingProfile && existingProfile.length > 0) {
+      throw new Error('Cet utilisateur appartient déjà à cette entreprise.');
+    }
+
+    // Step 3: Create user_profile
     const { error: profileErr } = await insforge.database
       .from('user_profiles')
       .insert({
@@ -2497,10 +2487,10 @@ async function onCreateRbacUser() {
 
     rbacUserDialogOpen.value = false;
     rbacUserForm.value = { full_name: '', email: '', role: 'comptable', password: '' };
-    $q.notify({ type: 'positive', message: 'Utilisateur créé' });
+    $q.notify({ type: 'positive', message: 'Utilisateur créé avec succès' });
     await loadRbacUsers();
   } catch (err: unknown) {
-    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Erreur' });
+    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Erreur', timeout: 6000 });
   } finally {
     rbacSaving.value = false;
   }
