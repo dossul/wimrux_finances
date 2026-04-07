@@ -218,22 +218,22 @@
                 @click="action.needsReason ? openRejectDialog(action) : executeAction(action)"
               />
             </template>
+            <!-- Convert Proforma → any invoice type (approved, sent, accepted) -->
+            <q-btn
+              v-if="invoice.type === 'PF' && ['approved', 'sent', 'accepted'].includes(invoice.status || '') && !invoice.proforma_converted_to"
+              color="indigo" icon="transform" label="Convertir en Facture"
+              class="full-width" no-caps :loading="convertingProforma" @click="doConvertProforma"
+            />
+            <q-chip
+              v-if="invoice.type === 'PF' && invoice.proforma_converted_to"
+              icon="link" color="indigo" text-color="white" dense class="full-width"
+            >Facture liée : {{ invoice.proforma_converted_to?.slice(0, 8) }}...</q-chip>
             <!-- SECeF certification — BF profile only, not for Proforma -->
             <q-btn
               v-if="workflowActions.some(a => a.key === 'certify') && invoice.type !== 'PF'"
               color="green" icon="verified" label="Certifier (SECeF)"
               class="full-width" no-caps :loading="certifying" @click="certifyInvoice"
             />
-            <!-- Convert Proforma → FV (approved, sent, accepted) -->
-            <q-btn
-              v-if="invoice.type === 'PF' && ['approved', 'sent', 'accepted'].includes(invoice.status || '') && !invoice.proforma_converted_to"
-              color="indigo" icon="transform" label="Convertir en Facture de Vente"
-              class="full-width" no-caps :loading="convertingProforma" @click="doConvertProforma"
-            />
-            <q-chip
-              v-if="invoice.type === 'PF' && invoice.proforma_converted_to"
-              icon="link" color="indigo" text-color="white" dense class="full-width"
-            >FV liée : {{ invoice.proforma_converted_to?.slice(0, 8) }}...</q-chip>
             <!-- PDF download for certified + validated/sent/accepted Proforma -->
             <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="Télécharger PDF" class="full-width" no-caps @click="downloadPdf" />
             <q-btn v-if="invoice.status === 'certified'" color="blue-grey" icon="content_copy" label="Duplicata PDF" class="full-width q-mt-xs" no-caps outline @click="downloadDuplicata" />
