@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { insforge } from 'src/boot/insforge';
-import type { Invoice, InvoiceStatus, InvoiceType, Permission } from 'src/types';
+import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } from 'src/types';
 
 // ============================================================================
 // Invoice Lifecycle Workflow — WIMRUX® FINANCES
@@ -261,27 +261,29 @@ export function useInvoiceWorkflow() {
     return { success: true };
   }
 
-  // Converts an accepted Proforma to a new FV draft (automatic copy)
+  // Converts a Proforma to a new invoice draft of the specified type (automatic copy)
   async function convertProformaToFV(
     proforma: Invoice,
+    currentItems?: Partial<InvoiceItem>[],
+    targetType: InvoiceType = 'FV',
   ): Promise<{ success: boolean; newInvoiceId?: string; error?: string }> {
     if (proforma.type !== 'PF') return { success: false, error: 'Pas une proforma' };
 
     const now = new Date().toISOString();
     const year = now.slice(0, 4);
 
-    // Get next FV reference
+    // Get next reference for the target type
     const { data: refData, error: refError } = await insforge.database
-      .rpc('next_invoice_reference', { p_company_id: proforma.company_id, p_type: 'FV', p_year: Number(year) });
+      .rpc('next_invoice_reference', { p_company_id: proforma.company_id, p_type: targetType, p_year: Number(year) });
     if (refError) return { success: false, error: refError.message };
 
-    // Create FV draft
+    // Create new invoice draft
     const { data: newInv, error: invError } = await insforge.database
       .from('invoices')
       .insert({
         company_id: proforma.company_id,
         client_id: proforma.client_id,
-        type: 'FV' as InvoiceType,
+        type: targetType,
         reference: refData as string,
         status: 'draft',
         price_mode: proforma.price_mode,
@@ -303,9 +305,10 @@ export function useInvoiceWorkflow() {
 
     const newId = (newInv as { id: string }).id;
 
-    // Copy items
-    if (proforma.items && proforma.items.length > 0) {
-      const newItems = proforma.items.map(({ ...rest }) => ({
+    // Copy items (use passed items, stripping id and invoice_id to avoid PK conflicts)
+    const itemsToCopy = currentItems && currentItems.length > 0 ? currentItems : [];
+    if (itemsToCopy.length > 0) {
+      const newItems = itemsToCopy.map(({ id: _id, invoice_id: _iid, ...rest }) => ({
         ...rest,
         invoice_id: newId,
       }));
