@@ -596,7 +596,14 @@ async function createCompanyUser() {
       userId = authData?.user?.id;
     }
 
-    if (!userId) throw new Error('Impossible de récupérer l\'ID utilisateur. Vérifiez la configuration email.');
+    if (!userId) {
+      // Email confirmation enabled — retrieve ID via secure RPC
+      const { data: rpcId } = await insforge.database
+        .rpc('get_user_id_by_email', { p_email: userForm.value.email });
+      userId = rpcId as string | undefined;
+    }
+
+    if (!userId) throw new Error('Impossible de recuperer l ID utilisateur. Veuillez reessayer.');
 
     // Step 2: Check if profile already exists for this user
     const { data: existingProfile } = await insforge.database

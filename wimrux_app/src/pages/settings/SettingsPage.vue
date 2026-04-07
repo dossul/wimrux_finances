@@ -2459,7 +2459,14 @@ async function onCreateRbacUser() {
     }
 
     if (!newUserId) {
-      throw new Error('Impossible de récupérer l\'ID utilisateur après création.');
+      // Email confirmation enabled — retrieve ID via secure RPC
+      const { data: rpcId } = await insforge.database
+        .rpc('get_user_id_by_email', { p_email: rbacUserForm.value.email });
+      newUserId = rpcId as string | undefined;
+    }
+
+    if (!newUserId) {
+      throw new Error('Impossible de récuperer l ID utilisateur. Veuillez reessayer.');
     }
 
     // Step 2: Check if profile already exists for this company
