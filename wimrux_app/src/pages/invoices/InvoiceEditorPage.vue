@@ -38,6 +38,18 @@
             :disable="!canEdit"
           />
         </div>
+        <!-- Objet / Nature de la transaction (mention obligatoire DGI) -->
+        <div class="row q-gutter-sm q-mt-sm">
+          <q-input
+            v-model="invoice.description"
+            label="Objet / Nature de la transaction *"
+            outlined
+            dense
+            class="col"
+            :disable="!canEdit"
+            placeholder="Ex: Vente de marchandises, Prestation de services..."
+          />
+        </div>
         <!-- Nature avoir (FA/EA uniquement) -->
         <template v-if="invoice.type === 'FA' || invoice.type === 'EA'">
           <div class="row q-gutter-sm q-mt-sm">
@@ -551,6 +563,7 @@ async function saveDraft(silent = false): Promise<boolean> {
       .update({
         client_id: invoice.value.client_id,
         price_mode: invoice.value.price_mode,
+        description: invoice.value.description,
         comments: invoice.value.comments,
         total_ht: t.grandTotalHT,
         total_tva: t.grandTotalTVA,

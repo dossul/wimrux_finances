@@ -41,6 +41,14 @@
                 hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
                 bottom-slots
               />
+              <q-input
+                v-model="companyForm.address"
+                label="Adresse postale (si différente de l'adresse cadastrale)"
+                filled
+                clearable
+                hint="Obligatoire si différente de l'adresse cadastrale"
+                bottom-slots
+              />
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" />
                 <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" />
@@ -1499,6 +1507,7 @@ const companyForm = ref<{
   ifu: string;
   rccm: string;
   address_cadastral: string;
+  address: string;
   phone: string;
   email: string;
   tax_regime: string;
@@ -1510,6 +1519,7 @@ const companyForm = ref<{
   ifu: '',
   rccm: '',
   address_cadastral: '',
+  address: '',
   phone: '',
   email: '',
   tax_regime: '',
@@ -1754,6 +1764,7 @@ function loadCompanyForm() {
       rccm: c.rccm,
       qr_scan_base_url: c.qr_scan_base_url || '',
       address_cadastral: c.address_cadastral,
+      address: c.address || '',
       phone: c.phone,
       email: c.email,
       tax_regime: '',
