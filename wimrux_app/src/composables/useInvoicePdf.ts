@@ -284,17 +284,21 @@ export function useInvoicePdf() {
     y += 6;
 
     // --- Items table ---
-    const tableHead = [['#', 'Code', 'Désignation', 'Type', 'Grp', 'Qté', 'Unité', 'P.U.', 'HT', 'TVA', 'TTC']];
+    const tableHead = [['#', 'Code', 'Désignation', 'Type', 'Grp/Taux', 'Qté', 'Unité', 'P.U.', 'HT', 'TVA', 'TTC']];
     const tableBody = items.map((item, idx) => {
       let designation = item.name;
       if (item.discount && item.discount > 0) designation += ` (-${fmtCur(item.discount)})`;
       if (item.specific_tax && item.specific_tax > 0) designation += ` [T.Sp: ${fmtCur(item.specific_tax)}]`;
+      // Get TVA rate for display
+      const groupCfg = fiscalCfg?.tax_groups?.[item.tax_group];
+      const tvaRate = groupCfg ? `${(groupCfg.tva * 100).toFixed(0)}%` : '';
+      const groupWithRate = tvaRate ? `${item.tax_group}-${tvaRate}` : item.tax_group;
       return [
         String(idx + 1),
         item.code || '—',
         designation,
         item.type,
-        item.tax_group,
+        groupWithRate,
         String(item.quantity),
         item.unit || 'u.',
         fmtCur(item.price),
@@ -314,15 +318,15 @@ export function useInvoicePdf() {
       columnStyles: {
         0: { cellWidth: 5, halign: 'center' },
         1: { cellWidth: 14 },
-        2: { cellWidth: 36 },
-        3: { cellWidth: 13, halign: 'center' },
-        4: { cellWidth: 7, halign: 'center' },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 12, halign: 'center' },
+        4: { cellWidth: 14, halign: 'center' },
         5: { cellWidth: 9, halign: 'right' },
         6: { cellWidth: 9 },
         7: { cellWidth: 22, halign: 'right' },
-        8: { cellWidth: 22, halign: 'right' },
-        9: { cellWidth: 21, halign: 'right' },
-        10: { cellWidth: 22, halign: 'right' },
+        8: { cellWidth: 20, halign: 'right' },
+        9: { cellWidth: 20, halign: 'right' },
+        10: { cellWidth: 21, halign: 'right' },
       },
       margin: { left: 15, right: 15 },
     });
