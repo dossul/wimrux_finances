@@ -198,6 +198,7 @@ export interface Company {
   ifu: string;
   rccm: string;
   address_cadastral: string;
+  address?: string | null;
   phone: string;
   email: string;
   bank_accounts: BankAccount[];
@@ -439,6 +440,7 @@ export interface Invoice {
   original_invoice_id: string | null;
   credit_note_nature: 'COR' | 'RAN' | 'RAM' | 'RRR' | null;
   operator_name: string;
+  description?: string | null;
   comments: InvoiceComment[];
   tax_calculation: TaxCalculationResult | null;
   total_ht: number;

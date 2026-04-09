@@ -332,6 +332,7 @@ const companyPdfInfo = computed<PdfCompanyInfo | undefined>(() => {
     ifu: c.ifu,
     rccm: c.rccm || '',
     address_cadastral: c.address_cadastral || '',
+    address: c.address || null,
     phone: c.phone || '',
     email: c.email || '',
     ...(c.tax_office ? { tax_office: c.tax_office } : {}),

@@ -67,6 +67,7 @@ export interface PdfCompanyInfo {
   ifu: string;
   rccm: string;
   address_cadastral: string;
+  address?: string | null;
   phone: string;
   email: string;
   tax_regime?: string;
@@ -225,8 +226,14 @@ export function useInvoicePdf() {
       doc.setFont('helvetica', 'normal');
       doc.text(`IFU : ${company.ifu}`, leftX, yL); yL += ls;
       doc.text(`RCCM : ${company.rccm}`, leftX, yL); yL += ls;
-      const addrLinesL = doc.splitTextToSize(`Adresse : ${company.address_cadastral}`, colW - 4) as string[];
+      // Adresse cadastrale (géographique)
+      const addrLinesL = doc.splitTextToSize(`Adresse cadastrale : ${company.address_cadastral}`, colW - 4) as string[];
       for (const ln of addrLinesL) { doc.text(ln, leftX, yL); yL += ls; }
+      // Adresse postale (si différente)
+      if (company.address && company.address !== company.address_cadastral) {
+        const postAddrLines = doc.splitTextToSize(`Adresse postale : ${company.address}`, colW - 4) as string[];
+        for (const ln of postAddrLines) { doc.text(ln, leftX, yL); yL += ls; }
+      }
       const telLinesL = doc.splitTextToSize(`Tél : ${company.phone}${company.email ? ' — ' + company.email : ''}`, colW - 4) as string[];
       for (const ln of telLinesL) { doc.text(ln, leftX, yL); yL += ls; }
       if (fiscalCfg?.tax_category) {
@@ -278,10 +285,17 @@ export function useInvoicePdf() {
 
     y = Math.max(yL, yR) + 5;
 
-    // --- Date facture ---
+    // --- Date facture + Objet ---
     doc.setFontSize(10);
     doc.text(`Date : ${fmtDate(invoice.created_at)}    Mode de prix : ${invoice.price_mode}`, leftX, y);
     y += 6;
+    // Nature/Objet de la transaction (mention obligatoire DGI)
+    if (invoice.description) {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Objet : ${invoice.description}`, leftX, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+    }
 
     // --- Items table ---
     const tableHead = [['#', 'Code', 'Désignation', 'Type', 'Grp/Taux', 'Qté', 'Unité', 'P.U.', 'HT', 'TVA', 'TTC']];
@@ -563,26 +577,35 @@ export function useInvoicePdf() {
     }
 
     // --- Mentions légales obligatoires (pied de facture) ---
-    const legalY = pageH - 20;
+    const legalY = pageH - 24;
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100);
 
+    // Mention obligatoire : Imprimeur (WIMRUX) avec IFU
+    doc.setFont('helvetica', 'bold');
+    doc.text('Éditeur / Imprimeur : WIMRUX® FINANCES — IFU : 00123456A', pageW / 2, legalY, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    // Mention obligatoire : Année et mois d'édition
+    const now = new Date();
+    const monthYear = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    doc.text(`Édition : ${monthYear.toUpperCase()}`, pageW / 2, legalY + 4, { align: 'center' });
+
     if (isProforma) {
       doc.setFont('helvetica', 'bold');
-      doc.text('DOCUMENT PROFORMA — NON CONTRACTUEL', pageW / 2, legalY, { align: 'center' });
+      doc.text('DOCUMENT PROFORMA — NON CONTRACTUEL', pageW / 2, legalY + 9, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.text('Ce document est établi à titre informatif. Il ne constitue pas une facture définitive et ne génère aucune obligation fiscale.', pageW / 2, legalY + 4, { align: 'center', maxWidth: pageW - 30 });
+      doc.text('Ce document est établi à titre informatif. Il ne constitue pas une facture définitive et ne génère aucune obligation fiscale.', pageW / 2, legalY + 13, { align: 'center', maxWidth: pageW - 30 });
     } else if (isBF) {
       doc.setFont('helvetica', 'bold');
-      doc.text('EXIGEZ LA FACTURE ÉLECTRONIQUE CERTIFIÉE', pageW / 2, legalY, { align: 'center' });
+      doc.text('EXIGEZ LA FACTURE ÉLECTRONIQUE CERTIFIÉE', pageW / 2, legalY + 9, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.text("Émise conformément à l'Arrêté n°2023-00216/MEFP/SG/DGI et à l'Arrêté n°2025-0049/MEF/SG/DGI — SECeF Burkina Faso.", pageW / 2, legalY + 4, { align: 'center' });
+      doc.text("Émise conformément à l'Arrêté n°2023-00216/MEFP/SG/DGI et à l'Arrêté n°2025-0049/MEF/SG/DGI — SECeF Burkina Faso.", pageW / 2, legalY + 13, { align: 'center' });
     } else {
       doc.setFont('helvetica', 'normal');
-      doc.text(`Document généré par WIMRUX® FINANCES`, pageW / 2, legalY, { align: 'center' });
+      doc.text(`Document généré par WIMRUX® FINANCES`, pageW / 2, legalY + 9, { align: 'center' });
     }
-    doc.text(`Imprimé le ${fmtDate(new Date().toISOString())}`, pageW / 2, legalY + 8, { align: 'center' });
+    doc.text(`Imprimé le ${fmtDate(new Date().toISOString())}`, pageW / 2, legalY + 17, { align: 'center' });
 
     if (options?.isDuplicate) {
       doc.setTextColor(200, 0, 0);
