@@ -83,6 +83,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Tableau de bord', icon: 'dashboard', route: '/app', permissions: ['dashboard.view'] },
   { label: 'Factures', icon: 'receipt_long', route: '/app/invoices', permissions: ['invoices.read'] },
+  { label: 'En attente certif.', icon: 'pending_actions', route: '/app/invoices/pending-certification', permissions: ['invoices.read'] },
   { label: 'Articles', icon: 'inventory_2', route: '/app/articles', permissions: ['invoices.create'] },
   { label: 'Clients', icon: 'people', route: '/app/clients', permissions: ['clients.read'] },
   { label: 'Trésorerie', icon: 'account_balance', route: '/app/treasury', permissions: ['treasury.read'] },

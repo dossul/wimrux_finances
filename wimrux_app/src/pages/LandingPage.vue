@@ -35,29 +35,29 @@
         <div class="hero-content container text-white">
           <div class="row items-center" style="min-height: 100vh">
             <div class="col-12 col-md-7">
-              <q-chip color="orange" text-color="white" icon="verified" class="q-mb-lg animate-fade-in">
-                🏆 Homologué DGI Burkina Faso
+              <q-chip color="orange" text-color="white" icon="trending_up" class="q-mb-lg animate-fade-in">
+                🚀 Gérez vos finances comme un pro
               </q-chip>
 
               <h1 class="hero-title animate-fade-in">
-                Transformez votre facturation.<br />
-                <span class="text-orange">Respectez la loi.</span>
+                Votre gestion financière.<br />
+                <span class="text-orange">Simplifiée.</span>
               </h1>
 
               <p class="hero-subtitle animate-fade-in-delay">
-                <strong>WIMRUX® FINANCES</strong> est la solution de facturation électronique certifiée
-                qui met votre entreprise en <strong>conformité totale</strong> avec la réforme SECeF
-                du Burkina Faso — <em>avant la date limite du 1er Juillet 2026</em>.
+                <strong>WIMRUX® FINANCES</strong> est la plateforme complète de gestion financière
+                pour entreprises modernes. Facturation, trésorerie, rapports et IA —
+                <em>tout dans une seule solution intuitive</em>.
               </p>
 
               <div class="hero-stats q-mt-xl q-mb-xl animate-fade-in-delay2">
                 <div class="stat-item">
-                  <span class="stat-number">100%</span>
-                  <span class="stat-label">Conforme DGI</span>
+                  <span class="stat-number">∞</span>
+                  <span class="stat-label">Factures/mois</span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-number">16</span>
-                  <span class="stat-label">Groupes de taxes</span>
+                  <span class="stat-number">AI</span>
+                  <span class="stat-label">Assistant intégré</span>
                 </div>
                 <div class="stat-item">
                   <span class="stat-number">24/7</span>
@@ -65,7 +65,7 @@
                 </div>
                 <div class="stat-item">
                   <span class="stat-number">0</span>
-                  <span class="stat-label">Pénalité fiscale</span>
+                  <span class="stat-label">Installation requise</span>
                 </div>
               </div>
 
@@ -122,43 +122,44 @@
               />
             </div>
             <div class="col-12 col-md-6">
-              <q-chip color="red" text-color="white" icon="warning" class="q-mb-md">
-                Attention Dirigeants
+              <q-chip color="primary" text-color="white" icon="lightbulb" class="q-mb-md">
+                Pourquoi WIMRUX® ?
               </q-chip>
               <h2 class="section-title">
-                La facture papier, c'est <span class="text-red">terminé</span>.
+                La gestion financière, <span class="text-primary">réinventée</span>.
               </h2>
               <p class="section-text">
-                Depuis la réforme SECeF, <strong>toute entreprise au régime réel normal</strong>
-                (CA ≥ 50 millions FCFA) doit émettre des <strong>factures électroniques certifiées</strong>.
+                Les entrepreneurs perdent <strong>plusieurs heures par semaine</strong>
+                à gérer manuellement leurs factures, leur trésorerie et leurs rapports.
+                <strong>WIMRUX® FINANCES</strong> centralise tout en une seule plateforme puissante.
               </p>
 
               <q-list class="q-mt-lg">
                 <q-item>
                   <q-item-section avatar>
-                    <q-icon name="close" color="red" size="28px" />
+                    <q-icon name="check" color="green" size="28px" />
                   </q-item-section>
                   <q-item-section>
-                    <q-item-label class="text-weight-medium">Amendes jusqu'à 5 millions FCFA</q-item-label>
-                    <q-item-label caption>Pour non-conformité avec les obligations SECeF</q-item-label>
+                    <q-item-label class="text-weight-medium">Facturation professionnelle</q-item-label>
+                    <q-item-label caption>Créez et envoyez des factures élégantes en quelques clics</q-item-label>
                   </q-item-section>
                 </q-item>
                 <q-item>
                   <q-item-section avatar>
-                    <q-icon name="close" color="red" size="28px" />
+                    <q-icon name="check" color="green" size="28px" />
                   </q-item-section>
                   <q-item-section>
-                    <q-item-label class="text-weight-medium">Perte de marchés publics</q-item-label>
-                    <q-item-label caption>Les factures non certifiées sont rejetées</q-item-label>
+                    <q-item-label class="text-weight-medium">Trésorerie en temps réel</q-item-label>
+                    <q-item-label caption>Suivez vos comptes, caisse et mobile money instantanément</q-item-label>
                   </q-item-section>
                 </q-item>
                 <q-item>
                   <q-item-section avatar>
-                    <q-icon name="close" color="red" size="28px" />
+                    <q-icon name="check" color="green" size="28px" />
                   </q-item-section>
                   <q-item-section>
-                    <q-item-label class="text-weight-medium">Contrôles fiscaux renforcés</q-item-label>
-                    <q-item-label caption>La DGI cible les entreprises non conformes</q-item-label>
+                    <q-item-label class="text-weight-medium">Rapports automatisés</q-item-label>
+                    <q-item-label caption>Dashboard KPIs et rapports exportables en un clic</q-item-label>
                   </q-item-section>
                 </q-item>
               </q-list>
@@ -166,7 +167,7 @@
               <q-btn
                 color="primary"
                 size="lg"
-                label="Je veux être en règle"
+                label="Découvrir les fonctionnalités"
                 icon="check_circle"
                 class="q-mt-lg"
                 @click="scrollTo('features')"
@@ -313,20 +314,20 @@
         </div>
       </section>
 
-      <!-- COMPLIANCE SECTION -->
+      <!-- CONNECT SECTION -->
       <section id="compliance" class="section-padding">
         <div class="container text-center">
-          <q-chip color="green" text-color="white" icon="verified" class="q-mb-md">
-            Conformité Totale
+          <q-chip color="green" text-color="white" icon="link" class="q-mb-md">
+            Intégration Certifiée
           </q-chip>
           <h2 class="section-title">
-            100% conforme aux normes<br />
-            <span class="text-green">SECeF & DGI Burkina Faso</span>
+            Besoin de certification fiscale ?<br />
+            <span class="text-green">Connectez WIMRUX FACTURATION</span>
           </h2>
 
           <div class="compliance-badges q-mt-xl">
             <div class="row q-col-gutter-lg justify-center">
-              <div class="col-6 col-md-3" v-for="c in compliance" :key="c.title">
+              <div class="col-6 col-md-3" v-for="c in connectFeatures" :key="c.title">
                 <q-card flat bordered class="compliance-card">
                   <q-card-section class="text-center">
                     <q-icon :name="c.icon" size="48px" :color="c.color" />
@@ -342,20 +343,20 @@
             <div class="row items-center">
               <div class="col-12 col-md-8 text-left">
                 <h3 class="text-h5 text-weight-bold text-green-9">
-                  🛡️ Garantie Conformité
+                  🌍 Vous opérez au Burkina Faso ?
                 </h3>
                 <p class="text-body2 q-mt-sm">
-                  Nous garantissons que chaque facture émise via WIMRUX® FINANCES respecte
-                  <strong>100% des exigences légales</strong> du Burkina Faso. En cas de problème
-                  lors d'un contrôle fiscal lié à notre solution, nous vous accompagnons gratuitement.
+                  WIMRUX® FINANCES s'intègre avec <strong>WIMRUX FACTURATION</strong>,
+                  notre application desktop certifiée pour la conformité SECeF.
+                  Vos factures sont certifiées automatiquement via l'appareil MCF.
                 </p>
               </div>
               <div class="col-12 col-md-4 text-center">
                 <q-btn
                   color="green"
                   size="lg"
-                  label="Je sécurise mon entreprise"
-                  to="/auth/login"
+                  label="En savoir plus"
+                  to="/app/settings"
                 />
               </div>
             </div>
@@ -472,11 +473,11 @@
         <div class="cta-overlay"></div>
         <div class="container text-center text-white" style="position: relative; z-index: 2">
           <h2 class="text-h3 text-weight-bold q-mb-md">
-            Prêt à sécuriser votre entreprise ?
+            Prêt à transformer votre gestion financière ?
           </h2>
           <p class="text-h6 q-mb-xl" style="opacity: 0.9; max-width: 600px; margin: 0 auto">
-            Rejoignez les centaines d'entreprises burkinabè qui ont choisi WIMRUX® FINANCES
-            pour leur conformité fiscale.
+            Rejoignez les entreprises modernes qui ont choisi WIMRUX® FINANCES
+            pour piloter leur activité avec sérénité.
           </p>
           <div class="q-gutter-md">
             <q-btn
@@ -509,12 +510,12 @@
                 <span class="text-h6 text-weight-bold text-white q-ml-sm">WIMRUX® FINANCES</span>
               </div>
               <p class="text-body2" style="opacity: 0.7">
-                Solution de facturation électronique certifiée pour les entreprises du Burkina Faso
-                et de l'espace UEMOA.
+                Solution SaaS complète de gestion financière : facturation, trésorerie, rapports
+                et assistant IA pour entreprises modernes.
               </p>
               <div class="q-mt-lg q-gutter-sm">
-                <q-chip size="sm" color="green-8" text-color="white">Homologué DGI</q-chip>
-                <q-chip size="sm" color="blue-8" text-color="white">Certifié SECeF</q-chip>
+                <q-chip size="sm" color="blue-8" text-color="white">SaaS Cloud</q-chip>
+                <q-chip size="sm" color="purple-8" text-color="white">IA Intégrée</q-chip>
               </div>
             </div>
 
@@ -613,24 +614,24 @@ const featureSlide = ref(1);
 const features = [
   {
     icon: 'receipt_long',
-    title: 'Facturation Certifiée',
+    title: 'Facturation Pro',
     gradient: 'linear-gradient(135deg, #1976d2, #0d47a1)',
-    description: 'Émettez des factures 100% conformes à la norme SECeF avec signature électronique.',
-    points: ['6 types de factures (FV, FT, FA, EV, ET, EA)', 'Certification SECeF automatique', 'QR Code de vérification DGI']
+    description: 'Créez des factures professionnelles et suivez vos paiements facilement.',
+    points: ['Modèles personnalisables', 'Relances automatiques', 'Statuts de paiement en temps réel']
   },
   {
     icon: 'calculate',
-    title: 'Calcul TVA Automatique',
+    title: 'Gestion Multi-Devises',
     gradient: 'linear-gradient(135deg, #43a047, #2e7d32)',
-    description: 'Les 16 groupes de taxation DGI sont gérés automatiquement.',
-    points: ['Groupes A à P pré-configurés', 'TVA 18% et exonérations', 'PSVB et timbre de quittance']
+    description: 'Gérez votre activité dans plusieurs devises avec conversion automatique.',
+    points: ['XOF, EUR, USD, GBP', 'Taux de change automatiques', 'Rapports par devise']
   },
   {
     icon: 'people',
     title: 'Gestion Clients',
     gradient: 'linear-gradient(135deg, #fb8c00, #ef6c00)',
-    description: 'Fichier client complet avec validation IFU intégrée.',
-    points: ['4 types: CC, PM, PP, PC', 'Validation IFU automatique', 'Historique des transactions']
+    description: 'Fichier client complet avec historique des transactions.',
+    points: ['Fiches clients détaillées', 'Historique des factures', 'Segmentation avancée']
   },
   {
     icon: 'account_balance_wallet',
@@ -643,60 +644,60 @@ const features = [
     icon: 'analytics',
     title: 'Rapports & KPIs',
     gradient: 'linear-gradient(135deg, #00897b, #00695c)',
-    description: 'Tableau de bord temps réel et rapports fiscaux obligatoires.',
-    points: ['Dashboard KPIs en direct', 'Rapports Z et X fiscaux', 'Export CSV et PDF']
+    description: 'Tableau de bord temps réel et rapports d\'activité détaillés.',
+    points: ['Dashboard KPIs en direct', 'Export CSV, PDF, Excel', 'Prévisions de trésorerie']
   },
   {
     icon: 'gavel',
-    title: 'Audit Inaltérable',
+    title: 'Journal d\'Audit',
     gradient: 'linear-gradient(135deg, #e53935, #c62828)',
-    description: 'Journal d\'audit conforme aux exigences DGI pour les contrôles.',
-    points: ['Traçabilité complète', 'Données INALTÉRABLES', 'Preuve en cas de contrôle']
+    description: 'Traçabilité complète de toutes les actions pour plus de sécurité.',
+    points: ['Historique des modifications', 'Données sécurisées', 'Conformité RGPD']
   },
   {
     icon: 'psychology',
     title: 'Assistant IA',
     gradient: 'linear-gradient(135deg, #5c6bc0, #3949ab)',
     description: 'Un assistant intelligent pour vous aider au quotidien.',
-    points: ['Questions en langage naturel', '6 modèles IA spécialisés', 'Conseils fiscaux automatisés']
+    points: ['Questions en langage naturel', 'Analyse de vos données', 'Conseils personnalisés']
   },
   {
     icon: 'smart_toy',
-    title: 'API Chatbot',
+    title: 'API & Chatbot',
     gradient: 'linear-gradient(135deg, #26a69a, #00897b)',
     description: 'Intégrez WIMRUX à vos canaux de communication.',
-    points: ['WhatsApp, Telegram, Email', 'Permissions granulaires', 'Documentation Skill exportable']
+    points: ['WhatsApp, Telegram, Email', 'Permissions granulaires', 'Webhooks disponibles']
   },
   {
     icon: 'business',
     title: 'Multi-Entreprise',
     gradient: 'linear-gradient(135deg, #78909c, #546e7a)',
-    description: 'Gérez plusieurs entités fiscales dans une seule interface.',
-    points: ['Isolation totale des données', 'Rôles par entreprise', 'Facturation consolidée']
+    description: 'Gérez plusieurs entités dans une seule interface.',
+    points: ['Isolation totale des données', 'Rôles par entreprise', 'Consolidation des rapports']
   }
 ];
 
 const benefits = [
   { icon: 'timer', title: 'Gain de temps', description: 'Automatisez les tâches répétitives et gagnez 10h/semaine', color: 'orange' },
-  { icon: 'savings', title: 'Économies', description: 'Évitez les amendes et réduisez les erreurs de facturation', color: 'green' },
-  { icon: 'security', title: 'Tranquillité', description: 'Soyez serein lors des contrôles fiscaux DGI', color: 'blue' },
+  { icon: 'savings', title: 'Économies', description: 'Réduisez les erreurs et optimisez votre trésorerie', color: 'green' },
+  { icon: 'security', title: 'Sécurité', description: 'Vos données sont chiffrées et sauvegardées automatiquement', color: 'blue' },
   { icon: 'cloud', title: 'Accessibilité', description: 'Accédez à vos données partout, 24h/24, 7j/7', color: 'purple' },
-  { icon: 'support_agent', title: 'Support dédié', description: 'Une équipe locale pour vous accompagner', color: 'teal' },
-  { icon: 'update', title: 'Mises à jour', description: 'Toujours conforme aux dernières réglementations', color: 'red' }
+  { icon: 'support_agent', title: 'Support dédié', description: 'Une équipe à votre écoute pour vous accompagner', color: 'teal' },
+  { icon: 'update', title: 'Mises à jour', description: 'Bénéficiez des nouvelles fonctionnalités automatiquement', color: 'red' }
 ];
 
-const compliance = [
-  { icon: 'verified', title: 'Homologué DGI', description: 'Système de Facturation d\'Entreprise certifié', color: 'green' },
-  { icon: 'qr_code_2', title: 'QR Code SECeF', description: 'Code de vérification sur chaque facture', color: 'blue' },
-  { icon: 'lock', title: 'Signature SECeF/DGI', description: 'Signature électronique inviolable', color: 'orange' },
-  { icon: 'history', title: 'Archivage légal', description: 'Conservation 10 ans conforme', color: 'purple' }
+const connectFeatures = [
+  { icon: 'sync', title: 'Sync Auto', description: 'Synchronisation bidirectionnelle en temps réel', color: 'green' },
+  { icon: 'verified', title: 'Certifié', description: 'Connexion sécurisée avec API keys', color: 'blue' },
+  { icon: 'devices', title: 'Multi-Device', description: 'Fonctionne avec l\'app WIMRUX FACTURATION', color: 'orange' },
+  { icon: 'support', title: 'Support', description: 'Configuration assistée par notre équipe', color: 'purple' }
 ];
 
 const pricingFeatures = {
   essential: [
-    'Facturation certifiée illimitée',
+    'Facturation illimitée',
     'Jusqu\'à 3 utilisateurs',
-    'Gestion clients & IFU',
+    'Gestion clients',
     'Rapports de base',
     'Support email'
   ],
@@ -704,7 +705,7 @@ const pricingFeatures = {
     'Tout Essentiel +',
     'Utilisateurs illimités',
     'Trésorerie complète',
-    'Rapports Z/X fiscaux',
+    'Multi-devises',
     'Assistant IA inclus',
     'API Chatbot',
     'Support prioritaire'

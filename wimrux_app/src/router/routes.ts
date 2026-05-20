@@ -42,6 +42,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'invoices', name: 'invoices', component: () => import('pages/invoices/InvoicesListPage.vue'), meta: { title: 'Factures', permissions: ['invoices.read'] } },
       { path: 'invoices/new', name: 'invoice-new', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Nouvelle facture', permissions: ['invoices.create'] } },
       { path: 'invoices/:id', name: 'invoice-edit', component: () => import('pages/invoices/InvoiceEditorPage.vue'), meta: { title: 'Facture', permissions: ['invoices.read'] } },
+      { path: 'invoices/pending-certification', name: 'invoices-pending-certification', component: () => import('pages/invoices/PendingCertificationPage.vue'), meta: { title: 'En attente de certification', permissions: ['invoices.read'] } },
       { path: 'clients', name: 'clients', component: () => import('pages/clients/ClientsPage.vue'), meta: { title: 'Clients', permissions: ['clients.read'] } },
       { path: 'articles', name: 'articles', component: () => import('pages/articles/ArticlesPage.vue'), meta: { title: 'Articles', permissions: ['invoices.create'] } },
       { path: 'treasury', name: 'treasury', component: () => import('pages/treasury/TreasuryPage.vue'), meta: { title: 'Trésorerie', permissions: ['treasury.read'] } },

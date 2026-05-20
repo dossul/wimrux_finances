@@ -4,6 +4,7 @@
 
     <q-tabs v-model="tab" dense align="left" class="q-mb-md text-grey" active-color="primary" indicator-color="primary">
       <q-tab name="company" label="Entreprise" icon="business" no-caps />
+      <q-tab name="certification" label="Certification" icon="verified" no-caps />
       <q-tab name="devices" label="Appareils SFE" icon="devices" no-caps />
       <q-tab name="secef-logs" label="Logs SECeF" icon="receipt_long" no-caps />
       <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
@@ -136,6 +137,90 @@
             </div>
           </q-card-section>
         </q-card>
+      </q-tab-panel>
+
+      <!-- Certification -->
+      <q-tab-panel name="certification">
+        <div class="row q-gutter-md">
+          <!-- Mode de certification -->
+          <q-card flat bordered class="col-12 col-md-6">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-medium q-mb-md">Mode de certification</div>
+              
+              <q-select
+                v-model="certificationMode"
+                :options="certificationModeOptions"
+                label="Mode"
+                outlined
+                class="q-mb-md"
+                @update:model-value="saveCertificationMode"
+              />
+              
+              <q-banner class="bg-blue-1 text-blue-8">
+                <template v-slot:avatar>
+                  <q-icon name="info" />
+                </template>
+                <div v-if="certificationMode === 'device'">
+                  Les factures validées sont envoyées vers WIMRUX FACTURATION (Electron) pour certification.
+                </div>
+                <div v-else-if="certificationMode === 'manual'">
+                  Les factures sont certifiées manuellement (hors système) puis importées.
+                </div>
+                <div v-else>
+                  La certification est désactivée. Les factures restent au statut "Validée".
+                </div>
+              </q-banner>
+            </q-card-section>
+          </q-card>
+
+          <!-- Génération API Key -->
+          <q-card flat bordered class="col-12 col-md-6">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-medium q-mb-md">Devices de certification</div>
+              <p class="text-caption text-grey">
+                Générez une clé API pour chaque poste WIMRUX FACTURATION (Electron).
+              </p>
+              
+              <q-form @submit.prevent="generateDeviceKey" class="q-gutter-sm">
+                <q-input
+                  v-model="newDeviceName"
+                  label="Nom du device (ex: Caisse Principale)"
+                  outlined
+                  :rules="[v => !!v || 'Requis']"
+                />
+                <q-btn
+                  type="submit"
+                  color="primary"
+                  icon="vpn_key"
+                  label="Générer une clé API"
+                  :loading="generatingKey"
+                />
+              </q-form>
+
+              <q-separator class="q-my-md" />
+
+              <div v-if="deviceKeys.length > 0">
+                <div class="text-caption text-grey q-mb-sm">Clés générées:</div>
+                <q-list dense bordered separator>
+                  <q-item v-for="device in deviceKeys" :key="device.id">
+                    <q-item-section>
+                      <q-item-label>{{ device.device_name }}</q-item-label>
+                      <q-item-label caption class="text-monospace">{{ device.api_key_prefix }}...</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn flat round dense icon="delete" color="negative" @click="revokeDeviceKey(device.id)">
+                        <q-tooltip>Révoquer</q-tooltip>
+                      </q-btn>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </div>
+              <div v-else class="text-grey text-caption">
+                Aucune clé générée
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
       </q-tab-panel>
 
       <!-- Devices -->
@@ -2514,9 +2599,146 @@ async function onCreateRbacUser() {
   }
 }
 
+// Certification mode
+const certificationMode = ref('device');
+const certificationModeOptions = [
+  { label: 'Device (WIMRUX FACTURATION Electron)', value: 'device' },
+  { label: 'Manuelle (import)', value: 'manual' },
+  { label: 'Désactivée', value: 'disabled' },
+];
+
+interface CertificationDevice {
+  id: string;
+  device_name: string;
+  api_key_prefix: string;
+  company_id: string;
+  is_active: boolean;
+}
+
+const newDeviceName = ref('');
+const deviceKeys = ref<CertificationDevice[]>([]);
+const generatingKey = ref(false);
+
+async function loadCertificationSettings() {
+  try {
+    // Charger le mode depuis la table companies
+    const { data, error } = await insforge.database
+      .from('companies')
+      .select('certification_mode')
+      .eq('id', companyStore.company?.id)
+      .single();
+    
+    if (!error && data) {
+      certificationMode.value = data.certification_mode || 'device';
+    }
+
+    // Charger les devices
+    const { data: devices, error: devicesError } = await insforge.database
+      .from('certification_devices')
+      .select('*')
+      .eq('company_id', companyStore.company?.id)
+      .eq('is_active', true);
+    
+    if (!devicesError) {
+      deviceKeys.value = devices || [];
+    }
+  } catch (err) {
+    console.error('Erreur chargement paramètres certification:', err);
+  }
+}
+
+async function saveCertificationMode() {
+  try {
+    const { error } = await insforge.database
+      .from('companies')
+      .update({ certification_mode: certificationMode.value })
+      .eq('id', companyStore.company?.id);
+    
+    if (error) throw error;
+
+    $q.notify({
+      type: 'positive',
+      message: 'Mode de certification enregistré',
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    $q.notify({
+      type: 'negative',
+      message: `Erreur: ${msg}`,
+    });
+  }
+}
+
+async function generateDeviceKey() {
+  if (!newDeviceName.value) return;
+
+  generatingKey.value = true;
+  try {
+    const { data, error } = await insforge.database
+      .rpc('generate_device_key', {
+        p_company_id: companyStore.company?.id,
+        p_device_name: newDeviceName.value,
+      });
+    
+    if (error) throw error;
+
+    // Afficher la clé générée (une seule fois)
+    $q.dialog({
+      title: 'Clé API générée',
+      message: `
+        <div class="q-pa-md">
+          <p class="text-body1">Device: <strong>${newDeviceName.value}</strong></p>
+          <p class="text-caption text-warning">Copiez cette clé immédiatement, elle ne sera plus affichée !</p>
+          <div class="bg-dark text-white q-pa-sm text-monospace" style="font-family: monospace; word-break: break-all;">
+            ${data.api_key}
+          </div>
+        </div>
+      `,
+      html: true,
+      persistent: true,
+      ok: { label: 'J\'ai copié la clé', color: 'primary' },
+    });
+
+    newDeviceName.value = '';
+    await loadCertificationSettings();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    $q.notify({
+      type: 'negative',
+      message: `Erreur: ${msg}`,
+    });
+  } finally {
+    generatingKey.value = false;
+  }
+}
+
+async function revokeDeviceKey(deviceId: string) {
+  try {
+    const { error } = await insforge.database
+      .from('certification_devices')
+      .update({ is_active: false })
+      .eq('id', deviceId);
+    
+    if (error) throw error;
+
+    $q.notify({
+      type: 'positive',
+      message: 'Clé révoquée',
+    });
+    await loadCertificationSettings();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    $q.notify({
+      type: 'negative',
+      message: `Erreur: ${msg}`,
+    });
+  }
+}
+
 // Load logs when switching to secef-logs tab
 watch(tab, (newTab) => {
   if (newTab === 'secef-logs') void loadMcfLogs();
+  if (newTab === 'certification') void loadCertificationSettings();
 });
 
 onMounted(async () => {
