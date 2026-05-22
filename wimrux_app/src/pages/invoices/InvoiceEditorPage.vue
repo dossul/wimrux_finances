@@ -240,12 +240,26 @@
               v-if="invoice.type === 'PF' && invoice.proforma_converted_to"
               icon="link" color="indigo" text-color="white" dense class="full-width"
             >Facture liée : {{ invoice.proforma_converted_to?.slice(0, 8) }}...</q-chip>
-            <!-- SECeF certification — BF profile only, not for Proforma -->
+            <!-- SECeF certification — mode device: appel MCF/Wimrux Facturation -->
             <q-btn
-              v-if="workflowActions.some(a => a.key === 'certify') && invoice.type !== 'PF'"
+              v-if="workflowActions.some(a => a.key === 'certify') && invoice.type !== 'PF' && isDeviceMode"
               color="green" icon="verified" label="Certifier (SECeF)"
               class="full-width" no-caps :loading="certifying" @click="certifyInvoice"
             />
+            <!-- SECeF certification — mode manuel: saisie des données de certification -->
+            <q-btn
+              v-if="workflowActions.some(a => a.key === 'certify') && invoice.type !== 'PF' && isManualMode"
+              color="teal" icon="edit_note" label="Saisir certification manuelle"
+              class="full-width" no-caps @click="manualCertifyDialogOpen = true"
+            />
+            <!-- Mode désactivé: badge indicatif si validée (état terminal) -->
+            <q-banner
+              v-if="invoice.status === 'validated' && !isCertificationEnabled && invoice.type !== 'PF'"
+              class="bg-grey-2 text-grey-8 q-mt-xs rounded-borders" dense
+            >
+              <template v-slot:avatar><q-icon name="info" color="grey-6" /></template>
+              Certification désactivée — la facture validée est l'état final.
+            </q-banner>
             <!-- PDF download for certified + validated/sent/accepted Proforma -->
             <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="Télécharger PDF" class="full-width" no-caps @click="downloadPdf" />
             <q-btn v-if="invoice.status === 'certified'" color="blue-grey" icon="content_copy" label="Duplicata PDF" class="full-width q-mt-xs" no-caps outline @click="downloadDuplicata" />
@@ -274,6 +288,41 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Manual certification dialog -->
+    <q-dialog v-model="manualCertifyDialogOpen" persistent>
+      <q-card style="min-width: 420px">
+        <q-card-section>
+          <div class="text-h6">Certification manuelle</div>
+          <div class="text-caption text-grey-7">Saisir les données reçues du dispositif SECeF externe.</div>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <q-input
+            v-model="manualFiscalNumber"
+            label="Numéro fiscal *"
+            outlined dense
+            placeholder="Ex: FV2025-0001"
+            :rules="[v => !!v || 'Numéro fiscal obligatoire']"
+          />
+          <q-input
+            v-model="manualCodeSecef"
+            label="Code SECeF/DGI *"
+            outlined dense
+            placeholder="Ex: AB12CD34EF56..."
+            :rules="[v => !!v || 'Code SECeF obligatoire']"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup no-caps />
+          <q-btn
+            color="teal" label="Valider certification" icon="verified" no-caps
+            :loading="manualCertifying"
+            :disable="!manualFiscalNumber || !manualCodeSecef"
+            @click="certifyManual"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -289,6 +338,7 @@ import { useMcfApi } from 'src/composables/useMcfApi';
 import { useDegradedMode } from 'src/composables/useDegradedMode';
 import { usePdfStorage } from 'src/composables/usePdfStorage';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
+import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Invoice, InvoiceItem, InvoiceType, Client, TaxGroup, ArticleType, Article } from 'src/types';
 import type { WorkflowAction } from 'src/composables/useInvoiceWorkflow';
@@ -299,6 +349,7 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const companyStore = useCompanyStore();
+const { isCertificationEnabled, isDeviceMode, isManualMode } = useFiscalProfile();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
 const { downloadPdf: pdfDownload } = useInvoicePdf();
 const mcfApi = useMcfApi();
@@ -306,6 +357,10 @@ const { enqueue: queueForRetry } = useDegradedMode();
 const { uploadAndLink: uploadPdf } = usePdfStorage();
 const activeDevice = ref<SfeDevice | null>(null);
 const { getAvailableActions, executeTransition, canEditContent, convertProformaToFV } = useInvoiceWorkflow();
+const manualCertifyDialogOpen = ref(false);
+const manualFiscalNumber = ref('');
+const manualCodeSecef = ref('');
+const manualCertifying = ref(false);
 const convertingProforma = ref(false);
 
 const invoiceId = computed(() => route.params.id as string);
@@ -795,6 +850,39 @@ async function certifyInvoice() {
     }
   } finally {
     certifying.value = false;
+  }
+}
+
+async function certifyManual() {
+  if (!manualFiscalNumber.value || !manualCodeSecef.value) return;
+  manualCertifying.value = true;
+  try {
+    const now = new Date().toISOString();
+    await insforge.database
+      .from('invoices')
+      .update({
+        status: 'certified',
+        fiscal_number: manualFiscalNumber.value,
+        code_secef_dgi: manualCodeSecef.value,
+        certified_at: now,
+        certification_datetime: now,
+      })
+      .eq('id', invoiceId.value);
+
+    invoice.value.status = 'certified';
+    invoice.value.fiscal_number = manualFiscalNumber.value;
+    invoice.value.code_secef_dgi = manualCodeSecef.value;
+    invoice.value.certified_at = now;
+    invoice.value.certification_datetime = now;
+
+    manualCertifyDialogOpen.value = false;
+    manualFiscalNumber.value = '';
+    manualCodeSecef.value = '';
+    $q.notify({ type: 'positive', message: `Certification manuelle enregistrée — ${invoice.value.fiscal_number}` });
+  } catch (err: unknown) {
+    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Erreur certification manuelle' });
+  } finally {
+    manualCertifying.value = false;
   }
 }
 

@@ -215,6 +215,7 @@ export interface Company {
   ai_routing: AiRouting | null;
   chatbot_enabled: boolean;
   qr_scan_base_url: string | null;
+  certification_mode: 'device' | 'manual' | 'disabled';
   is_active: boolean;
   created_at: string;
 }

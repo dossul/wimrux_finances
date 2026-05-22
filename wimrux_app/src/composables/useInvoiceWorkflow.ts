@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { insforge } from 'src/boot/insforge';
+import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } from 'src/types';
 
 // ============================================================================
@@ -68,6 +69,7 @@ function isSubmitter(invoice: Partial<Invoice>, userId: string): boolean {
 
 export function useInvoiceWorkflow() {
   const authStore = useAuthStore();
+  const { isCertificationEnabled } = useFiscalProfile();
 
   const currentRole = computed(() => authStore.role);
   const currentUserId = computed(() => authStore.user?.id ?? '');
@@ -196,7 +198,7 @@ export function useInvoiceWorkflow() {
       }
     }
 
-    if (status === 'validated') {
+    if (status === 'validated' && isCertificationEnabled.value) {
       if (canTransition(invoice, 'validated', 'certified')) {
         actions.push({
           key: 'certify',

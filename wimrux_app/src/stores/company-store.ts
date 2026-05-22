@@ -11,6 +11,7 @@ export const useCompanyStore = defineStore('company', () => {
   const companyId = computed(() => company.value?.id ?? null);
   const companyName = computed(() => company.value?.name ?? '');
   const companyIfu = computed(() => company.value?.ifu ?? '');
+  const certificationMode = computed(() => company.value?.certification_mode ?? 'device');
 
   async function loadCompanies(userCompanyId: string) {
     loading.value = true;
@@ -106,6 +107,7 @@ export const useCompanyStore = defineStore('company', () => {
     companyId,
     companyName,
     companyIfu,
+    certificationMode,
     loadCompanies,
     setActiveCompany,
     updateCompany,

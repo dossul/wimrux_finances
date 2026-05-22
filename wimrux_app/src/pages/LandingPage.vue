@@ -6,7 +6,7 @@
         <q-avatar size="42px" class="q-mr-sm">
           <q-icon name="account_balance" size="28px" color="white" />
         </q-avatar>
-        <q-toolbar-title class="text-weight-bold text-white">
+        <q-toolbar-title class="text-weight-bold text-white brand-title">
           WIMRUX<span class="text-orange">®</span> FINANCES
         </q-toolbar-title>
         <q-space />
@@ -31,9 +31,12 @@
     <q-page-container>
       <!-- HERO SECTION -->
       <section class="hero-section">
+        <canvas ref="heroCanvasRef" class="hero-canvas"></canvas>
         <div class="hero-overlay"></div>
+        <div class="hero-glow hero-glow-1"></div>
+        <div class="hero-glow hero-glow-2"></div>
         <div class="hero-content container text-white">
-          <div class="row items-center" style="min-height: 100vh">
+          <div class="row items-center q-col-gutter-xl" style="min-height: 100vh">
             <div class="col-12 col-md-7">
               <q-chip color="orange" text-color="white" icon="trending_up" class="q-mb-lg animate-fade-in">
                 🚀 Gérez vos finances comme un pro
@@ -50,26 +53,7 @@
                 <em>tout dans une seule solution intuitive</em>.
               </p>
 
-              <div class="hero-stats q-mt-xl q-mb-xl animate-fade-in-delay2">
-                <div class="stat-item">
-                  <span class="stat-number">∞</span>
-                  <span class="stat-label">Factures/mois</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-number">AI</span>
-                  <span class="stat-label">Assistant intégré</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-number">24/7</span>
-                  <span class="stat-label">Disponibilité</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-number">0</span>
-                  <span class="stat-label">Installation requise</span>
-                </div>
-              </div>
-
-              <div class="q-gutter-md animate-fade-in-delay2">
+              <div class="hero-cta-group q-mt-xl animate-fade-in-delay2">
                 <q-btn
                   color="orange"
                   text-color="white"
@@ -89,17 +73,37 @@
                 />
               </div>
 
-              <p class="text-caption q-mt-lg" style="opacity: 0.7">
+              <p class="text-caption q-mt-md" style="opacity: 0.7">
                 ✓ Aucune carte requise &nbsp;•&nbsp; ✓ Installation en 5 minutes &nbsp;•&nbsp; ✓ Support inclus
               </p>
             </div>
 
-            <div class="col-12 col-md-5 gt-sm text-center">
-              <img
-                src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&q=80"
-                alt="Facture électronique"
-                class="hero-image animate-float"
-              />
+            <div class="col-12 col-md-5 gt-sm">
+              <div class="text-center">
+                <img
+                  src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&q=80"
+                  alt="Facture électronique"
+                  class="hero-image animate-float"
+                />
+              </div>
+              <div class="hero-stats-grid q-mt-lg animate-fade-in-delay2">
+                <div class="stat-item">
+                  <span class="stat-number">∞</span>
+                  <span class="stat-label">Factures/mois</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-number">AI</span>
+                  <span class="stat-label">Assistant intégré</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-number">24/7</span>
+                  <span class="stat-label">Disponibilité</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-number">0</span>
+                  <span class="stat-label">Installation requise</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -610,6 +614,9 @@ import { ref, onMounted, onUnmounted } from 'vue';
 const scrolled = ref(false);
 const showDemo = ref(false);
 const featureSlide = ref(1);
+const heroCanvasRef = ref<HTMLCanvasElement | null>(null);
+let canvasAnimationId: number | null = null;
+let canvasResizeHandler: (() => void) | null = null;
 
 const features = [
   {
@@ -728,12 +735,118 @@ function handleScroll() {
   scrolled.value = window.scrollY > 50;
 }
 
+function initHeroCanvas() {
+  const canvas = heroCanvasRef.value;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const resize = () => {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  resize();
+  canvasResizeHandler = resize;
+  window.addEventListener('resize', resize);
+
+  type Particle = { x: number; y: number; vx: number; vy: number; r: number };
+  const particles: Particle[] = Array.from({ length: 70 }, () => ({
+    x: Math.random() * (canvas.width / dpr),
+    y: Math.random() * (canvas.height / dpr),
+    vx: (Math.random() - 0.5) * 0.4,
+    vy: (Math.random() - 0.5) * 0.4,
+    r: Math.random() * 1.8 + 0.4,
+  }));
+
+  let t = 0;
+  const animate = () => {
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+
+    // Animated grid
+    ctx.strokeStyle = 'rgba(255, 152, 0, 0.07)';
+    ctx.lineWidth = 1;
+    const gridSize = 60;
+    const offset = (t * 0.25) % gridSize;
+    for (let x = -offset; x < w; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = -offset; y < h; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // Wavy lines
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = `rgba(255, 152, 0, ${0.18 - i * 0.04})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 6) {
+        const y = h * 0.55 + Math.sin(x * 0.005 + t * 0.012 + i * 1.8) * 70 + i * 30;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Particles + connecting lines
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0 || p.x > w) p.vx *= -1;
+      if (p.y < 0 || p.y > h) p.vy *= -1;
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i];
+        const b = particles[j];
+        if (!a || !b) continue;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 130) {
+          ctx.globalAlpha = 1 - dist / 130;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255, 152, 0, 0.7)';
+    for (const p of particles) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    t++;
+    canvasAnimationId = requestAnimationFrame(animate);
+  };
+  animate();
+}
+
 onMounted(() => {
   window.addEventListener('scroll', handleScroll);
+  initHeroCanvas();
 });
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll);
+  if (canvasAnimationId !== null) cancelAnimationFrame(canvasAnimationId);
+  if (canvasResizeHandler) window.removeEventListener('resize', canvasResizeHandler);
 });
 </script>
 
@@ -757,13 +870,58 @@ onUnmounted(() => {
 .hero-section {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #1565c0 0%, #0d47a1 50%, #1a237e 100%);
+  background: linear-gradient(135deg, #0d47a1 0%, #0b3d8e 50%, #0a1929 100%);
+  overflow: hidden;
+}
+
+.hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(13, 71, 161, 0.92), rgba(25, 118, 210, 0.85));
+  background:
+    linear-gradient(180deg, rgba(13, 71, 161, 0.55) 0%, rgba(10, 25, 41, 0.85) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.5;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-glow-1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(255, 152, 0, 0.4) 0%, transparent 70%);
+  top: -150px;
+  right: -100px;
+  animation: glowPulse 8s ease-in-out infinite;
+}
+
+.hero-glow-2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(33, 150, 243, 0.5) 0%, transparent 70%);
+  bottom: -100px;
+  left: -80px;
+  animation: glowPulse 10s ease-in-out infinite reverse;
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
 }
 
 .hero-content {
@@ -785,15 +943,60 @@ onUnmounted(() => {
   max-width: 540px;
 }
 
-.hero-stats {
+.brand-title {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.hero-cta-group {
   display: flex;
-  gap: 3rem;
   flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 540px;
+}
+
+.hero-cta-group .q-btn {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 599px) {
+  .hero-cta-group {
+    justify-content: center;
+  }
+  .hero-cta-group .q-btn {
+    width: 100%;
+  }
+}
+
+.hero-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  padding: 1.25rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
 }
 
 .stat-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
+}
+
+@media (max-width: 599px) {
+  .hero-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .stat-number {
@@ -986,8 +1189,8 @@ onUnmounted(() => {
 @media (max-width: 1024px) {
   .hero-title { font-size: 2.5rem; }
   .section-title { font-size: 2rem; }
-  .hero-stats { gap: 1.5rem; }
-  .stat-number { font-size: 2rem; }
+  .hero-stats-grid { gap: 0.75rem; padding: 1rem 0.75rem; }
+  .stat-number { font-size: 1.75rem; }
   .benefits-grid { grid-template-columns: 1fr; }
 }
 

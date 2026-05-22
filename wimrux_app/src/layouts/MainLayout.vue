@@ -65,11 +65,13 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useRealtimeNotifications } from 'src/composables/useRealtimeNotifications';
+import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import type { Permission, UserRole } from 'src/types';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const { connect: connectRealtime, connected: realtimeConnected } = useRealtimeNotifications();
+const { isCertificationEnabled } = useFiscalProfile();
 const leftDrawerOpen = ref(false);
 
 interface NavItem {
@@ -78,12 +80,13 @@ interface NavItem {
   route: string;
   permissions: Permission[];
   roleRequired?: UserRole;
+  certifOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
   { label: 'Tableau de bord', icon: 'dashboard', route: '/app', permissions: ['dashboard.view'] },
   { label: 'Factures', icon: 'receipt_long', route: '/app/invoices', permissions: ['invoices.read'] },
-  { label: 'En attente certif.', icon: 'pending_actions', route: '/app/invoices/pending-certification', permissions: ['invoices.read'] },
+  { label: 'En attente certif.', icon: 'pending_actions', route: '/app/invoices/pending-certification', permissions: ['invoices.read'], certifOnly: true },
   { label: 'Articles', icon: 'inventory_2', route: '/app/articles', permissions: ['invoices.create'] },
   { label: 'Clients', icon: 'people', route: '/app/clients', permissions: ['clients.read'] },
   { label: 'Trésorerie', icon: 'account_balance', route: '/app/treasury', permissions: ['treasury.read'] },
@@ -99,6 +102,7 @@ const navItems: NavItem[] = [
 
 function canAccess(nav: NavItem): boolean {
   if (nav.roleRequired && authStore.role !== nav.roleRequired) return false;
+  if (nav.certifOnly && !isCertificationEnabled.value) return false;
   return authStore.hasAnyPermission(nav.permissions);
 }
 

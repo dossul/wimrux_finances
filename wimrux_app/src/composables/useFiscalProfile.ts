@@ -57,6 +57,12 @@ export function useFiscalProfile() {
 
   const isSecefEnabled = computed(() => fiscalConfig.value.secef_enabled);
 
+  // Certification mode helpers — drives interoperability with Wimrux Facturation
+  const certificationMode = computed(() => companyStore.certificationMode);
+  const isCertificationEnabled = computed(() => companyStore.certificationMode !== 'disabled');
+  const isDeviceMode = computed(() => companyStore.certificationMode === 'device');
+  const isManualMode = computed(() => companyStore.certificationMode === 'manual');
+
   const getCurrencyLabel = computed(() => fiscalConfig.value.currency_label || 'FCFA');
 
   const taxGroups = computed(() => fiscalConfig.value.tax_groups);
@@ -136,6 +142,10 @@ export function useFiscalProfile() {
     fiscalConfig,
     isBF,
     isSecefEnabled,
+    certificationMode,
+    isCertificationEnabled,
+    isDeviceMode,
+    isManualMode,
     getCurrencyLabel,
     taxGroups,
     taxGroupKeys,
