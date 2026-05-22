@@ -9,11 +9,16 @@
     <!-- Report generation -->
     <q-card flat bordered class="q-mb-md">
       <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Générer un rapport</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Générer un rapport MCF/SYGMEF</div>
+        <q-banner v-if="!isDeviceMode" class="bg-amber-1 text-amber-9 q-mb-sm rounded-borders" dense>
+          <template v-slot:avatar><q-icon name="info" color="amber" /></template>
+          La génération de rapports MCF nécessite le mode <strong>Device</strong> (connexion à Wimrux Facturation).
+          Configurez le mode dans les <router-link to="/app/settings" class="text-amber-9">Paramètres</router-link>.
+        </q-banner>
         <div class="row q-gutter-sm items-end">
-          <q-btn-toggle v-model="reportType" :options="[{label:'Rapport Z (fin de journée)',value:'Z'},{label:'Rapport X (en cours)',value:'X'}]" no-caps />
+          <q-btn-toggle v-model="reportType" :options="[{label:'Rapport Z (fin de journée)',value:'Z'},{label:'Rapport X (en cours)',value:'X'}]" no-caps :disable="!isDeviceMode" />
           <q-space />
-          <q-btn color="primary" icon="description" :label="`Générer rapport ${reportType}`" no-caps :loading="generating" @click="generateFiscalReport" />
+          <q-btn color="primary" icon="description" :label="`Générer rapport ${reportType}`" no-caps :loading="generating" :disable="!isDeviceMode" @click="generateFiscalReport" />
         </div>
       </q-card-section>
     </q-card>
@@ -112,6 +117,7 @@ import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
 import { useMcfApi } from 'src/composables/useMcfApi';
+import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 
 interface ReportDetail {
   group: string;
@@ -137,6 +143,7 @@ interface FiscalReport {
 
 const $q = useQuasar();
 const mcfApi = useMcfApi();
+const { isDeviceMode } = useFiscalProfile();
 
 const reportType = ref<'Z' | 'X'>('Z');
 const generating = ref(false);

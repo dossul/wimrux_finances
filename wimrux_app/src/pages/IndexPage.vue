@@ -98,10 +98,10 @@ import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import type { Invoice } from 'src/types';
 
 const $q = useQuasar();
-const { isCertificationEnabled } = useFiscalProfile();
+const { isCertificationEnabled, isDeviceMode } = useFiscalProfile();
 const { queue: pendingQueue, loadQueue, retryAll } = useDegradedMode();
-const { mcfOnline, lastCheck: lastMcfCheck, deviceStatus: mcfDeviceStatus, checkStatus: recheckMcf, stopPolling } = useMcfAlert();
-const showMcfBanners = computed(() => isCertificationEnabled.value);
+const { mcfOnline, lastCheck: lastMcfCheck, deviceStatus: mcfDeviceStatus, checkStatus: recheckMcf } = useMcfAlert(isDeviceMode);
+const showMcfBanners = computed(() => isDeviceMode.value);
 const loading = ref(false);
 const retrying = ref(false);
 const pendingQueueCount = ref(0);
@@ -188,8 +188,6 @@ onMounted(async () => {
   if (isCertificationEnabled.value) {
     await loadQueue();
     pendingQueueCount.value = pendingQueue.value.length;
-  } else {
-    stopPolling();
   }
 });
 </script>

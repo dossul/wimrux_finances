@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
+import type { Ref } from 'vue';
 import { insforge } from 'src/boot/insforge';
 
 // ============================================================================
@@ -7,11 +8,17 @@ import { insforge } from 'src/boot/insforge';
 
 const POLL_INTERVAL_MS = 60_000; // 1 minute
 
-export function useMcfAlert() {
+export function useMcfAlert(enabled?: Ref<boolean> | boolean) {
   const mcfOnline = ref<boolean | null>(null);
   const lastCheck = ref<string | null>(null);
   const deviceStatus = ref<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
+
+  function isEnabled(): boolean {
+    if (enabled === undefined) return true;
+    if (typeof enabled === 'boolean') return enabled;
+    return enabled.value;
+  }
 
   async function checkStatus() {
     try {
@@ -45,7 +52,7 @@ export function useMcfAlert() {
     }
   }
 
-  onMounted(() => startPolling());
+  onMounted(() => { if (isEnabled()) startPolling(); });
   onUnmounted(() => stopPolling());
 
   return {

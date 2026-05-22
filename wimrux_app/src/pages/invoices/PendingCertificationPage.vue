@@ -14,12 +14,22 @@
       </q-btn>
     </div>
 
-    <!-- Info banner -->
+    <!-- Info banner — message adapté au mode de certification -->
     <q-banner class="bg-info text-white q-mb-md" v-if="!hideInfo">
       <template v-slot:avatar>
         <q-icon name="info" />
       </template>
-      Les factures validées apparaissent ici en attente de certification via WIMRUX FACTURATION (Electron).
+      <span v-if="isDeviceMode">
+        Les factures validées apparaissent ici en attente de certification via WIMRUX FACTURATION (Electron).
+        Utilisez le bouton <q-icon name="send" size="xs" /> pour les envoyer au dispositif.
+      </span>
+      <span v-else-if="isManualMode">
+        Les factures validées apparaissent ici en attente de certification manuelle.
+        Utilisez le bouton <q-icon name="edit_note" size="xs" /> pour saisir les données de certification.
+      </span>
+      <span v-else>
+        La certification est désactivée. Ces factures resteront au statut "Validée".
+      </span>
       <template v-slot:action>
         <q-btn flat label="Compris" @click="hideInfo = true" />
       </template>
@@ -109,35 +119,23 @@
         <q-td :props="props">
           <div class="row q-gutter-xs">
             <q-btn
-              flat
-              round
-              dense
-              icon="send"
-              color="primary"
+              v-if="isDeviceMode"
+              flat round dense icon="send" color="primary"
               @click="sendToDevice(props.row)"
-            >
-              <q-tooltip>Envoyer au device de certification</q-tooltip>
-            </q-btn>
+            ><q-tooltip>Envoyer au device de certification</q-tooltip></q-btn>
             <q-btn
-              flat
-              round
-              dense
-              icon="edit"
-              color="grey"
+              v-if="isManualMode"
+              flat round dense icon="edit_note" color="teal"
+              @click="openManualDialog(props.row)"
+            ><q-tooltip>Saisir certification manuelle</q-tooltip></q-btn>
+            <q-btn
+              flat round dense icon="visibility" color="grey"
               :to="`/app/invoices/${props.row.id}`"
-            >
-              <q-tooltip>Modifier</q-tooltip>
-            </q-btn>
+            ><q-tooltip>Voir la facture</q-tooltip></q-btn>
             <q-btn
-              flat
-              round
-              dense
-              icon="delete"
-              color="negative"
+              flat round dense icon="undo" color="negative"
               @click="cancelPending(props.row)"
-            >
-              <q-tooltip>Annuler (retour à validée)</q-tooltip>
-            </q-btn>
+            ><q-tooltip>Retour à validée</q-tooltip></q-btn>
           </div>
         </q-td>
       </template>
@@ -266,10 +264,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { useInvoiceStore } from 'src/stores/invoice-store';
+import { insforge } from 'src/boot/insforge';
+import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 
 const $q = useQuasar();
-const invoicesStore = useInvoiceStore();
+const { isDeviceMode, isManualMode } = useFiscalProfile();
 
 // State
 const loading = ref(false);
@@ -328,10 +327,7 @@ const filteredInvoices = computed(() => {
 
 // Methods
 function formatAmount(amount: number): string {
-  return amount.toLocaleString('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-  });
+  return new Intl.NumberFormat('fr-BF', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(amount || 0);
 }
 
 function resetFilters() {
@@ -341,15 +337,17 @@ function resetFilters() {
 async function loadPendingInvoices() {
   loading.value = true;
   try {
-    // TODO: Appeler l'API pour charger les factures en attente de certification
-    // Pour l'instant, simulation avec données vides
-    invoices.value = [];
-    stats.value.pending = 0;
+    const { data, error } = await insforge.database
+      .from('invoices')
+      .select('*, client:clients(name, ifu)')
+      .eq('status', 'validated')
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+    invoices.value = data || [];
+    stats.value.pending = invoices.value.length;
   } catch (error: any) {
-    $q.notify({
-      type: 'negative',
-      message: `Erreur chargement: ${error.message}`,
-    });
+    $q.notify({ type: 'negative', message: `Erreur chargement: ${error.message}` });
   } finally {
     loading.value = false;
   }
@@ -360,28 +358,30 @@ function sendToDevice(invoice: any) {
   showSendDialog.value = true;
 }
 
+function openManualDialog(invoice: any) {
+  selectedInvoice.value = invoice;
+  manualForm.value = { nim: '', code_secef: '', fiscal_number: '', qr_code: '', scan_file: null };
+  showManualDialog.value = true;
+}
+
 async function confirmSend() {
+  if (!selectedInvoice.value) return;
   sending.value = true;
   try {
-    // TODO: Appeler edge function pour marquer comme "pending_certification"
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulation
+    const { error } = await insforge.database
+      .from('invoices')
+      .update({ status: 'pending_certification' })
+      .eq('id', selectedInvoice.value.id);
 
-    $q.notify({
-      type: 'positive',
-      message: `Facture ${selectedInvoice.value.reference} envoyée au device`,
-    });
+    if (error) throw new Error(error.message);
 
-    // Retirer de la liste
+    $q.notify({ type: 'positive', message: `Facture ${selectedInvoice.value.reference} envoyée au device` });
     invoices.value = invoices.value.filter((inv) => inv.id !== selectedInvoice.value.id);
     stats.value.pending--;
     stats.value.certified++;
-
     showSendDialog.value = false;
   } catch (error: any) {
-    $q.notify({
-      type: 'negative',
-      message: `Erreur envoi: ${error.message}`,
-    });
+    $q.notify({ type: 'negative', message: `Erreur envoi: ${error.message}` });
   } finally {
     sending.value = false;
   }
@@ -389,47 +389,52 @@ async function confirmSend() {
 
 function cancelPending(invoice: any) {
   $q.dialog({
-    title: 'Annuler',
+    title: 'Retour à validée',
     message: `Retourner la facture ${invoice.reference} au statut "Validée" ?`,
     cancel: true,
     persistent: true,
   }).onOk(async () => {
     try {
-      // TODO: Appeler API pour changer le statut
+      const { error } = await insforge.database
+        .from('invoices')
+        .update({ status: 'validated' })
+        .eq('id', invoice.id);
+
+      if (error) throw new Error(error.message);
       invoices.value = invoices.value.filter((inv) => inv.id !== invoice.id);
       stats.value.pending--;
-
-      $q.notify({
-        type: 'positive',
-        message: 'Facture retournée au statut Validée',
-      });
+      $q.notify({ type: 'positive', message: 'Facture retournée au statut Validée' });
     } catch (error: any) {
-      $q.notify({
-        type: 'negative',
-        message: `Erreur: ${error.message}`,
-      });
+      $q.notify({ type: 'negative', message: `Erreur: ${error.message}` });
     }
   });
 }
 
 async function confirmManualCertify() {
+  if (!selectedInvoice.value || !manualForm.value.nim || !manualForm.value.code_secef) return;
   manualCertifying.value = true;
   try {
-    // TODO: Appeler edge function pour certification manuelle
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulation
+    const now = new Date().toISOString();
+    const { error } = await insforge.database
+      .from('invoices')
+      .update({
+        status: 'certified',
+        nim: manualForm.value.nim,
+        code_secef_dgi: manualForm.value.code_secef,
+        fiscal_number: manualForm.value.fiscal_number || null,
+        qr_code: manualForm.value.qr_code || null,
+        certified_at: now,
+        certification_datetime: now,
+      })
+      .eq('id', selectedInvoice.value.id);
 
-    $q.notify({
-      type: 'positive',
-      message: 'Facture certifiée manuellement',
-    });
-
+    if (error) throw new Error(error.message);
+    $q.notify({ type: 'positive', message: `Facture ${selectedInvoice.value.reference} certifiée manuellement` });
     showManualDialog.value = false;
-    loadPendingInvoices();
+    stats.value.certified++;
+    await loadPendingInvoices();
   } catch (error: any) {
-    $q.notify({
-      type: 'negative',
-      message: `Erreur certification: ${error.message}`,
-    });
+    $q.notify({ type: 'negative', message: `Erreur certification: ${error.message}` });
   } finally {
     manualCertifying.value = false;
   }
