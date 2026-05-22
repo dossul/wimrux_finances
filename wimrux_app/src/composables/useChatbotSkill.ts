@@ -482,24 +482,6 @@ ${meta.description}.
 **Réponse :** Nombre de factures, total TTC, nombre de factures certifiées.
 `,
 
-    generate_fiscal_report: `#### \`generate_fiscal_report\` — ${meta.label}
-
-${meta.description}.
-
-**Paramètres :**
-
-| Paramètre | Type | Requis | Description |
-|-----------|------|--------|-------------|
-| \`type\` | string | ✅ | \`Z\` (rapport de clôture) ou \`X\` (rapport intermédiaire) |
-| \`date\` | string | — | Date du rapport (format YYYY-MM-DD, défaut : aujourd'hui) |
-
-**Exemples de messages utilisateur :**
-- "Génère un rapport Z pour aujourd'hui"
-- "Fais un rapport X du 15 janvier"
-
-**Réponse :** Rapport fiscal généré avec les données agrégées.
-`,
-
     view_audit_log: `#### \`view_audit_log\` — ${meta.label}
 
 ${meta.description}.

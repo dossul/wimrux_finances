@@ -1980,6 +1980,103 @@ async function onCreateRbacUser() {
 }
 
 
+function roleColor(r: string) {
+  const map: Record<string, string> = { admin: 'red', caissier: 'blue', auditeur: 'teal' };
+  return map[r] || 'grey';
+}
+
+function loadCompanyForm() {
+  const c = companyStore.company;
+  if (c) {
+    companyForm.value = {
+      name: c.name,
+      ifu: c.ifu,
+      rccm: c.rccm,
+      qr_scan_base_url: c.qr_scan_base_url || '',
+      address_cadastral: c.address_cadastral,
+      address: c.address || '',
+      phone: c.phone,
+      email: c.email,
+      tax_regime: '',
+      tax_office: c.tax_office,
+      bank_accounts: c.bank_accounts ? [...c.bank_accounts] : [],
+    };
+    const s = c.invoice_settings;
+    invoiceSettingsForm.value = {
+      show_logo: s?.show_logo ?? false,
+      logo_position: s?.logo_position ?? 'left',
+      colors: { ...DEFAULT_INVOICE_COLORS, ...(s?.colors ?? {}) },
+    };
+    aiForm.value = {
+      ai_enabled: c.ai_enabled ?? true,
+      ai_model: c.ai_model || 'anthropic/claude-sonnet-4.5',
+      ai_fallback_model: c.ai_fallback_model || 'openai/gpt-4o-mini',
+      ai_system_prompt: c.ai_system_prompt || '',
+      openrouter_api_key: '',
+    };
+    if (c.openrouter_api_key) {
+      void decryptApiKey(c.openrouter_api_key);
+    }
+  }
+}
+
+async function decryptApiKey(ciphertext: string) {
+  const { plaintext, error } = await decrypt(ciphertext);
+  if (!error && plaintext) {
+    aiForm.value.openrouter_api_key = plaintext;
+  } else {
+    aiForm.value.openrouter_api_key = ciphertext;
+  }
+}
+
+async function saveAiConfig() {
+  saving.value = true;
+  try {
+    let encryptedKey: string | null = null;
+    if (aiForm.value.openrouter_api_key) {
+      const { ciphertext, error: encErr } = await encrypt(aiForm.value.openrouter_api_key);
+      if (encErr) {
+        $q.notify({ type: 'negative', message: `Chiffrement échoué : ${encErr}` });
+        saving.value = false;
+        return;
+      }
+      encryptedKey = ciphertext;
+    }
+    const result = await companyStore.updateCompany({
+      ai_enabled: aiForm.value.ai_enabled,
+      ai_model: aiForm.value.ai_model,
+      ai_fallback_model: aiForm.value.ai_fallback_model,
+      ai_system_prompt: aiForm.value.ai_system_prompt || null,
+      openrouter_api_key: encryptedKey || null,
+    });
+    if (result?.error) {
+      $q.notify({ type: 'negative', message: result.error.message });
+    } else {
+      $q.notify({ type: 'positive', message: 'Configuration IA enregistrée' });
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveCompany() {
+  saving.value = true;
+  try {
+    const cleaned = {
+      ...companyForm.value,
+      address_cadastral: companyForm.value.address_cadastral?.replace(/_/g, '').trim() || '',
+    };
+    const result = await companyStore.updateCompany(cleaned);
+    if (result?.error) {
+      $q.notify({ type: 'negative', message: result.error.message });
+    } else {
+      $q.notify({ type: 'positive', message: 'Entreprise mise à jour' });
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+
 onMounted(async () => {
   loadCompanyForm();
   loadRoutingForm();
