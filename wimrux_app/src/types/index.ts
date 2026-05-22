@@ -23,7 +23,6 @@ export type Permission =
   | 'invoices.submit'
   | 'invoices.approve'
   | 'invoices.validate'
-  | 'invoices.certify'
   | 'clients.create'
   | 'clients.read'
   | 'clients.update'
@@ -32,7 +31,6 @@ export type Permission =
   | 'treasury.create'
   | 'treasury.update'
   | 'reports.read'
-  | 'reports.fiscal'
   | 'audit.read'
   | 'ai.use'
   | 'settings.manage'
@@ -41,10 +39,10 @@ export type Permission =
 export const ALL_PERMISSIONS: Permission[] = [
   'dashboard.view',
   'invoices.create', 'invoices.read', 'invoices.submit',
-  'invoices.approve', 'invoices.validate', 'invoices.certify',
+  'invoices.approve', 'invoices.validate',
   'clients.create', 'clients.read', 'clients.update', 'clients.delete',
   'treasury.read', 'treasury.create', 'treasury.update',
-  'reports.read', 'reports.fiscal',
+  'reports.read',
   'audit.read',
   'ai.use',
   'settings.manage',
@@ -58,7 +56,6 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; category: st
   'invoices.submit':    { label: 'Soumettre pour validation',   category: 'Facturation',  icon: 'send' },
   'invoices.approve':   { label: 'Approuver les factures',      category: 'Facturation',  icon: 'thumb_up' },
   'invoices.validate':  { label: 'Valider définitivement',      category: 'Facturation',  icon: 'check_circle' },
-  'invoices.certify':   { label: 'Certifier (SECeF)',           category: 'Facturation',  icon: 'verified' },
   'clients.create':     { label: 'Créer des clients',           category: 'Clients',      icon: 'person_add' },
   'clients.read':       { label: 'Consulter les clients',       category: 'Clients',      icon: 'people' },
   'clients.update':     { label: 'Modifier les clients',        category: 'Clients',      icon: 'edit' },
@@ -67,7 +64,6 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; category: st
   'treasury.create':    { label: 'Créer des mouvements',        category: 'Trésorerie',   icon: 'swap_horiz' },
   'treasury.update':    { label: 'Modifier la trésorerie',      category: 'Trésorerie',   icon: 'edit' },
   'reports.read':       { label: 'Consulter les rapports',      category: 'Rapports',     icon: 'assessment' },
-  'reports.fiscal':     { label: 'Rapports fiscaux',            category: 'Rapports',     icon: 'description' },
   'audit.read':         { label: 'Journal d\'audit',            category: 'Audit',        icon: 'history' },
   'ai.use':             { label: 'Utiliser l\'assistant IA',    category: 'IA',           icon: 'smart_toy' },
   'settings.manage':    { label: 'Gérer les paramètres',        category: 'Administration', icon: 'settings' },
@@ -83,10 +79,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<UserRole, 'project_admin'>
   admin: [...ALL_PERMISSIONS],
   superviseur: [
     'dashboard.view',
-    'invoices.read', 'invoices.submit', 'invoices.approve', 'invoices.validate', 'invoices.certify',
+    'invoices.read', 'invoices.submit', 'invoices.approve', 'invoices.validate',
     'clients.read',
     'treasury.read',
-    'reports.read', 'reports.fiscal',
+    'reports.read',
     'audit.read',
     'ai.use',
   ],
@@ -95,7 +91,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<UserRole, 'project_admin'>
     'invoices.create', 'invoices.read', 'invoices.submit',
     'clients.create', 'clients.read', 'clients.update',
     'treasury.read', 'treasury.create', 'treasury.update',
-    'reports.read', 'reports.fiscal',
+    'reports.read',
     'audit.read',
     'ai.use',
   ],
@@ -117,7 +113,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<UserRole, 'project_admin'>
     'invoices.read',
     'clients.read',
     'treasury.read',
-    'reports.read', 'reports.fiscal',
+    'reports.read',
   ],
   auditeur: [
     'dashboard.view',
@@ -131,14 +127,14 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Exclude<UserRole, 'project_admin'>
     'invoices.read',
     'clients.read',
     'treasury.read',
-    'reports.read', 'reports.fiscal',
+    'reports.read',
     'audit.read',
   ],
   consultant: [
     'dashboard.view',
     'invoices.read',
     'clients.read',
-    'reports.read', 'reports.fiscal',
+    'reports.read',
   ],
 };
 
@@ -215,7 +211,6 @@ export interface Company {
   ai_routing: AiRouting | null;
   chatbot_enabled: boolean;
   qr_scan_base_url: string | null;
-  certification_mode: 'device' | 'manual' | 'disabled';
   is_active: boolean;
   created_at: string;
 }
@@ -322,7 +317,6 @@ export interface UserProfile {
 export type FiscalProfile = 'BF' | 'GENERIC';
 export type TaxCategory = 'BIC' | 'BNC' | 'BA' | 'IS';
 export type TaxSubRegime = 'RNI' | 'RSI' | 'CME' | 'CSE' | 'ND';
-export type SecefType = 'MCF' | 'EMCF';
 
 export interface TaxGroupConfig {
   description: string;
@@ -339,8 +333,6 @@ export interface FiscalConfig {
   country: string;
   currency: string;
   currency_label: string;
-  secef_enabled: boolean;
-  secef_type?: SecefType;
   tax_category: TaxCategory | null;
   tax_sub_regime: TaxSubRegime | null;
   tax_groups: Record<string, TaxGroupConfig>;
@@ -501,67 +493,6 @@ export interface TaxCalculationResult {
   stampDuty: number;
 }
 
-// --- API MCF (Module de Contrôle de Facturation) ---
-export interface McfAuthRequest {
-  clientId: string;
-  clientSecret: string;
-  nim: string;
-}
-
-export interface McfAuthResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  ifu: string;
-  nim: string;
-}
-
-export interface McfStatusResponse {
-  status: boolean;
-  version: string;
-  ifu: string;
-  nim: string;
-  tokenValid: string;
-  serverDateTime: string;
-  pendingInvoicesCount: number;
-  pendingInvoicesList: { date: string; uid: string }[];
-  lastAuditRemote: string;
-  deviceStatus: 'ACTIF' | 'BLOQUÉ' | 'DÉSACTIVÉ';
-}
-
-export interface McfSubmitResponse {
-  uid: string;
-  status: 'PENDING';
-  taxCalculation: TaxCalculationResult;
-  serverDateTime: string;
-}
-
-export interface McfConfirmResponse {
-  uid: string;
-  status: 'CERTIFIED';
-  dateTime: string;
-  fiscalNumber: string;
-  codeSECeFDGI: string;
-  qrCode: string;
-  signature: string;
-  counters: string;
-  nim: string;
-  deviceInfo: {
-    nim: string;
-    activationCounter: number;
-    manufacturer: string;
-    certificate: string;
-  };
-}
-
-export interface McfErrorResponse {
-  error: true;
-  code: string;
-  message: string;
-  details: Record<string, unknown>;
-  timestamp: string;
-}
-
 // --- Audit ---
 export type AuditActionType = 'INSERT' | 'UPDATE' | 'DELETE';
 
@@ -604,30 +535,6 @@ export interface TreasuryMovement {
   created_at: string;
 }
 
-// --- File d'attente mode dégradé ---
-export interface PendingCertification {
-  id: string;
-  invoice_id: string;
-  attempts: number;
-  last_attempt_at: string | null;
-  error_message: string | null;
-  created_at: string;
-}
-
-// --- Rapports fiscaux ---
-export type FiscalReportType = 'Z' | 'X';
-
-export interface FiscalReport {
-  id: string;
-  company_id: string;
-  nim: string;
-  type: FiscalReportType;
-  data: Record<string, unknown>;
-  pdf_url: string | null;
-  report_date: string;
-  created_at: string;
-}
-
 // --- Chatbot API ---
 export type ChatbotChannel = 'whatsapp' | 'telegram' | 'email' | 'sms' | 'api' | 'webhook';
 
@@ -639,7 +546,6 @@ export type ChatbotAction =
   | 'view_treasury'
   | 'create_treasury_movement'
   | 'view_reports'
-  | 'generate_fiscal_report'
   | 'view_audit_log'
   | 'ai_assistant'
   | 'view_dashboard';
@@ -652,7 +558,6 @@ export const CHATBOT_ACTION_LABELS: Record<ChatbotAction, { label: string; descr
   view_treasury: { label: 'Consulter la trésorerie', description: 'Voir les comptes et soldes de trésorerie', icon: 'account_balance', category: 'Trésorerie' },
   create_treasury_movement: { label: 'Mouvement de trésorerie', description: 'Enregistrer des mouvements de trésorerie', icon: 'swap_horiz', category: 'Trésorerie' },
   view_reports: { label: 'Consulter les rapports', description: 'Voir les KPIs et rapports de synthèse', icon: 'assessment', category: 'Rapports' },
-  generate_fiscal_report: { label: 'Rapport fiscal', description: 'Générer des rapports Z/X fiscaux', icon: 'description', category: 'Rapports' },
   view_audit_log: { label: 'Journal d\'audit', description: 'Consulter le journal d\'audit', icon: 'history', category: 'Audit' },
   ai_assistant: { label: 'Assistant IA', description: 'Poser des questions à l\'assistant fiscal IA', icon: 'smart_toy', category: 'IA' },
   view_dashboard: { label: 'Tableau de bord', description: 'Obtenir les KPIs du tableau de bord', icon: 'dashboard', category: 'Général' },
@@ -661,7 +566,7 @@ export const CHATBOT_ACTION_LABELS: Record<ChatbotAction, { label: string; descr
 export const ALL_CHATBOT_ACTIONS: ChatbotAction[] = [
   'view_invoices', 'create_invoice', 'view_clients', 'create_client',
   'view_treasury', 'create_treasury_movement', 'view_reports',
-  'generate_fiscal_report', 'view_audit_log', 'ai_assistant', 'view_dashboard',
+  'view_audit_log', 'ai_assistant', 'view_dashboard',
 ];
 
 export const CHATBOT_CHANNELS: { value: ChatbotChannel; label: string; icon: string }[] = [
@@ -740,30 +645,3 @@ export interface ChatbotUsageStats {
   by_action: Record<string, number>;
 }
 
-// --- SFE Devices & MCF Logs ---
-export interface SfeDevice {
-  nim: string;
-  ifu: string;
-  name: string | null;
-  status: 'ACTIF' | 'BLOQUÉ' | 'DÉSACTIVÉ';
-  simulator_enabled: boolean;
-  activation_counter: number;
-  last_audit_remote: string | null;
-  created_at: string;
-  company_id: string;
-  jwt_secret: string;
-}
-
-export interface McfLog {
-  id: string;
-  company_id: string | null;
-  nim: string | null;
-  endpoint: string;
-  method: string;
-  request_body: Record<string, unknown> | null;
-  response_body: Record<string, unknown> | null;
-  status_code: number;
-  duration_ms: number | null;
-  user_id: string | null;
-  created_at: string;
-}

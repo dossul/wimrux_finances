@@ -92,11 +92,7 @@ export default {
   settings: {
     title: 'Settings',
     companyProfile: 'Company Profile',
-    devices: 'SFE Devices',
     users: 'Users',
-    addDevice: 'Add Device',
-    nim: 'NIM',
-    deviceName: 'Device Name',
     companyName: 'Company Name',
     ifu: 'IFU',
     rccm: 'RCCM',

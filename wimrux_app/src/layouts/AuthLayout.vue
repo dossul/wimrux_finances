@@ -10,7 +10,7 @@
           </div>
           <router-view />
           <div class="text-center q-mt-lg">
-            <div class="text-caption text-blue-3">SFE homologué DGI · Conforme SECeF/SYGMEF</div>
+            <div class="text-caption text-blue-3">Solution de gestion financière &amp; facturation</div>
           </div>
         </div>
       </div>

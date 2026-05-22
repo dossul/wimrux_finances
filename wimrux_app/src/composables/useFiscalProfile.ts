@@ -7,8 +7,6 @@ export const DEFAULT_BF_FISCAL_CONFIG: FiscalConfig = {
   country: 'BF',
   currency: 'XOF',
   currency_label: 'FCFA',
-  secef_enabled: true,
-  secef_type: 'MCF',
   tax_category: 'BIC',
   tax_sub_regime: 'RNI',
   tax_groups: {
@@ -54,14 +52,6 @@ export function useFiscalProfile() {
   });
 
   const isBF = computed(() => companyStore.company?.fiscal_profile === 'BF');
-
-  const isSecefEnabled = computed(() => fiscalConfig.value.secef_enabled);
-
-  // Certification mode helpers — drives interoperability with Wimrux Facturation
-  const certificationMode = computed(() => companyStore.certificationMode);
-  const isCertificationEnabled = computed(() => companyStore.certificationMode !== 'disabled');
-  const isDeviceMode = computed(() => companyStore.certificationMode === 'device');
-  const isManualMode = computed(() => companyStore.certificationMode === 'manual');
 
   const getCurrencyLabel = computed(() => fiscalConfig.value.currency_label || 'FCFA');
 
@@ -141,11 +131,6 @@ export function useFiscalProfile() {
   return {
     fiscalConfig,
     isBF,
-    isSecefEnabled,
-    certificationMode,
-    isCertificationEnabled,
-    isDeviceMode,
-    isManualMode,
     getCurrencyLabel,
     taxGroups,
     taxGroupKeys,

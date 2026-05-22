@@ -1,12 +1,9 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="text-h5 q-mb-md">Paramètres</div>
 
     <q-tabs v-model="tab" dense align="left" class="q-mb-md text-grey" active-color="primary" indicator-color="primary">
       <q-tab name="company" label="Entreprise" icon="business" no-caps />
-      <q-tab name="certification" label="Certification" icon="verified" no-caps />
-      <q-tab name="devices" label="Appareils SFE" icon="devices" no-caps />
-      <q-tab name="secef-logs" label="Logs SECeF" icon="receipt_long" no-caps />
       <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
       <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
       <q-tab v-if="isProjectAdmin" name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
@@ -135,276 +132,6 @@
               <q-btn flat no-caps label="Réinitialiser" icon="restart_alt" @click="resetColors" />
               <q-btn color="primary" no-caps label="Enregistrer charte" icon="palette" :loading="savingInvoiceSettings" @click="saveInvoiceSettings" />
             </div>
-          </q-card-section>
-        </q-card>
-      </q-tab-panel>
-
-      <!-- Certification -->
-      <q-tab-panel name="certification">
-        <div class="row q-gutter-md">
-          <!-- Mode de certification -->
-          <q-card flat bordered class="col-12 col-md-6">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-medium q-mb-md">Mode de certification</div>
-              
-              <q-select
-                v-model="certificationMode"
-                :options="certificationModeOptions"
-                label="Mode"
-                outlined
-                class="q-mb-md"
-                @update:model-value="saveCertificationMode"
-              />
-              
-              <q-banner class="bg-blue-1 text-blue-8">
-                <template v-slot:avatar>
-                  <q-icon name="info" />
-                </template>
-                <div v-if="certificationMode === 'device'">
-                  Les factures validées sont envoyées vers WIMRUX FACTURATION (Electron) pour certification.
-                </div>
-                <div v-else-if="certificationMode === 'manual'">
-                  Les factures sont certifiées manuellement (hors système) puis importées.
-                </div>
-                <div v-else>
-                  La certification est désactivée. Les factures restent au statut "Validée".
-                </div>
-              </q-banner>
-            </q-card-section>
-          </q-card>
-
-          <!-- Génération API Key -->
-          <q-card flat bordered class="col-12 col-md-6">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-medium q-mb-md">Devices de certification</div>
-              <p class="text-caption text-grey">
-                Générez une clé API pour chaque poste WIMRUX FACTURATION (Electron).
-              </p>
-              
-              <q-form @submit.prevent="generateDeviceKey" class="q-gutter-sm">
-                <q-input
-                  v-model="newDeviceName"
-                  label="Nom du device (ex: Caisse Principale)"
-                  outlined
-                  :rules="[v => !!v || 'Requis']"
-                />
-                <q-btn
-                  type="submit"
-                  color="primary"
-                  icon="vpn_key"
-                  label="Générer une clé API"
-                  :loading="generatingKey"
-                />
-              </q-form>
-
-              <q-separator class="q-my-md" />
-
-              <div v-if="deviceKeys.length > 0">
-                <div class="text-caption text-grey q-mb-sm">Clés générées:</div>
-                <q-list dense bordered separator>
-                  <q-item v-for="device in deviceKeys" :key="device.id">
-                    <q-item-section>
-                      <q-item-label>{{ device.device_name }}</q-item-label>
-                      <q-item-label caption class="text-monospace">{{ device.api_key_prefix }}...</q-item-label>
-                    </q-item-section>
-                    <q-item-section side>
-                      <q-btn flat round dense icon="delete" color="negative" @click="revokeDeviceKey(device.id)">
-                        <q-tooltip>Révoquer</q-tooltip>
-                      </q-btn>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </div>
-              <div v-else class="text-grey text-caption">
-                Aucune clé générée
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-      </q-tab-panel>
-
-      <!-- Devices -->
-      <q-tab-panel name="devices">
-        <!-- Simulator control card -->
-        <q-card flat bordered class="q-mb-md">
-          <q-card-section>
-            <div class="row items-center q-mb-sm">
-              <q-icon name="router" size="sm" class="q-mr-sm" :color="simulatorGlobalEnabled ? 'green' : 'red'" />
-              <div class="text-subtitle1 text-weight-medium">Serveur SECeF simulé</div>
-              <q-space />
-              <q-btn
-                flat
-                round
-                icon="refresh"
-                size="sm"
-                :loading="pingLoading"
-                color="grey"
-                @click="doPing"
-              >
-                <q-tooltip>Vérifier maintenant</q-tooltip>
-              </q-btn>
-            </div>
-            <div class="row items-center q-gutter-md">
-              <q-badge
-                :color="simulatorGlobalEnabled ? 'green' : 'red-7'"
-                :label="simulatorGlobalEnabled ? 'ACTIF' : 'ARRÊTÉ'"
-                class="text-body2 q-pa-sm"
-              />
-              <span v-if="pingLatency !== null" class="text-caption text-grey-7">
-                Latence : {{ pingLatency }} ms
-              </span>
-              <span v-if="pingTime" class="text-caption text-grey-6">
-                Dernière vérif. : {{ new Date(pingTime).toLocaleTimeString('fr-FR') }}
-              </span>
-            </div>
-            <div v-if="devices.length > 0" class="q-mt-md">
-              <div class="text-caption text-grey-8 q-mb-xs">Activer / désactiver par appareil :</div>
-              <div v-for="d in devices" :key="d.nim" class="row items-center q-gutter-sm q-mb-xs">
-                <q-toggle
-                  :model-value="d.simulator_enabled !== false"
-                  :label="d.name || d.nim"
-                  :color="d.simulator_enabled !== false ? 'green' : 'red'"
-                  :loading="togglingNim === d.nim"
-                  @update:model-value="val => toggleSimulator(d.nim, val)"
-                />
-                <q-badge :color="d.simulator_enabled !== false ? 'green' : 'red-7'" :label="d.nim" outline />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="row items-center q-mb-md">
-              <div class="text-subtitle1 text-weight-medium">Appareils SFE enregistrés</div>
-              <q-space />
-              <q-btn color="primary" icon="add" label="Ajouter un appareil" no-caps size="sm" @click="deviceDialogOpen = true" />
-            </div>
-            <q-table
-              :rows="devices"
-              :columns="deviceColumns"
-              row-key="nim"
-              :loading="loadingDevices"
-              flat
-              dense
-              :pagination="{ rowsPerPage: 10 }"
-            >
-              <template v-slot:body-cell-status="props">
-                <q-td :props="props">
-                  <q-badge :color="props.row.status === 'ACTIF' ? 'green' : 'grey'" :label="props.row.status" />
-                </q-td>
-              </template>
-              <template v-slot:body-cell-simulator_enabled="props">
-                <q-td :props="props" class="text-center">
-                  <q-icon
-                    :name="props.row.simulator_enabled !== false ? 'check_circle' : 'cancel'"
-                    :color="props.row.simulator_enabled !== false ? 'green' : 'red'"
-                    size="xs"
-                  />
-                </q-td>
-              </template>
-            </q-table>
-          </q-card-section>
-        </q-card>
-      </q-tab-panel>
-
-      <!-- Logs SECeF -->
-      <q-tab-panel name="secef-logs">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="row items-center q-mb-md">
-              <div class="text-subtitle1 text-weight-medium">Journaux d'interactions SECeF</div>
-              <q-space />
-              <q-btn flat no-caps size="sm" icon="download" color="primary" label="Exporter CSV" @click="exportMcfLogs" />
-              <q-btn flat round icon="refresh" size="sm" color="grey" :loading="logsLoading" class="q-ml-xs" @click="loadMcfLogs" />
-            </div>
-
-            <!-- Filters -->
-            <div class="row q-gutter-sm q-mb-md">
-              <q-input
-                v-model="logsFilter.nim"
-                label="Filtrer par NIM"
-                outlined
-                dense
-                clearable
-                style="width:160px"
-                @update:model-value="loadMcfLogs"
-              />
-              <q-select
-                v-model="logsFilter.status"
-                :options="logsStatusOptions"
-                emit-value
-                map-options
-                label="Statut"
-                outlined
-                dense
-                clearable
-                style="width:140px"
-                @update:model-value="loadMcfLogs"
-              />
-              <q-input
-                v-model="logsFilter.from"
-                type="date"
-                label="Du"
-                outlined
-                dense
-                style="width:160px"
-                @update:model-value="loadMcfLogs"
-              />
-              <q-input
-                v-model="logsFilter.to"
-                type="date"
-                label="Au"
-                outlined
-                dense
-                style="width:160px"
-                @update:model-value="loadMcfLogs"
-              />
-            </div>
-
-            <q-table
-              :rows="mcfLogs"
-              :columns="mcfLogColumns"
-              row-key="id"
-              :loading="logsLoading"
-              flat
-              dense
-              :pagination="{ rowsPerPage: 25 }"
-              no-data-label="Aucun log trouvé"
-            >
-              <template v-slot:body-cell-status_code="props">
-                <q-td :props="props">
-                  <q-badge
-                    :color="props.row.status_code < 300 ? 'green' : props.row.status_code < 500 ? 'orange' : 'red'"
-                    :label="String(props.row.status_code)"
-                  />
-                </q-td>
-              </template>
-              <template v-slot:body-cell-endpoint="props">
-                <q-td :props="props">
-                  <span class="text-caption text-mono">{{ props.row.endpoint }}</span>
-                </q-td>
-              </template>
-              <template v-slot:body-cell-duration_ms="props">
-                <q-td :props="props" class="text-right">
-                  <span :class="props.row.duration_ms > 1000 ? 'text-orange' : ''">
-                    {{ props.row.duration_ms !== null ? props.row.duration_ms + ' ms' : '—' }}
-                  </span>
-                </q-td>
-              </template>
-              <template v-slot:body-cell-created_at="props">
-                <q-td :props="props">
-                  {{ new Date(props.row.created_at).toLocaleString('fr-FR') }}
-                </q-td>
-              </template>
-              <template v-slot:body-cell-details="props">
-                <q-td :props="props">
-                  <q-btn flat round size="xs" icon="info" color="grey" @click="openLogDetail(props.row)">
-                    <q-tooltip>Détail</q-tooltip>
-                  </q-btn>
-                </q-td>
-              </template>
-            </q-table>
           </q-card-section>
         </q-card>
       </q-tab-panel>
@@ -1097,7 +824,7 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
               <div class="col-12 col-md-4">
                 <q-select
                   v-model="fiscalForm.fiscal_profile"
-                  :options="[{ label: 'Burkina Faso (BF) — SECeF', value: 'BF' }, { label: 'Générique (autre pays)', value: 'GENERIC' }]"
+                  :options="[{ label: 'Burkina Faso (BF)', value: 'BF' }, { label: 'Générique (autre pays)', value: 'GENERIC' }]"
                   emit-value map-options label="Profil" outlined dense
                 />
               </div>
@@ -1130,9 +857,6 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
             </div>
 
             <div class="row q-gutter-md q-mb-md">
-              <div class="col-auto">
-                <q-toggle v-model="fiscalForm.secef_enabled" label="SECeF activé" color="green" />
-              </div>
               <div class="col-auto">
                 <q-toggle v-model="fiscalForm.psvb_enabled" :label="fiscalForm.psvb_label + ' activé'" color="blue" />
               </div>
@@ -1393,72 +1117,7 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
       </q-card>
     </q-dialog>
 
-    <!-- MCF Log detail dialog -->
-    <q-dialog v-model="logDetailOpen" maximized transition-show="slide-up" transition-hide="slide-down">
-      <q-card>
-        <q-bar>
-          <q-icon name="receipt_long" />
-          <div class="q-ml-sm">Détail interaction SECeF</div>
-          <q-space />
-          <q-btn dense flat icon="close" v-close-popup />
-        </q-bar>
-        <q-card-section v-if="selectedLog">
-          <div class="row q-gutter-md">
-            <div class="col">
-              <div class="text-caption text-grey-7 q-mb-xs">Endpoint</div>
-              <code class="text-body2">{{ selectedLog.method }} {{ selectedLog.endpoint }}</code>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7 q-mb-xs">Statut</div>
-              <q-badge :color="selectedLog.status_code < 300 ? 'green' : selectedLog.status_code < 500 ? 'orange' : 'red'" :label="String(selectedLog.status_code)" class="text-body2" />
-            </div>
-            <div>
-              <div class="text-caption text-grey-7 q-mb-xs">Durée</div>
-              <span>{{ selectedLog.duration_ms !== null ? selectedLog.duration_ms + ' ms' : '—' }}</span>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7 q-mb-xs">Horodatage</div>
-              <span>{{ new Date(selectedLog.created_at).toLocaleString('fr-FR') }}</span>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7 q-mb-xs">NIM</div>
-              <span>{{ selectedLog.nim || '—' }}</span>
-            </div>
-          </div>
-          <div class="row q-gutter-md q-mt-md">
-            <div class="col">
-              <div class="text-subtitle2 q-mb-sm">Requête</div>
-              <pre class="bg-grey-2 rounded-borders q-pa-md overflow-auto" style="max-height:300px;font-size:12px">{{ JSON.stringify(selectedLog.request_body, null, 2) }}</pre>
-            </div>
-            <div class="col">
-              <div class="text-subtitle2 q-mb-sm">Réponse</div>
-              <pre class="bg-grey-2 rounded-borders q-pa-md overflow-auto" style="max-height:300px;font-size:12px">{{ JSON.stringify(selectedLog.response_body, null, 2) }}</pre>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
 
-    <!-- Add device dialog -->
-    <q-dialog v-model="deviceDialogOpen" persistent>
-      <q-card style="min-width: 400px">
-        <q-card-section>
-          <div class="text-h6">Ajouter un appareil SFE</div>
-        </q-card-section>
-        <q-card-section>
-          <q-form @submit.prevent="addDevice" class="q-gutter-sm">
-            <q-input v-model="deviceForm.nim" label="NIM (Numéro d'identification)" filled :rules="[v => !!v || 'NIM requis']" hint="Ex: BF01000001" />
-            <q-input v-model="deviceForm.ifu" label="IFU rattaché" filled :rules="[v => !!v || 'IFU requis']" />
-            <q-input v-model="deviceForm.jwt_secret" label="Clé secrète (JWT Secret)" filled type="password" :rules="[v => !!v || 'Clé requise']" />
-            <q-input v-model="deviceForm.name" label="Nom de l'appareil (optionnel)" filled />
-            <div class="row justify-end q-gutter-sm q-mt-md">
-              <q-btn flat label="Annuler" v-close-popup no-caps />
-              <q-btn type="submit" color="primary" label="Ajouter" :loading="saving" no-caps />
-            </div>
-          </q-form>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -1476,7 +1135,7 @@ import { useCrypto } from 'src/composables/useCrypto';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import { useChatbotSkill } from 'src/composables/useChatbotSkill';
 import { isValidIFU, isValidCadastralAddress } from 'src/utils/validators';
-import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission, McfLog, SfeDevice, BankAccount, InvoiceColors, FiscalProfile, FiscalConfig, TaxGroupConfig, TaxCategory, TaxSubRegime } from 'src/types';
+import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission, BankAccount, InvoiceColors, FiscalProfile, FiscalConfig, TaxGroupConfig, TaxCategory, TaxSubRegime } from 'src/types';
 import { DEFAULT_INVOICE_COLORS } from 'src/composables/useInvoicePdf';
 import { useFiscalProfile, DEFAULT_BF_FISCAL_CONFIG } from 'src/composables/useFiscalProfile';
 import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
@@ -1492,8 +1151,6 @@ const { encrypt, decrypt } = useCrypto();
 
 const tab = ref('company');
 const saving = ref(false);
-const loadingDevices = ref(false);
-const deviceDialogOpen = ref(false);
 
 // --- Profil Fiscal ---
 const { taxSubRegimeOptions } = useFiscalProfile();
@@ -1504,7 +1161,6 @@ const fiscalForm = reactive<{
   country: string;
   currency: string;
   currency_label: string;
-  secef_enabled: boolean;
   tax_category: TaxCategory | null;
   tax_sub_regime: TaxSubRegime | null;
   tax_groups: Record<string, TaxGroupConfig>;
@@ -1516,7 +1172,6 @@ const fiscalForm = reactive<{
   country: 'BF',
   currency: 'XOF',
   currency_label: 'FCFA',
-  secef_enabled: true,
   tax_category: 'BIC',
   tax_sub_regime: 'RNI',
   tax_groups: { ...DEFAULT_BF_FISCAL_CONFIG.tax_groups },
@@ -1537,7 +1192,6 @@ function initFiscalForm() {
   fiscalForm.country = cfg.country;
   fiscalForm.currency = cfg.currency;
   fiscalForm.currency_label = cfg.currency_label;
-  fiscalForm.secef_enabled = cfg.secef_enabled;
   fiscalForm.tax_category = cfg.tax_category;
   fiscalForm.tax_sub_regime = cfg.tax_sub_regime;
   fiscalForm.tax_groups = JSON.parse(JSON.stringify(cfg.tax_groups));
@@ -1564,7 +1218,6 @@ async function saveFiscalConfig() {
       country: fiscalForm.country,
       currency: fiscalForm.currency,
       currency_label: fiscalForm.currency_label,
-      secef_enabled: fiscalForm.secef_enabled,
       tax_category: fiscalForm.tax_category,
       tax_sub_regime: fiscalForm.tax_sub_regime,
       tax_groups: fiscalForm.tax_groups,
@@ -1792,279 +1445,6 @@ async function loadUsageStats() {
   await aiUsage.fetchCompanyUsage(from);
 }
 
-const deviceForm = ref({ nim: '', ifu: '', jwt_secret: '', name: '' });
-const devices = ref<SfeDevice[]>([]);
-const togglingNim = ref<string | null>(null);
-const pingLoading = ref(false);
-const pingLatency = ref<number | null>(null);
-const pingTime = ref<string | null>(null);
-
-const simulatorGlobalEnabled = computed(() =>
-  devices.value.length === 0 ? true : devices.value.some(d => d.simulator_enabled !== false)
-);
-
-const deviceColumns = [
-  { name: 'nim', label: 'NIM', field: 'nim', align: 'left' as const },
-  { name: 'name', label: 'Nom', field: 'name', align: 'left' as const },
-  { name: 'status', label: 'Statut SECeF', field: 'status', align: 'center' as const },
-  { name: 'simulator_enabled', label: 'Simulateur', field: 'simulator_enabled', align: 'center' as const },
-  { name: 'created_at', label: 'Créé le', field: 'created_at', align: 'left' as const,
-    format: (v: string) => v ? new Date(v).toLocaleDateString('fr-FR') : '' },
-];
-
-// --- MCF Logs ---
-const mcfLogs = ref<McfLog[]>([]);
-const logsLoading = ref(false);
-const logDetailOpen = ref(false);
-const selectedLog = ref<McfLog | null>(null);
-const logsFilter = ref({ nim: '', status: null as string | null, from: '', to: '' });
-
-const logsStatusOptions = [
-  { label: '2xx Succès', value: '2xx' },
-  { label: '4xx Client', value: '4xx' },
-  { label: '5xx Serveur', value: '5xx' },
-];
-
-const mcfLogColumns = [
-  { name: 'created_at', label: 'Horodatage', field: 'created_at', align: 'left' as const, sortable: true },
-  { name: 'nim', label: 'NIM', field: 'nim', align: 'left' as const },
-  { name: 'method', label: 'Méthode', field: 'method', align: 'center' as const },
-  { name: 'endpoint', label: 'Endpoint', field: 'endpoint', align: 'left' as const },
-  { name: 'status_code', label: 'Statut', field: 'status_code', align: 'center' as const, sortable: true },
-  { name: 'duration_ms', label: 'Durée', field: 'duration_ms', align: 'right' as const, sortable: true },
-  { name: 'details', label: '', field: 'id', align: 'center' as const },
-];
-
-function roleColor(r: string) {
-  const map: Record<string, string> = { admin: 'red', caissier: 'blue', auditeur: 'teal' };
-  return map[r] || 'grey';
-}
-
-function loadCompanyForm() {
-  const c = companyStore.company;
-  if (c) {
-    companyForm.value = {
-      name: c.name,
-      ifu: c.ifu,
-      rccm: c.rccm,
-      qr_scan_base_url: c.qr_scan_base_url || '',
-      address_cadastral: c.address_cadastral,
-      address: c.address || '',
-      phone: c.phone,
-      email: c.email,
-      tax_regime: '',
-      tax_office: c.tax_office,
-      bank_accounts: c.bank_accounts ? [...c.bank_accounts] : [],
-    };
-    const s = c.invoice_settings;
-    invoiceSettingsForm.value = {
-      show_logo: s?.show_logo ?? false,
-      logo_position: s?.logo_position ?? 'left',
-      colors: { ...DEFAULT_INVOICE_COLORS, ...(s?.colors ?? {}) },
-    };
-    aiForm.value = {
-      ai_enabled: c.ai_enabled ?? true,
-      ai_model: c.ai_model || 'anthropic/claude-sonnet-4.5',
-      ai_fallback_model: c.ai_fallback_model || 'openai/gpt-4o-mini',
-      ai_system_prompt: c.ai_system_prompt || '',
-      openrouter_api_key: '',
-    };
-    // Decrypt the stored key for display
-    if (c.openrouter_api_key) {
-      void decryptApiKey(c.openrouter_api_key);
-    }
-  }
-}
-
-async function decryptApiKey(ciphertext: string) {
-  const { plaintext, error } = await decrypt(ciphertext);
-  if (!error && plaintext) {
-    aiForm.value.openrouter_api_key = plaintext;
-  } else {
-    // Fallback: maybe stored unencrypted (legacy)
-    aiForm.value.openrouter_api_key = ciphertext;
-  }
-}
-
-async function saveAiConfig() {
-  saving.value = true;
-  try {
-    // Encrypt the API key before saving
-    let encryptedKey: string | null = null;
-    if (aiForm.value.openrouter_api_key) {
-      const { ciphertext, error: encErr } = await encrypt(aiForm.value.openrouter_api_key);
-      if (encErr) {
-        $q.notify({ type: 'negative', message: `Chiffrement échoué : ${encErr}` });
-        saving.value = false;
-        return;
-      }
-      encryptedKey = ciphertext;
-    }
-    const result = await companyStore.updateCompany({
-      ai_enabled: aiForm.value.ai_enabled,
-      ai_model: aiForm.value.ai_model,
-      ai_fallback_model: aiForm.value.ai_fallback_model,
-      ai_system_prompt: aiForm.value.ai_system_prompt || null,
-      openrouter_api_key: encryptedKey || null,
-    });
-    if (result?.error) {
-      $q.notify({ type: 'negative', message: result.error.message });
-    } else {
-      $q.notify({ type: 'positive', message: 'Configuration IA enregistrée' });
-    }
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function saveCompany() {
-  saving.value = true;
-  try {
-    const cleaned = {
-      ...companyForm.value,
-      address_cadastral: companyForm.value.address_cadastral?.replace(/_/g, '').trim() || '',
-    };
-    const result = await companyStore.updateCompany(cleaned);
-    if (result?.error) {
-      $q.notify({ type: 'negative', message: result.error.message });
-    } else {
-      $q.notify({ type: 'positive', message: 'Entreprise mise à jour' });
-    }
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function loadDevices() {
-  loadingDevices.value = true;
-  try {
-    const { data } = await insforge.database.from('devices').select('*').order('created_at', { ascending: false });
-    if (data) devices.value = data as SfeDevice[];
-  } finally {
-    loadingDevices.value = false;
-  }
-}
-
-async function toggleSimulator(nim: string, enabled: boolean) {
-  togglingNim.value = nim;
-  try {
-    const { error } = await insforge.database
-      .from('devices')
-      .update({ simulator_enabled: enabled })
-      .eq('nim', nim);
-    if (error) {
-      $q.notify({ type: 'negative', message: error.message });
-    } else {
-      const d = devices.value.find(x => x.nim === nim);
-      if (d) d.simulator_enabled = enabled;
-      $q.notify({
-        type: enabled ? 'positive' : 'warning',
-        message: enabled ? `Simulateur SECeF activé (${nim})` : `Simulateur SECeF désactivé (${nim})`,
-        icon: enabled ? 'router' : 'power_off',
-      });
-    }
-  } finally {
-    togglingNim.value = null;
-  }
-}
-
-async function doPing() {
-  pingLoading.value = true;
-  const t0 = Date.now();
-  try {
-    const { data, error } = await insforge.functions.invoke('mcf-simulator', {
-      method: 'POST',
-      body: { _path: '/bf/mcf/ping', _method: 'GET' },
-    });
-    pingLatency.value = Date.now() - t0;
-    pingTime.value = new Date().toISOString();
-    if (!error && data?.status === true) {
-      $q.notify({ type: 'positive', message: `SECeF opérationnel — ${pingLatency.value} ms`, icon: 'router' });
-    } else {
-      $q.notify({ type: 'warning', message: 'SECeF injoignable', icon: 'cloud_off' });
-    }
-  } catch {
-    pingLatency.value = null;
-    pingTime.value = new Date().toISOString();
-    $q.notify({ type: 'negative', message: 'Erreur lors du ping SECeF' });
-  } finally {
-    pingLoading.value = false;
-  }
-}
-
-async function loadMcfLogs() {
-  logsLoading.value = true;
-  try {
-    let q = insforge.database
-      .from('mcf_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (logsFilter.value.nim) q = q.eq('nim', logsFilter.value.nim);
-    if (logsFilter.value.from) q = q.gte('created_at', logsFilter.value.from + 'T00:00:00');
-    if (logsFilter.value.to) q = q.lte('created_at', logsFilter.value.to + 'T23:59:59');
-    if (logsFilter.value.status === '2xx') q = q.gte('status_code', 200).lt('status_code', 300);
-    else if (logsFilter.value.status === '4xx') q = q.gte('status_code', 400).lt('status_code', 500);
-    else if (logsFilter.value.status === '5xx') q = q.gte('status_code', 500);
-
-    const { data } = await q;
-    if (data) mcfLogs.value = data as McfLog[];
-  } finally {
-    logsLoading.value = false;
-  }
-}
-
-function openLogDetail(log: McfLog) {
-  selectedLog.value = log;
-  logDetailOpen.value = true;
-}
-
-function exportMcfLogs() {
-  if (!mcfLogs.value.length) return;
-  const headers = ['Horodatage', 'NIM', 'Méthode', 'Endpoint', 'Statut', 'Durée (ms)', 'User ID'];
-  const rows = mcfLogs.value.map(l => [
-    new Date(l.created_at).toLocaleString('fr-FR'),
-    l.nim || '',
-    l.method,
-    l.endpoint,
-    String(l.status_code),
-    l.duration_ms !== null ? String(l.duration_ms) : '',
-    l.user_id || '',
-  ]);
-  const csv = [headers, ...rows].map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `mcf_logs_${new Date().toISOString().substring(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  $q.notify({ type: 'positive', message: `${mcfLogs.value.length} logs exportés` });
-}
-
-
-async function addDevice() {
-  saving.value = true;
-  try {
-    const { error } = await insforge.database.from('devices').insert({
-      company_id: companyStore.company?.id,
-      nim: deviceForm.value.nim,
-      ifu: deviceForm.value.ifu,
-      jwt_secret: deviceForm.value.jwt_secret,
-      name: deviceForm.value.name || deviceForm.value.nim,
-      status: 'ACTIF',
-    });
-    if (error) throw new Error(error.message);
-    deviceDialogOpen.value = false;
-    $q.notify({ type: 'positive', message: 'Appareil ajouté' });
-    await loadDevices();
-  } catch (err: unknown) {
-    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Erreur' });
-  } finally {
-    saving.value = false;
-  }
-}
 
 // --- Chatbot API ---
 const skill = useChatbotSkill();
@@ -2599,147 +1979,6 @@ async function onCreateRbacUser() {
   }
 }
 
-// Certification mode
-const certificationMode = ref('device');
-const certificationModeOptions = [
-  { label: 'Device (WIMRUX FACTURATION Electron)', value: 'device' },
-  { label: 'Manuelle (import)', value: 'manual' },
-  { label: 'Désactivée', value: 'disabled' },
-];
-
-interface CertificationDevice {
-  id: string;
-  device_name: string;
-  api_key_prefix: string;
-  company_id: string;
-  is_active: boolean;
-}
-
-const newDeviceName = ref('');
-const deviceKeys = ref<CertificationDevice[]>([]);
-const generatingKey = ref(false);
-
-async function loadCertificationSettings() {
-  try {
-    // Charger le mode depuis la table companies
-    const { data, error } = await insforge.database
-      .from('companies')
-      .select('certification_mode')
-      .eq('id', companyStore.company?.id)
-      .single();
-    
-    if (!error && data) {
-      certificationMode.value = data.certification_mode || 'device';
-    }
-
-    // Charger les devices
-    const { data: devices, error: devicesError } = await insforge.database
-      .from('certification_devices')
-      .select('*')
-      .eq('company_id', companyStore.company?.id)
-      .eq('is_active', true);
-    
-    if (!devicesError) {
-      deviceKeys.value = devices || [];
-    }
-  } catch (err) {
-    console.error('Erreur chargement paramètres certification:', err);
-  }
-}
-
-async function saveCertificationMode() {
-  try {
-    const { error } = await insforge.database
-      .from('companies')
-      .update({ certification_mode: certificationMode.value })
-      .eq('id', companyStore.company?.id);
-    
-    if (error) throw error;
-
-    $q.notify({
-      type: 'positive',
-      message: 'Mode de certification enregistré',
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-    $q.notify({
-      type: 'negative',
-      message: `Erreur: ${msg}`,
-    });
-  }
-}
-
-async function generateDeviceKey() {
-  if (!newDeviceName.value) return;
-
-  generatingKey.value = true;
-  try {
-    const { data, error } = await insforge.database
-      .rpc('generate_device_key', {
-        p_company_id: companyStore.company?.id,
-        p_device_name: newDeviceName.value,
-      });
-    
-    if (error) throw error;
-
-    // Afficher la clé générée (une seule fois)
-    $q.dialog({
-      title: 'Clé API générée',
-      message: `
-        <div class="q-pa-md">
-          <p class="text-body1">Device: <strong>${newDeviceName.value}</strong></p>
-          <p class="text-caption text-warning">Copiez cette clé immédiatement, elle ne sera plus affichée !</p>
-          <div class="bg-dark text-white q-pa-sm text-monospace" style="font-family: monospace; word-break: break-all;">
-            ${data.api_key}
-          </div>
-        </div>
-      `,
-      html: true,
-      persistent: true,
-      ok: { label: 'J\'ai copié la clé', color: 'primary' },
-    });
-
-    newDeviceName.value = '';
-    await loadCertificationSettings();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-    $q.notify({
-      type: 'negative',
-      message: `Erreur: ${msg}`,
-    });
-  } finally {
-    generatingKey.value = false;
-  }
-}
-
-async function revokeDeviceKey(deviceId: string) {
-  try {
-    const { error } = await insforge.database
-      .from('certification_devices')
-      .update({ is_active: false })
-      .eq('id', deviceId);
-    
-    if (error) throw error;
-
-    $q.notify({
-      type: 'positive',
-      message: 'Clé révoquée',
-    });
-    await loadCertificationSettings();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-    $q.notify({
-      type: 'negative',
-      message: `Erreur: ${msg}`,
-    });
-  }
-}
-
-// Load logs when switching to secef-logs tab
-watch(tab, (newTab) => {
-  if (newTab === 'secef-logs') void loadMcfLogs();
-  if (newTab === 'certification') void loadCertificationSettings();
-});
 
 onMounted(async () => {
   loadCompanyForm();
@@ -2747,6 +1986,6 @@ onMounted(async () => {
   loadChatbotState();
   initEditMatrix();
   initFiscalForm();
-  await Promise.all([loadDevices(), chatbot.loadApiKeys(), loadRbacUsers()]);
+  await Promise.all([chatbot.loadApiKeys(), loadRbacUsers()]);
 });
 </script>

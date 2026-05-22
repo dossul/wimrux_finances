@@ -350,9 +350,8 @@
                   🌍 Vous opérez au Burkina Faso ?
                 </h3>
                 <p class="text-body2 q-mt-sm">
-                  WIMRUX® FINANCES s'intègre avec <strong>WIMRUX FACTURATION</strong>,
-                  notre application desktop certifiée pour la conformité SECeF.
-                  Vos factures sont certifiées automatiquement via l'appareil MCF.
+                  WIMRUX® FINANCES prend en charge la fiscalité burkinabè : TVA, PSVB, timbre quittance,
+                  groupes fiscaux A-P et affichage des données de certification reçues de WIMRUX FACTURATION.
                 </p>
               </div>
               <div class="col-12 col-md-4 text-center">

@@ -92,11 +92,7 @@ export default {
   settings: {
     title: 'Paramètres',
     companyProfile: 'Profil entreprise',
-    devices: 'Appareils SFE',
     users: 'Utilisateurs',
-    addDevice: 'Ajouter un appareil',
-    nim: 'NIM',
-    deviceName: 'Nom de l\'appareil',
     companyName: 'Raison sociale',
     ifu: 'IFU',
     rccm: 'RCCM',

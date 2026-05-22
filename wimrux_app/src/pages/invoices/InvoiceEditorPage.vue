@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-md">
@@ -9,10 +9,10 @@
       <q-badge :color="statusColor" :label="statusLabel" class="text-body2 q-px-sm q-py-xs" />
     </div>
 
-    <!-- Informations générales (pleine largeur) -->
+    <!-- Informations gÃ©nÃ©rales (pleine largeur) -->
     <q-card flat bordered class="q-mb-md">
       <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Informations générales</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Informations gÃ©nÃ©rales</div>
         <div class="row q-gutter-sm">
           <q-select
             v-model="invoice.client_id"
@@ -94,10 +94,10 @@
         <q-markup-table flat bordered separator="cell" v-if="items.length > 0">
           <thead>
             <tr>
-              <th class="text-left" style="min-width:250px">Désignation</th>
+              <th class="text-left" style="min-width:250px">DÃ©signation</th>
               <th style="width:130px">Type</th>
               <th style="width:180px">Groupe</th>
-              <th style="width:100px">Qté</th>
+              <th style="width:100px">QtÃ©</th>
               <th style="width:130px">Prix unit.</th>
               <th style="width:120px">HT</th>
               <th style="width:110px">TVA</th>
@@ -171,12 +171,12 @@
               </div>
               <div v-if="invoice.approved_by" class="row items-center q-gutter-xs">
                 <q-icon name="thumb_up" size="xs" color="blue" />
-                <span>Approuvée par <b>{{ invoice.approved_by }}</b></span>
+                <span>ApprouvÃ©e par <b>{{ invoice.approved_by }}</b></span>
               </div>
               <div v-if="invoice.rejected_by" class="row items-center q-gutter-xs text-red">
                 <q-icon name="thumb_down" size="xs" />
-                <span>Rejetée par <b>{{ invoice.rejected_by }}</b></span>
-                <span v-if="invoice.rejection_reason"> — {{ invoice.rejection_reason }}</span>
+                <span>RejetÃ©e par <b>{{ invoice.rejected_by }}</b></span>
+                <span v-if="invoice.rejection_reason"> â€” {{ invoice.rejection_reason }}</span>
               </div>
             </div>
           </q-card-section>
@@ -230,7 +230,7 @@
                 @click="action.needsReason ? openRejectDialog(action) : executeAction(action)"
               />
             </template>
-            <!-- Convert Proforma → any invoice type (approved, sent, accepted) -->
+            <!-- Convert Proforma â†’ any invoice type (approved, sent, accepted) -->
             <q-btn
               v-if="invoice.type === 'PF' && ['approved', 'sent', 'accepted'].includes(invoice.status || '') && !invoice.proforma_converted_to"
               color="indigo" icon="transform" label="Convertir en Facture"
@@ -239,29 +239,9 @@
             <q-chip
               v-if="invoice.type === 'PF' && invoice.proforma_converted_to"
               icon="link" color="indigo" text-color="white" dense class="full-width"
-            >Facture liée : {{ invoice.proforma_converted_to?.slice(0, 8) }}...</q-chip>
-            <!-- SECeF certification — mode device: appel MCF/Wimrux Facturation -->
-            <q-btn
-              v-if="workflowActions.some(a => a.key === 'certify') && invoice.type !== 'PF' && isDeviceMode"
-              color="green" icon="verified" label="Certifier (SECeF)"
-              class="full-width" no-caps :loading="certifying" @click="certifyInvoice"
-            />
-            <!-- SECeF certification — mode manuel: saisie des données de certification -->
-            <q-btn
-              v-if="workflowActions.some(a => a.key === 'certify') && invoice.type !== 'PF' && isManualMode"
-              color="teal" icon="edit_note" label="Saisir certification manuelle"
-              class="full-width" no-caps @click="manualCertifyDialogOpen = true"
-            />
-            <!-- Mode désactivé: badge indicatif si validée (état terminal) -->
-            <q-banner
-              v-if="invoice.status === 'validated' && !isCertificationEnabled && invoice.type !== 'PF'"
-              class="bg-grey-2 text-grey-8 q-mt-xs rounded-borders" dense
-            >
-              <template v-slot:avatar><q-icon name="info" color="grey-6" /></template>
-              Certification désactivée — la facture validée est l'état final.
-            </q-banner>
+            >Facture liÃ©e : {{ invoice.proforma_converted_to?.slice(0, 8) }}...</q-chip>
             <!-- PDF download for certified + validated/sent/accepted Proforma -->
-            <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="Télécharger PDF" class="full-width" no-caps @click="downloadPdf" />
+            <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="TÃ©lÃ©charger PDF" class="full-width" no-caps @click="downloadPdf" />
             <q-btn v-if="invoice.status === 'certified'" color="blue-grey" icon="content_copy" label="Duplicata PDF" class="full-width q-mt-xs" no-caps outline @click="downloadDuplicata" />
             <q-btn
               v-if="invoice.type === 'PF' && ['approved','sent','accepted','rejected'].includes(invoice.status || '')"
@@ -289,40 +269,6 @@
       </q-card>
     </q-dialog>
 
-    <!-- Manual certification dialog -->
-    <q-dialog v-model="manualCertifyDialogOpen" persistent>
-      <q-card style="min-width: 420px">
-        <q-card-section>
-          <div class="text-h6">Certification manuelle</div>
-          <div class="text-caption text-grey-7">Saisir les données reçues du dispositif SECeF externe.</div>
-        </q-card-section>
-        <q-card-section class="q-gutter-sm">
-          <q-input
-            v-model="manualFiscalNumber"
-            label="Numéro fiscal *"
-            outlined dense
-            placeholder="Ex: FV2025-0001"
-            :rules="[v => !!v || 'Numéro fiscal obligatoire']"
-          />
-          <q-input
-            v-model="manualCodeSecef"
-            label="Code SECeF/DGI *"
-            outlined dense
-            placeholder="Ex: AB12CD34EF56..."
-            :rules="[v => !!v || 'Code SECeF obligatoire']"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" v-close-popup no-caps />
-          <q-btn
-            color="teal" label="Valider certification" icon="verified" no-caps
-            :loading="manualCertifying"
-            :disable="!manualFiscalNumber || !manualCodeSecef"
-            @click="certifyManual"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -334,33 +280,20 @@ import { insforge } from 'src/boot/insforge';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useInvoicePdf } from 'src/composables/useInvoicePdf';
 import type { PdfCompanyInfo } from 'src/composables/useInvoicePdf';
-import { useMcfApi } from 'src/composables/useMcfApi';
-import { useDegradedMode } from 'src/composables/useDegradedMode';
 import { usePdfStorage } from 'src/composables/usePdfStorage';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
-import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Invoice, InvoiceItem, InvoiceType, Client, TaxGroup, ArticleType, Article } from 'src/types';
 import type { WorkflowAction } from 'src/composables/useInvoiceWorkflow';
-
-interface SfeDevice { nim: string; ifu: string; jwt_secret: string; status: string }
 
 const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const companyStore = useCompanyStore();
-const { isCertificationEnabled, isDeviceMode, isManualMode } = useFiscalProfile();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
 const { downloadPdf: pdfDownload } = useInvoicePdf();
-const mcfApi = useMcfApi();
-const { enqueue: queueForRetry } = useDegradedMode();
 const { uploadAndLink: uploadPdf } = usePdfStorage();
-const activeDevice = ref<SfeDevice | null>(null);
 const { getAvailableActions, executeTransition, canEditContent, convertProformaToFV } = useInvoiceWorkflow();
-const manualCertifyDialogOpen = ref(false);
-const manualFiscalNumber = ref('');
-const manualCodeSecef = ref('');
-const manualCertifying = ref(false);
 const convertingProforma = ref(false);
 
 const invoiceId = computed(() => route.params.id as string);
@@ -385,7 +318,6 @@ const catalogArticles = ref<Article[]>([]);
 const articleFilteredOptions = ref<{ label: string; value: string; article: Article }[]>([]);
 const certifiedInvoices = ref<Pick<Invoice, 'id' | 'reference' | 'total_ttc' | 'type' | 'status'>[]>([]);
 const saving = ref(false);
-const certifying = ref(false);
 
 const canEdit = computed(() => canEditContent(invoice.value));
 const workflowActions = computed(() => getAvailableActions(invoice.value));
@@ -442,7 +374,7 @@ const articleTypes = [
 ];
 
 const taxGroupOptions = Object.entries(TAX_GROUP_RATES).map(([key, val]) => ({
-  label: `${key} — ${val.description}`,
+  label: `${key} â€” ${val.description}`,
   value: key,
 }));
 
@@ -451,14 +383,14 @@ const clientOptions = computed(() =>
 );
 
 const creditNoteNatureOptions = [
-  { label: 'COR — Correction', value: 'COR' },
-  { label: 'RAN — Retour avant livraison', value: 'RAN' },
-  { label: 'RAM — Retour après livraison', value: 'RAM' },
-  { label: 'RRR — Rabais/Remise/Ristourne', value: 'RRR' },
+  { label: 'COR â€” Correction', value: 'COR' },
+  { label: 'RAN â€” Retour avant livraison', value: 'RAN' },
+  { label: 'RAM â€” Retour aprÃ¨s livraison', value: 'RAM' },
+  { label: 'RRR â€” Rabais/Remise/Ristourne', value: 'RRR' },
 ];
 
 const certifiedInvoiceOptions = computed(() =>
-  certifiedInvoices.value.map(i => ({ label: `${i.reference} — ${fmtCur(i.total_ttc)}`, value: i.id }))
+  certifiedInvoices.value.map(i => ({ label: `${i.reference} â€” ${fmtCur(i.total_ttc)}`, value: i.id }))
 );
 
 const totals = computed(() => {
@@ -489,7 +421,7 @@ function addItem() {
     tax_group: 'B' as TaxGroup,
     price: 0,
     quantity: 1,
-    unit: 'unité',
+    unit: 'unitÃ©',
     discount: 0,
     specific_tax: 0,
     amount_ht: 0,
@@ -505,7 +437,7 @@ function filterArticles(val: string, update: (fn: () => void) => void) {
     const q = (val || '').toLowerCase();
     articleFilteredOptions.value = catalogArticles.value
       .filter(a => a.is_active && (a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q)))
-      .map(a => ({ label: `${a.code} — ${a.name}`, value: a.name, article: a }));
+      .map(a => ({ label: `${a.code} â€” ${a.name}`, value: a.name, article: a }));
   });
 }
 
@@ -588,7 +520,7 @@ async function loadClients() {
 function confirmDeleteDraft() {
   $q.dialog({
     title: 'Supprimer le brouillon',
-    message: `Voulez-vous vraiment supprimer le brouillon ${invoice.value.reference} ? Cette action est irréversible.`,
+    message: `Voulez-vous vraiment supprimer le brouillon ${invoice.value.reference} ? Cette action est irrÃ©versible.`,
     cancel: { label: 'Annuler', flat: true },
     ok: { label: 'Supprimer', color: 'negative' },
     persistent: true,
@@ -600,7 +532,7 @@ function confirmDeleteDraft() {
       if (error) {
         $q.notify({ type: 'negative', message: error.message || 'Erreur lors de la suppression' });
       } else {
-        $q.notify({ type: 'positive', message: `Brouillon ${invoice.value.reference} supprimé` });
+        $q.notify({ type: 'positive', message: `Brouillon ${invoice.value.reference} supprimÃ©` });
         await router.push('/app/invoices');
       }
     })();
@@ -630,7 +562,7 @@ async function saveDraft(silent = false): Promise<boolean> {
       .eq('id', invoiceId.value);
 
     if (invError) {
-      $q.notify({ type: 'negative', message: invError.message || 'Erreur lors de la mise à jour de la facture' });
+      $q.notify({ type: 'negative', message: invError.message || 'Erreur lors de la mise Ã  jour de la facture' });
       return false;
     }
 
@@ -651,7 +583,7 @@ async function saveDraft(silent = false): Promise<boolean> {
           type: item.type,
           price: item.price,
           quantity: item.quantity,
-          unit: item.unit || 'unité',
+          unit: item.unit || 'unitÃ©',
           tax_group: item.tax_group,
           specific_tax: item.specific_tax || 0,
           discount: item.discount || 0,
@@ -668,7 +600,7 @@ async function saveDraft(silent = false): Promise<boolean> {
       }
     }
 
-    if (!silent) $q.notify({ type: 'positive', message: 'Brouillon enregistré' });
+    if (!silent) $q.notify({ type: 'positive', message: 'Brouillon enregistrÃ©' });
     return true;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur inattendue';
@@ -694,11 +626,11 @@ async function confirmReject() {
 async function executeAction(action: WorkflowAction, reason?: string) {
   transitioning.value = true;
   try {
-    // Validate FA/EA: montant avoir ≤ montant facture originale (§2.28)
+    // Validate FA/EA: montant avoir â‰¤ montant facture originale (Â§2.28)
     if ((invoice.value.type === 'FA' || invoice.value.type === 'EA') && invoice.value.original_invoice_id) {
       const orig = certifiedInvoices.value.find(i => i.id === invoice.value.original_invoice_id);
       if (orig && totals.value.totalTTC > orig.total_ttc) {
-        $q.notify({ type: 'negative', message: `Montant avoir (${fmtCur(totals.value.totalTTC)}) dépasse la facture originale (${fmtCur(orig.total_ttc)})` });
+        $q.notify({ type: 'negative', message: `Montant avoir (${fmtCur(totals.value.totalTTC)}) dÃ©passe la facture originale (${fmtCur(orig.total_ttc)})` });
         transitioning.value = false;
         return;
       }
@@ -727,162 +659,12 @@ async function executeAction(action: WorkflowAction, reason?: string) {
 
     // Reload to get fresh data with all tracking fields
     await loadInvoice();
-    $q.notify({ type: 'positive', message: action.label + ' — effectué' });
+    $q.notify({ type: 'positive', message: action.label + ' â€” effectuÃ©' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur';
     $q.notify({ type: 'negative', message });
   } finally {
     transitioning.value = false;
-  }
-}
-
-async function certifyInvoice() {
-  certifying.value = true;
-  try {
-    // 0. Load active device if not loaded
-    if (!activeDevice.value) {
-      const { data } = await insforge.database.from('devices').select('*').eq('status', 'ACTIF').limit(1);
-      const rows = data as SfeDevice[] | null;
-      activeDevice.value = rows?.[0] ?? null;
-    }
-    if (!activeDevice.value) {
-      $q.notify({ type: 'negative', message: 'Aucun appareil SFE actif. Configurez-en un dans Param\u00e8tres.' });
-      return;
-    }
-    const dev = activeDevice.value;
-
-    // 1. Authentification MCF
-    const authResult = await mcfApi.getToken({
-      clientId: dev.ifu,
-      clientSecret: dev.jwt_secret,
-      nim: dev.nim,
-    });
-    if (authResult.error) {
-      $q.notify({ type: 'negative', message: `MCF Auth: ${authResult.error.message}` });
-      return;
-    }
-
-    // 2. Submit invoice
-    const submitResult = await mcfApi.submitInvoice({
-      ifu: dev.ifu,
-      type: invoice.value.type,
-      reference: invoice.value.reference,
-      items: items.value.map(i => ({
-        code: i.code || 'ART001',
-        name: i.name,
-        type: i.type,
-        price: i.price,
-        quantity: i.quantity,
-        unit: i.unit || 'unité',
-        taxGroup: i.tax_group,
-        specificTax: i.specific_tax || 0,
-      })),
-      priceMode: invoice.value.price_mode,
-    });
-
-    if (submitResult.error) {
-      $q.notify({ type: 'negative', message: `MCF Soumission: ${submitResult.error.message}` });
-      return;
-    }
-
-    // 3. Confirm (certify)
-    const uid = submitResult.data?.uid;
-    if (!uid) return;
-
-    const confirmResult = await mcfApi.confirmInvoice(uid);
-    if (confirmResult.error) {
-      $q.notify({ type: 'negative', message: `MCF Certification: ${confirmResult.error.message}` });
-      return;
-    }
-
-    // 4. Update local invoice with certification data
-    const cert = confirmResult.data;
-    if (cert) {
-      await insforge.database
-        .from('invoices')
-        .update({
-          status: 'certified',
-          mcf_uid: uid,
-          fiscal_number: cert.fiscalNumber,
-          code_secef_dgi: cert.codeSECeFDGI,
-          qr_code: cert.qrCode,
-          signature: cert.signature,
-          nim: cert.nim,
-          counters: cert.counters,
-          certification_datetime: cert.dateTime,
-          certified_at: new Date().toISOString(),
-        })
-        .eq('id', invoiceId.value);
-
-      invoice.value.status = 'certified';
-      invoice.value.mcf_uid = uid;
-      invoice.value.fiscal_number = cert.fiscalNumber;
-      invoice.value.code_secef_dgi = cert.codeSECeFDGI;
-      invoice.value.qr_code = cert.qrCode;
-      invoice.value.signature = cert.signature;
-      invoice.value.nim = cert.nim;
-      invoice.value.counters = cert.counters;
-      invoice.value.certification_datetime = cert.dateTime;
-      $q.notify({ type: 'positive', message: `Facture certifiée — ${cert.fiscalNumber}` });
-
-      // Auto-upload PDF to storage after certification
-      const inv = { ...invoice.value, status: 'certified', mcf_uid: uid, fiscal_number: cert.fiscalNumber, code_secef_dgi: cert.codeSECeFDGI, qr_code: cert.qrCode, signature: cert.signature, nim: cert.nim, counters: cert.counters, certification_datetime: cert.dateTime } as Invoice;
-      const cl = clients.value.find(c => c.id === inv.client_id);
-      void uploadPdf(inv, items.value as InvoiceItem[], companyPdfInfo.value, cl ? { name: cl.name, ifu: cl.ifu, rccm: cl.rccm, type: cl.type, address: cl.address } : undefined, {
-        operatorName: inv.operator_name,
-        ...(companyStore.company?.qr_scan_base_url ? { qrScanBaseUrl: companyStore.company.qr_scan_base_url } : {}),
-      });
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erreur certification';
-    // Mode dégradé: queue for retry if certification fails
-    if (invoiceId.value) {
-      await queueForRetry(invoiceId.value, message);
-      $q.notify({
-        type: 'warning',
-        icon: 'wifi_off',
-        message: 'Certification échouée — facture mise en file d\'attente (mode dégradé)',
-        caption: message,
-        timeout: 8000,
-      });
-    } else {
-      $q.notify({ type: 'negative', message });
-    }
-  } finally {
-    certifying.value = false;
-  }
-}
-
-async function certifyManual() {
-  if (!manualFiscalNumber.value || !manualCodeSecef.value) return;
-  manualCertifying.value = true;
-  try {
-    const now = new Date().toISOString();
-    await insforge.database
-      .from('invoices')
-      .update({
-        status: 'certified',
-        fiscal_number: manualFiscalNumber.value,
-        code_secef_dgi: manualCodeSecef.value,
-        certified_at: now,
-        certification_datetime: now,
-      })
-      .eq('id', invoiceId.value);
-
-    invoice.value.status = 'certified';
-    invoice.value.fiscal_number = manualFiscalNumber.value;
-    invoice.value.code_secef_dgi = manualCodeSecef.value;
-    invoice.value.certified_at = now;
-    invoice.value.certification_datetime = now;
-
-    manualCertifyDialogOpen.value = false;
-    manualFiscalNumber.value = '';
-    manualCodeSecef.value = '';
-    $q.notify({ type: 'positive', message: `Certification manuelle enregistrée — ${invoice.value.fiscal_number}` });
-  } catch (err: unknown) {
-    $q.notify({ type: 'negative', message: err instanceof Error ? err.message : 'Erreur certification manuelle' });
-  } finally {
-    manualCertifying.value = false;
   }
 }
 
@@ -934,7 +716,7 @@ function doConvertProforma() {
   if (!invoice.value.id) return;
   $q.dialog({
     title: 'Convertir la Proforma',
-    message: 'Choisissez le type de facture à créer à partir de cette Proforma :',
+    message: 'Choisissez le type de facture Ã  crÃ©er Ã  partir de cette Proforma :',
     options: {
       type: 'radio',
       model: 'FV',
@@ -955,7 +737,7 @@ function doConvertProforma() {
         invoice.value.proforma_converted_to = result.newInvoiceId ?? null;
         $q.notify({
           type: 'positive',
-          message: `Facture ${targetType} créée avec succès`,
+          message: `Facture ${targetType} crÃ©Ã©e avec succÃ¨s`,
           actions: [{ label: 'Ouvrir', color: 'white', handler: () => void router.push(`/app/invoices/${result.newInvoiceId}`) }],
           timeout: 8000,
         });

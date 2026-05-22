@@ -1,7 +1,6 @@
 import { computed } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { insforge } from 'src/boot/insforge';
-import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } from 'src/types';
 
 // ============================================================================
@@ -13,7 +12,6 @@ import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } fro
 //   → approved              [invoices.approve — COMPTABLE, anti-fraude]
 //   → draft (rejet)         [invoices.approve]
 //     → validated           [invoices.validate]
-//       → certified SECeF   [invoices.certify]
 //
 // === Proforma (PF) ===
 // draft → pending_validation [invoices.submit]
@@ -42,7 +40,7 @@ export const STATUS_CONFIG: Record<InvoiceStatus, { label: string; color: string
   pending_validation: { label: 'En attente de validation', color: 'orange', icon: 'hourglass_top' },
   approved: { label: 'Approuvée', color: 'blue', icon: 'thumb_up' },
   validated: { label: 'Validée', color: 'amber-8', icon: 'check_circle' },
-  certified: { label: 'Certifiée SECeF', color: 'green', icon: 'verified' },
+  certified: { label: 'Certifiée', color: 'green', icon: 'verified' },
   sent: { label: 'Envoyée au client', color: 'teal', icon: 'send' },
   accepted: { label: 'Acceptée', color: 'green-7', icon: 'check_circle_outline' },
   rejected: { label: 'Refusée', color: 'deep-orange', icon: 'cancel_presentation' },
@@ -55,7 +53,6 @@ const TRANSITION_PERMISSIONS: Record<string, Permission> = {
   'pending_validation->approved': 'invoices.approve',
   'pending_validation->draft': 'invoices.approve',       // rejection
   'approved->validated': 'invoices.validate',            // BF invoices
-  'validated->certified': 'invoices.certify',
   'approved->sent': 'invoices.validate',                 // Proforma: approved → sent
   'sent->accepted': 'invoices.validate',                 // Proforma: client accepted
   'sent->rejected': 'invoices.validate',                 // Proforma: client rejected
@@ -69,7 +66,6 @@ function isSubmitter(invoice: Partial<Invoice>, userId: string): boolean {
 
 export function useInvoiceWorkflow() {
   const authStore = useAuthStore();
-  const { isCertificationEnabled } = useFiscalProfile();
 
   const currentRole = computed(() => authStore.role);
   const currentUserId = computed(() => authStore.user?.id ?? '');
@@ -198,18 +194,6 @@ export function useInvoiceWorkflow() {
       }
     }
 
-    if (status === 'validated' && isCertificationEnabled.value) {
-      if (canTransition(invoice, 'validated', 'certified')) {
-        actions.push({
-          key: 'certify',
-          label: 'Certifier (SECeF)',
-          icon: 'verified',
-          color: 'green',
-          targetStatus: 'certified',
-        });
-      }
-    }
-
     return actions;
   }
 
@@ -331,7 +315,7 @@ export function useInvoiceWorkflow() {
   const isReadOnly = computed(() => {
     return !authStore.hasAnyPermission([
       'invoices.create', 'invoices.submit', 'invoices.approve',
-      'invoices.validate', 'invoices.certify',
+      'invoices.validate',
     ]);
   });
 

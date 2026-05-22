@@ -51,29 +51,6 @@
       </q-card-section>
     </q-card>
 
-    <!-- MCF/SECeF connectivity alert — visible only when certification is enabled -->
-    <q-banner v-if="showMcfBanners && mcfOnline === false" class="bg-red-1 text-red-9 q-mb-md rounded-borders" dense>
-      <template v-slot:avatar><q-icon name="cloud_off" color="red" /></template>
-      <strong>Alerte SECeF :</strong> Le serveur MCF/SYGMEF est injoignable. Les certifications utiliseront le mode dégradé.
-      <span v-if="lastMcfCheck" class="text-caption q-ml-sm">(Dernière vérif. : {{ new Date(lastMcfCheck).toLocaleTimeString('fr-FR') }})</span>
-      <template v-slot:action>
-        <q-btn flat no-caps color="red" label="Revérifier" icon="refresh" @click="recheckMcf" />
-      </template>
-    </q-banner>
-    <q-banner v-else-if="showMcfBanners && mcfOnline === true" class="bg-green-1 text-green-9 q-mb-md rounded-borders" dense>
-      <template v-slot:avatar><q-icon name="cloud_done" color="green" /></template>
-      <strong>SECeF connecté</strong> — Dispositif {{ mcfDeviceStatus || 'ACTIF' }}
-    </q-banner>
-
-    <!-- Mode Dégradé banner -->
-    <q-banner v-if="showMcfBanners && pendingQueueCount > 0" class="bg-orange-1 text-orange-9 q-mb-md rounded-borders" dense>
-      <template v-slot:avatar><q-icon name="wifi_off" color="orange" /></template>
-      <strong>Mode dégradé :</strong> {{ pendingQueueCount }} facture(s) en attente de certification SECeF.
-      <template v-slot:action>
-        <q-btn flat no-caps color="orange" label="Relancer tout" icon="replay" :loading="retrying" @click="retryAllPending" />
-      </template>
-    </q-banner>
-
     <!-- Quick actions -->
     <q-card flat bordered>
       <q-card-section>
@@ -89,29 +66,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { insforge } from 'src/boot/insforge';
-import { useDegradedMode } from 'src/composables/useDegradedMode';
-import { useMcfAlert } from 'src/composables/useMcfAlert';
-import { useFiscalProfile } from 'src/composables/useFiscalProfile';
 import type { Invoice } from 'src/types';
 
 const $q = useQuasar();
-const { isCertificationEnabled, isDeviceMode } = useFiscalProfile();
-const { queue: pendingQueue, loadQueue, retryAll } = useDegradedMode();
-const { mcfOnline, lastCheck: lastMcfCheck, deviceStatus: mcfDeviceStatus, checkStatus: recheckMcf } = useMcfAlert(isDeviceMode);
-const showMcfBanners = computed(() => isDeviceMode.value);
 const loading = ref(false);
-const retrying = ref(false);
-const pendingQueueCount = ref(0);
 const recentInvoices = ref<Invoice[]>([]);
 
 const kpis = ref([
   { label: 'Factures ce mois', value: '0', icon: 'receipt_long', color: 'blue' },
   { label: 'CA du mois (TTC)', value: '0 FCFA', icon: 'trending_up', color: 'green' },
   { label: 'En attente', value: '0', icon: 'hourglass_empty', color: 'amber' },
-  { label: 'Certifiées', value: '0', icon: 'verified', color: 'teal' },
+  { label: 'Validées', value: '0', icon: 'check_circle', color: 'teal' },
 ]);
 
 const invoiceColumns = [
@@ -149,15 +117,15 @@ async function loadDashboard() {
 
     const all = (monthInvoices || []) as Invoice[];
 
-    const certified = all.filter(i => i.status === 'certified');
+    const validated = all.filter(i => i.status === 'validated' || i.status === 'certified');
     const pending = all.filter(i => i.status === 'validated');
-    const totalCA = certified.reduce((sum, i) => sum + (i.total_ttc || 0), 0);
+    const totalCA = all.filter(i => i.status !== 'draft' && i.status !== 'cancelled').reduce((sum, i) => sum + (i.total_ttc || 0), 0);
 
     const k = kpis.value;
     if (k[0]) k[0].value = String(all.length);
     if (k[1]) k[1].value = fmtCur(totalCA);
     if (k[2]) k[2].value = String(pending.length);
-    if (k[3]) k[3].value = String(certified.length);
+    if (k[3]) k[3].value = String(validated.length);
 
     recentInvoices.value = all.slice(0, 5);
   } finally {
@@ -165,29 +133,7 @@ async function loadDashboard() {
   }
 }
 
-async function retryAllPending() {
-  retrying.value = true;
-  try {
-    await retryAll();
-    await loadQueue();
-    pendingQueueCount.value = pendingQueue.value.length;
-    if (pendingQueueCount.value === 0) {
-      $q.notify({ type: 'positive', message: 'Toutes les certifications en attente ont été traitées' });
-    } else {
-      $q.notify({ type: 'warning', message: `${pendingQueueCount.value} certification(s) toujours en échec` });
-    }
-  } catch {
-    $q.notify({ type: 'negative', message: 'Erreur lors de la relance' });
-  } finally {
-    retrying.value = false;
-  }
-}
-
 onMounted(async () => {
   await loadDashboard();
-  if (isCertificationEnabled.value) {
-    await loadQueue();
-    pendingQueueCount.value = pendingQueue.value.length;
-  }
 });
 </script>
