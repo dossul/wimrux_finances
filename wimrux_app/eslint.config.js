@@ -68,7 +68,34 @@ export default defineConfigWithVueTs(
       'prefer-promise-reject-errors': 'off',
 
       // allow debugger during development only
-      'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off'
+      'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
+
+      // Allow _-prefixed variables as intentionally unused
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          vars: 'all',
+          args: 'all',
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        }
+      ],
+
+      // Downgrade to warn for async functions that don't need await (stubs, wrappers)
+      '@typescript-eslint/require-await': 'warn',
+
+      // Downgrade to warn for .onOk(async) patterns — common Quasar dialog pattern
+      '@typescript-eslint/no-misused-promises': [
+        'warn',
+        { checksVoidReturn: { arguments: false } }
+      ],
+
+      // Downgrade no-floating-promises to warn
+      '@typescript-eslint/no-floating-promises': 'warn',
+
+      // Allow Object default stringification in template strings (known limitation in maps)
+      '@typescript-eslint/no-base-to-string': 'warn',
     }
   },
 

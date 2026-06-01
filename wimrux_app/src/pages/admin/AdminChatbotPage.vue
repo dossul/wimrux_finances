@@ -70,7 +70,7 @@
               </td>
               <td class="text-center">{{ c.activeKeys }}</td>
               <td class="text-center">
-                <q-btn flat size="sm" icon="toggle_on" :color="c.chatbot_enabled ? 'red' : 'green'" :label="c.chatbot_enabled ? 'Désactiver' : 'Activer'" no-caps @click="adminToggleChatbot(c)" />
+                <q-btn flat size="sm" icon="toggle_on" :color="c.chatbot_enabled ? 'red' : 'green'" :label="c.chatbot_enabled ? 'Désactiver' : 'Activer'" no-caps data-testid="chatbot-enabled-toggle" @click="adminToggleChatbot(c)" />
               </td>
             </tr>
             <tr v-if="companiesWithChatbot.length === 0">

@@ -8,7 +8,7 @@
         <q-btn color="primary" icon="add_business" label="Nouvelle entreprise" no-caps @click="openCompanyDialog()" />
       </div>
 
-      <q-input v-model="search" outlined dense placeholder="Rechercher par nom, IFU..." class="q-mb-md" clearable>
+      <q-input v-model="search" outlined dense placeholder="Rechercher par nom, IFU..." class="q-mb-md" data-testid="client-search" clearable>
         <template v-slot:prepend><q-icon name="search" /></template>
       </q-input>
 
@@ -190,10 +190,10 @@
       <div class="row items-center q-mb-md">
         <div class="text-h5">Clients</div>
         <q-space />
-        <q-btn color="primary" icon="add" label="Nouveau client" no-caps @click="openDialog()" />
+        <q-btn color="primary" icon="add" label="Nouveau client" no-caps data-testid="client-new-btn" @click="openDialog()" />
       </div>
 
-      <q-input v-model="search" outlined dense placeholder="Rechercher par nom, IFU..." class="q-mb-md" clearable>
+      <q-input v-model="search" outlined dense placeholder="Rechercher par nom, IFU..." class="q-mb-md" data-testid="client-search" clearable>
         <template v-slot:prepend><q-icon name="search" /></template>
       </q-input>
 
@@ -206,27 +206,29 @@
         bordered
         :pagination="{ rowsPerPage: 15 }"
       >
-        <template v-slot:body-cell-type="props">
-          <q-td :props="props">
-            <q-badge :color="typeColor(props.row.type)" :label="typeLabel(props.row.type)" />
-          </q-td>
-        </template>
-        <template v-slot:body-cell-is_active="props">
-          <q-td :props="props">
-            <q-toggle
-              :model-value="props.row.is_active"
-              color="positive"
-              :label="props.row.is_active ? 'Actif' : 'Inactif'"
-              dense
-              @update:model-value="val => toggleClientActive(props.row, !!val)"
-            />
-          </q-td>
-        </template>
-        <template v-slot:body-cell-actions="props">
-          <q-td :props="props">
-            <q-btn flat dense icon="edit" size="sm" @click="openDialog(props.row)" />
-            <q-btn flat dense icon="delete" size="sm" color="negative" @click="confirmDelete(props.row)" />
-          </q-td>
+        <template v-slot:body="props">
+          <q-tr :props="props" data-testid="client-row">
+            <q-td key="type" :props="props">
+              <q-badge :color="typeColor(props.row.type)" :label="typeLabel(props.row.type)" />
+            </q-td>
+            <q-td key="name" :props="props">{{ props.row.name }}</q-td>
+            <q-td key="ifu" :props="props">{{ props.row.ifu }}</q-td>
+            <q-td key="phone" :props="props">{{ props.row.phone }}</q-td>
+            <q-td key="email" :props="props">{{ props.row.email }}</q-td>
+            <q-td key="is_active" :props="props">
+              <q-toggle
+                :model-value="props.row.is_active"
+                color="positive"
+                :label="props.row.is_active ? 'Actif' : 'Inactif'"
+                dense
+                @update:model-value="val => toggleClientActive(props.row, !!val)"
+              />
+            </q-td>
+            <q-td key="actions" :props="props">
+              <q-btn flat dense icon="edit" size="sm" @click="openDialog(props.row)" />
+              <q-btn flat dense icon="delete" size="sm" color="negative" data-testid="client-delete" @click="confirmDelete(props.row)" />
+            </q-td>
+          </q-tr>
         </template>
       </q-table>
 
@@ -246,22 +248,24 @@
               emit-value
               map-options
               filled
+              data-testid="client-type-select"
               :rules="[val => !!val || 'Type requis']"
             />
 
-            <q-input v-model="form.name" label="Nom / Raison sociale" filled :rules="[val => !!val || 'Nom requis']" />
+            <q-input v-model="form.name" label="Nom / Raison sociale" filled data-testid="client-name" :rules="[val => !!val || 'Nom requis']" />
 
             <q-input
               v-model="form.ifu"
               label="IFU"
               filled
+              data-testid="client-ifu"
               :rules="ifuRules"
               :hint="['PM', 'PC'].includes(form.type) ? 'Obligatoire pour PM et PC' : 'Optionnel'"
             />
 
             <q-input v-model="form.rccm" label="RCCM" filled v-if="form.type === 'PM'" />
 
-            <q-input v-model="form.address" label="Adresse" filled type="textarea" rows="2" />
+            <q-input v-model="form.address" label="Adresse" filled data-testid="client-address" type="textarea" rows="2" />
 
             <q-input
               v-model="form.address_cadastral"
@@ -276,13 +280,13 @@
             />
 
             <div class="row q-gutter-sm">
-              <q-input v-model="form.phone" label="Téléphone" filled class="col" />
-              <q-input v-model="form.email" label="Email" filled type="email" class="col" />
+              <q-input v-model="form.phone" label="Téléphone" filled data-testid="client-phone" class="col" />
+              <q-input v-model="form.email" label="Email" filled type="email" data-testid="client-email" class="col" />
             </div>
 
             <div class="row justify-end q-gutter-sm q-mt-md">
               <q-btn flat label="Annuler" v-close-popup no-caps />
-              <q-btn type="submit" color="primary" :label="editingClient ? 'Modifier' : 'Créer'" :loading="saving" no-caps />
+              <q-btn type="submit" color="primary" :label="editingClient ? 'Modifier' : 'Créer'" data-testid="client-save-btn" :loading="saving" no-caps />
             </div>
           </q-form>
         </q-card-section>

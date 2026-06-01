@@ -1,18 +1,18 @@
-﻿<template>
+<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-md">
       <q-btn flat icon="arrow_back" @click="$router.push('/app/invoices')" />
       <q-badge :color="typeColor" :label="invoice.type" class="q-mx-sm" />
-      <div class="text-h5">{{ invoice.reference || 'Nouvelle facture' }}</div>
+      <div class="text-h5" data-testid="invoice-number">{{ invoice.reference || 'Nouvelle facture' }}</div>
       <q-space />
-      <q-badge :color="statusColor" :label="statusLabel" class="text-body2 q-px-sm q-py-xs" />
+      <q-badge :color="statusColor" :label="statusLabel" class="text-body2 q-px-sm q-py-xs" data-testid="invoice-status" />
     </div>
 
-    <!-- Informations gÃ©nÃ©rales (pleine largeur) -->
+    <!-- Informations generales (pleine largeur) -->
     <q-card flat bordered class="q-mb-md">
       <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Informations gÃ©nÃ©rales</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Informations generales</div>
         <div class="row q-gutter-sm">
           <q-select
             v-model="invoice.client_id"
@@ -24,6 +24,7 @@
             dense
             clearable
             class="col"
+            data-testid="invoice-client-select"
             :disable="!canEdit"
           />
           <q-select
@@ -35,6 +36,7 @@
             outlined
             dense
             style="width: 120px"
+            data-testid="price-mode-ttc"
             :disable="!canEdit"
           />
         </div>
@@ -88,16 +90,16 @@
         <div class="row items-center q-mb-sm">
           <div class="text-subtitle1 text-weight-medium">Articles</div>
           <q-space />
-          <q-btn v-if="canEdit" flat size="sm" color="primary" icon="add" label="Ajouter" no-caps @click="addItem" />
+          <q-btn v-if="canEdit" flat size="sm" color="primary" icon="add" label="Ajouter" no-caps data-testid="add-item-btn" @click="addItem" />
         </div>
 
         <q-markup-table flat bordered separator="cell" v-if="items.length > 0">
           <thead>
             <tr>
-              <th class="text-left" style="min-width:250px">DÃ©signation</th>
+              <th class="text-left" style="min-width:250px">Designation</th>
               <th style="width:130px">Type</th>
               <th style="width:180px">Groupe</th>
-              <th style="width:100px">QtÃ©</th>
+              <th style="width:100px">Qte</th>
               <th style="width:130px">Prix unit.</th>
               <th style="width:120px">HT</th>
               <th style="width:110px">TVA</th>
@@ -120,6 +122,7 @@
                   new-value-mode="add-unique"
                   :disable="!canEdit"
                   placeholder="Rechercher ou saisir..."
+                  :data-testid="`item-designation-${idx}`"
                   @filter="(val, update) => filterArticles(val, update)"
                   @update:model-value="(v) => onArticleSelected(idx, v)"
                 />
@@ -128,13 +131,13 @@
                 <q-select v-model="item.type" :options="articleTypes" dense borderless emit-value map-options :disable="!canEdit" />
               </td>
               <td>
-                <q-select v-model="item.tax_group" :options="taxGroupOptions" dense borderless emit-value map-options :disable="!canEdit" @update:model-value="recalcItem(idx)" />
+                <q-select v-model="item.tax_group" :options="taxGroupOptions" dense borderless emit-value map-options :disable="!canEdit" :data-testid="`item-tax-${idx}`" @update:model-value="recalcItem(idx)" />
               </td>
               <td style="min-width:100px">
-                <q-input v-model.number="item.quantity" type="number" dense borderless min="1" :disable="!canEdit" @update:model-value="recalcItem(idx)" input-class="text-center" style="width:100%" />
+                <q-input v-model.number="item.quantity" type="number" dense borderless min="1" :disable="!canEdit" :data-testid="`item-qty-${idx}`" @update:model-value="recalcItem(idx)" input-class="text-center" style="width:100%" />
               </td>
               <td>
-                <q-input v-model.number="item.price" type="number" dense borderless min="0" :disable="!canEdit" @update:model-value="recalcItem(idx)" />
+                <q-input v-model.number="item.price" type="number" dense borderless min="0" :disable="!canEdit" :data-testid="`item-price-${idx}`" @update:model-value="recalcItem(idx)" />
               </td>
               <td class="text-right">{{ fmt(item.amount_ht) }}</td>
               <td class="text-right">{{ fmt(item.amount_tva) }}</td>
@@ -216,8 +219,8 @@
         <!-- Actions -->
         <q-card flat bordered>
           <q-card-section class="q-gutter-sm">
-            <q-btn v-if="canEdit" color="primary" icon="save" label="Enregistrer brouillon" class="full-width" no-caps :loading="saving" @click="() => saveDraft()" />
-            <q-btn v-if="invoice.status === 'draft'" color="negative" icon="delete" label="Supprimer le brouillon" class="full-width q-mt-xs" no-caps outline @click="confirmDeleteDraft" />
+            <q-btn v-if="canEdit" color="primary" icon="save" label="Enregistrer brouillon" class="full-width" no-caps data-testid="invoice-save-btn" :loading="saving" @click="() => saveDraft()" />
+            <q-btn v-if="invoice.status === 'draft'" color="negative" icon="delete" label="Supprimer le brouillon" class="full-width q-mt-xs" no-caps outline data-testid="invoice-delete-draft-btn" @click="confirmDeleteDraft" />
             <template v-for="action in workflowActions" :key="action.key">
               <q-btn
                 v-if="action.key !== 'certify'"
@@ -227,6 +230,7 @@
                 class="full-width"
                 no-caps
                 :loading="transitioning"
+                :data-testid="'invoice-' + action.key + '-btn'"
                 @click="action.needsReason ? openRejectDialog(action) : executeAction(action)"
               />
             </template>
@@ -241,7 +245,7 @@
               icon="link" color="indigo" text-color="white" dense class="full-width"
             >Facture liÃ©e : {{ invoice.proforma_converted_to?.slice(0, 8) }}...</q-chip>
             <!-- PDF download for certified + validated/sent/accepted Proforma -->
-            <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="TÃ©lÃ©charger PDF" class="full-width" no-caps @click="downloadPdf" />
+            <q-btn v-if="invoice.status === 'certified'" color="blue" icon="picture_as_pdf" label="TÃ©lÃ©charger PDF" class="full-width" no-caps data-testid="invoice-pdf-btn" @click="downloadPdf" />
             <q-btn v-if="invoice.status === 'certified'" color="blue-grey" icon="content_copy" label="Duplicata PDF" class="full-width q-mt-xs" no-caps outline @click="downloadDuplicata" />
             <q-btn
               v-if="invoice.type === 'PF' && ['approved','sent','accepted','rejected'].includes(invoice.status || '')"
@@ -292,7 +296,7 @@ const $q = useQuasar();
 const companyStore = useCompanyStore();
 const { calculateItemTax, calculateInvoiceTotals } = useTaxCalculation();
 const { downloadPdf: pdfDownload } = useInvoicePdf();
-const { uploadAndLink: uploadPdf } = usePdfStorage();
+const { uploadAndLink: _uploadPdf } = usePdfStorage();
 const { getAvailableActions, executeTransition, canEditContent, convertProformaToFV } = useInvoiceWorkflow();
 const convertingProforma = ref(false);
 

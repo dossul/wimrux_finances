@@ -7,14 +7,14 @@
     </div>
 
     <div class="row q-gutter-sm q-mb-md">
-      <q-input v-model="search" outlined dense placeholder="Rechercher..." class="col" clearable>
+      <q-input v-model="search" outlined dense placeholder="Rechercher..." class="col" data-testid="audit-search" clearable>
         <template v-slot:prepend><q-icon name="search" /></template>
       </q-input>
-      <q-select v-model="filterTable" :options="tableOptions" outlined dense clearable placeholder="Table" style="min-width: 150px" />
-      <q-select v-model="filterAction" :options="actionOptions" emit-value map-options outlined dense clearable placeholder="Action" style="min-width: 130px" />
+      <q-select v-model="filterTable" :options="tableOptions" outlined dense clearable placeholder="Table" data-testid="audit-table-filter" style="min-width: 150px" />
+      <q-select v-model="filterAction" :options="actionOptions" emit-value map-options outlined dense clearable placeholder="Action" data-testid="audit-action-filter" style="min-width: 130px" />
       <q-input v-model="dateFrom" outlined dense type="date" label="Du" style="width: 160px" />
       <q-input v-model="dateTo" outlined dense type="date" label="Au" style="width: 160px" />
-      <q-btn color="primary" icon="refresh" flat dense @click="loadLogs" />
+      <q-btn color="primary" icon="refresh" flat dense data-testid="audit-apply-filter-btn" @click="loadLogs" />
     </div>
 
     <q-table
@@ -24,27 +24,27 @@
       :loading="loading"
       flat
       bordered
+      data-testid="audit-table"
       :pagination="{ rowsPerPage: 25, sortBy: 'timestamp', descending: true }"
     >
-      <template v-slot:body-cell-action_type="props">
-        <q-td :props="props">
-          <q-badge :color="actionColor(props.row.action_type)" :label="props.row.action_type" />
-        </q-td>
-      </template>
-      <template v-slot:body-cell-timestamp="props">
-        <q-td :props="props">
-          {{ formatDate(props.row.timestamp) }}
-        </q-td>
-      </template>
-      <template v-slot:body-cell-details="props">
-        <q-td :props="props">
-          <q-btn flat dense size="xs" icon="visibility" label="Voir" no-caps @click="showDetail(props.row)" />
-        </q-td>
+      <template v-slot:body="props">
+        <q-tr :props="props" data-testid="audit-row">
+          <q-td key="timestamp" :props="props">{{ formatDate(props.row.timestamp) }}</q-td>
+          <q-td key="action_type" :props="props">
+            <q-badge :color="actionColor(props.row.action_type)" :label="props.row.action_type" data-testid="audit-badge-immutable" />
+          </q-td>
+          <q-td key="table_name" :props="props">{{ props.row.table_name }}</q-td>
+          <q-td key="record_id" :props="props">{{ props.row.record_id }}</q-td>
+          <q-td key="user_name" :props="props">{{ props.row.user_name }}</q-td>
+          <q-td key="details" :props="props">
+            <q-btn flat dense size="xs" icon="visibility" label="Voir" no-caps @click="showDetail(props.row)" />
+          </q-td>
+        </q-tr>
       </template>
     </q-table>
 
     <!-- Detail dialog -->
-    <q-dialog v-model="detailOpen">
+    <q-dialog v-model="detailOpen" data-testid="audit-detail-dialog">
       <q-card style="min-width: 600px; max-width: 80vw">
         <q-card-section>
           <div class="text-h6">Détail de l'opération</div>
@@ -57,17 +57,17 @@
             <div><strong>Table:</strong> {{ selectedLog.table_name }}</div>
             <div><strong>Enregistrement:</strong> {{ selectedLog.record_id }}</div>
           </div>
-          <div v-if="selectedLog.data_before" class="q-mb-md">
+          <div v-if="selectedLog.data_before" class="q-mb-md" data-testid="audit-before-json">
             <div class="text-subtitle2">Avant:</div>
             <pre class="bg-grey-2 q-pa-sm rounded-borders" style="max-height:200px;overflow:auto;font-size:12px">{{ JSON.stringify(selectedLog.data_before, null, 2) }}</pre>
           </div>
-          <div v-if="selectedLog.data_after">
+          <div v-if="selectedLog.data_after" data-testid="audit-after-json">
             <div class="text-subtitle2">Après:</div>
             <pre class="bg-grey-2 q-pa-sm rounded-borders" style="max-height:200px;overflow:auto;font-size:12px">{{ JSON.stringify(selectedLog.data_after, null, 2) }}</pre>
           </div>
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat label="Fermer" v-close-popup />
+          <q-btn flat label="Fermer" data-testid="audit-detail-close" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>

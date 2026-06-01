@@ -1,18 +1,51 @@
-﻿<template>
+<template>
   <q-page padding>
     <div class="text-h5 q-mb-md">Paramètres</div>
 
     <q-tabs v-model="tab" dense align="left" class="q-mb-md text-grey" active-color="primary" indicator-color="primary">
-      <q-tab name="company" label="Entreprise" icon="business" no-caps />
-      <q-tab name="users" label="Utilisateurs" icon="people" no-caps />
-      <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps />
+      <q-tab name="profile" label="Mon profil" icon="person" no-caps data-testid="tab-profile" />
+      <q-tab name="company" label="Entreprise" icon="business" no-caps data-testid="tab-company" />
+      <q-tab name="users" label="Utilisateurs" icon="people" no-caps data-testid="tab-users" />
+      <q-tab name="ai" label="Intelligence Artificielle" icon="smart_toy" no-caps data-testid="tab-devices" />
       <q-tab v-if="isProjectAdmin" name="ai-usage" label="Consommation IA" icon="analytics" no-caps />
       <q-tab name="chatbot" label="Chatbot API" icon="smart_toy" no-caps />
-      <q-tab name="rbac" label="RBAC / Permissions" icon="admin_panel_settings" no-caps />
+      <q-tab name="rbac" label="RBAC / Permissions" icon="admin_panel_settings" no-caps data-testid="tab-security" />
       <q-tab name="fiscal" label="Profil Fiscal" icon="account_balance" no-caps />
+      <q-tab name="banking" label="Banque / OCR" icon="document_scanner" no-caps data-testid="tab-banking" />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
+      <!-- User Profile -->
+      <q-tab-panel name="profile">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle1 text-weight-medium q-mb-md">Mon profil utilisateur</div>
+            <q-form @submit.prevent="saveUserProfile" class="q-gutter-sm">
+              <q-input v-model="profileForm.full_name" label="Nom complet" filled data-testid="profile-fullname" :rules="[v => !!v || 'Requis']" />
+              <q-input v-model="profileForm.phone" label="Téléphone (pour 2FA WhatsApp)" filled data-testid="profile-phone" hint="Format: +226XXXXXXXX (obligatoire pour le 2FA)" />
+              <div class="row items-center q-mt-sm q-pa-sm bg-grey-1 rounded-borders">
+                <q-icon name="security" color="primary" class="q-mr-sm" />
+                <div class="col">
+                  <div class="text-body2 text-weight-medium">Vérification 2FA WhatsApp</div>
+                  <div class="text-caption text-grey-7">Désactivez temporairement pour faciliter les tests</div>
+                </div>
+                <q-toggle
+                  v-model="profileForm.two_fa_enabled"
+                  :color="profileForm.two_fa_enabled ? 'positive' : 'warning'"
+                  :label="profileForm.two_fa_enabled ? 'Activé' : 'Désactivé'"
+                  data-testid="toggle-2fa"
+                />
+                <div class="text-caption text-grey-7" data-testid="2fa-status-label">2FA {{ profileForm.two_fa_enabled ? 'activé' : 'désactivé' }}</div>
+              </div>
+              <q-input v-model="profileForm.email" label="Email" filled type="email" disable hint="Non modifiable" />
+              <div class="row justify-end q-mt-md">
+                <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps data-testid="profile-save-btn" :loading="profileSaving" />
+              </div>
+            </q-form>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
+
       <!-- Company settings -->
       <q-tab-panel name="company">
         <q-card flat bordered>
@@ -20,13 +53,13 @@
             <div class="text-subtitle1 text-weight-medium q-mb-md">Informations de l'entreprise</div>
             <q-form @submit.prevent="saveCompany" class="q-gutter-sm">
               <div class="row q-gutter-sm">
-                <q-input v-model="companyForm.name" label="Raison sociale" filled class="col" :rules="[v => !!v || 'Requis']" />
-                <q-input v-model="companyForm.ifu" label="IFU (8 chiffres)" filled style="width: 200px" mask="########" :rules="[v => !!v || 'Requis', v => isValidIFU(v) || 'IFU invalide (8 chiffres)']" />
+                <q-input v-model="companyForm.name" label="Raison sociale" filled class="col" data-testid="company-name" :rules="[v => !!v || 'Requis']" />
+                <q-input v-model="companyForm.ifu" label="IFU (8 chiffres)" filled style="width: 200px" mask="########" data-testid="company-ifu" :rules="[v => !!v || 'Requis', v => isValidIFU(v) || 'IFU invalide (8 chiffres)']" />
               </div>
               <div class="row q-gutter-sm">
-                <q-input v-model="companyForm.rccm" label="RCCM" filled class="col" />
-                <q-input v-model="companyForm.tax_regime" label="Régime fiscal" filled class="col" />
-                <q-input v-model="companyForm.tax_office" label="Centre des impôts" filled class="col" />
+                <q-input v-model="companyForm.rccm" label="RCCM" filled class="col" data-testid="company-rccm" />
+                <q-input v-model="companyForm.tax_regime" label="Régime fiscal" filled data-testid="company-tax-rate" class="col" />
+                <q-input v-model="companyForm.tax_office" label="Centre des impôts" filled class="col" data-testid="company-tax-office" />
               </div>
               <q-input
                 v-model="companyForm.address_cadastral"
@@ -38,18 +71,20 @@
                 :rules="[v => !v || !v.replace(/[_ ]/g, '') || isValidCadastralAddress(v.replace(/_/g, '').trim()) ? true : 'Format invalide — 11 chiffres : Section (4) Ilot (3) Parcelle (4)']"
                 hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
                 bottom-slots
+                data-testid="company-address-cadastral"
               />
               <q-input
                 v-model="companyForm.address"
                 label="Adresse postale (si différente de l'adresse cadastrale)"
                 filled
+                data-testid="company-address"
                 clearable
                 hint="Obligatoire si différente de l'adresse cadastrale"
                 bottom-slots
               />
               <div class="row q-gutter-sm">
-                <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" />
-                <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" />
+                <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" data-testid="company-phone" />
+                <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" data-testid="company-email" />
               </div>
               <q-input
                 v-model="companyForm.qr_scan_base_url"
@@ -58,20 +93,21 @@
                 clearable
                 hint="Préfixe URL pour le QR Code — ex: https://votre-app.com. Vide = format DGI standard BF;..."
                 bottom-slots
+                data-testid="company-qr-scan-url"
               />
 
               <!-- Comptes bancaires -->
               <div class="text-subtitle2 text-weight-medium q-mt-md q-mb-xs">Comptes bancaires</div>
               <div v-for="(bank, idx) in companyForm.bank_accounts" :key="idx" class="row q-gutter-sm q-mb-sm items-center">
-                <q-input v-model="bank.bank_name" label="Nom de la banque" filled class="col" />
-                <q-input v-model="bank.account_number" label="Numéro de compte" filled class="col" />
-                <q-input v-model="bank.iban" label="IBAN (optionnel)" filled class="col" />
-                <q-btn flat round icon="delete" color="negative" @click="removeBankAccount(idx)" />
+                <q-input v-model="bank.bank_name" label="Nom de la banque" filled class="col" :data-testid="`bank-name-${idx}`" />
+                <q-input v-model="bank.account_number" label="Numéro de compte" filled class="col" :data-testid="`bank-account-number-${idx}`" />
+                <q-input v-model="bank.iban" label="IBAN (optionnel)" filled class="col" :data-testid="`bank-iban-${idx}`" />
+                <q-btn flat round icon="delete" color="negative" :data-testid="`bank-delete-${idx}`" @click="removeBankAccount(idx)" />
               </div>
-              <q-btn flat no-caps icon="add" label="Ajouter un compte bancaire" color="primary" class="q-mb-md" @click="addBankAccount" />
+              <q-btn flat no-caps icon="add" label="Ajouter un compte bancaire" color="primary" class="q-mb-md" data-testid="add-bank-account-btn" @click="addBankAccount" />
 
               <div class="row justify-end q-mt-md">
-                <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps :loading="saving" />
+                <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps data-testid="company-save-btn" :loading="saving" />
               </div>
             </q-form>
           </q-card-section>
@@ -93,23 +129,24 @@
                 Aucun logo
               </div>
               <div class="column q-gutter-xs">
-                <q-file v-model="logoFile" label="Sélectionner un logo (PNG/JPG, max 2Mo)" accept="image/*" filled style="width:300px">
+                <q-file v-model="logoFile" label="Sélectionner un logo (PNG/JPG, max 2Mo)" accept="image/*" filled data-testid="company-logo-input" style="width:300px">
                   <template #prepend><q-icon name="image" /></template>
                 </q-file>
                 <div class="row q-gutter-sm">
-                  <q-btn :loading="uploadingLogo" color="primary" no-caps label="Téléverser" icon="upload" size="sm" @click="handleLogoUpload" :disable="!logoFile" />
-                  <q-btn v-if="companyStore.company?.logo_url" flat color="negative" no-caps label="Supprimer" icon="delete" size="sm" @click="handleLogoDelete" />
+                  <q-btn :loading="uploadingLogo" color="primary" no-caps label="Téléverser" icon="upload" size="sm" data-testid="company-logo-upload-btn" @click="handleLogoUpload" :disable="!logoFile" />
+                  <q-btn v-if="companyStore.company?.logo_url" flat color="negative" no-caps label="Supprimer" icon="delete" size="sm" data-testid="company-logo-delete-btn" @click="handleLogoDelete" />
                 </div>
               </div>
             </div>
 
             <div class="row q-gutter-lg items-center q-mb-md">
-              <q-toggle v-model="invoiceSettingsForm.show_logo" label="Afficher le logo sur la facture PDF" />
+              <q-toggle v-model="invoiceSettingsForm.show_logo" label="Afficher le logo sur la facture PDF" data-testid="toggle-show-logo" />
               <q-btn-toggle
                 v-show="invoiceSettingsForm.show_logo"
                 v-model="invoiceSettingsForm.logo_position"
                 :options="[{label:'Gauche',value:'left'},{label:'Centre',value:'center'},{label:'Droite',value:'right'}]"
                 no-caps flat toggle-color="primary" size="sm"
+                data-testid="logo-position-toggle"
               />
             </div>
 
@@ -129,8 +166,8 @@
             </div>
 
             <div class="row q-gutter-sm justify-end">
-              <q-btn flat no-caps label="Réinitialiser" icon="restart_alt" @click="resetColors" />
-              <q-btn color="primary" no-caps label="Enregistrer charte" icon="palette" :loading="savingInvoiceSettings" @click="saveInvoiceSettings" />
+              <q-btn flat no-caps label="Réinitialiser" icon="restart_alt" data-testid="theme-color-blue" @click="resetColors" />
+              <q-btn color="primary" no-caps label="Enregistrer charte" icon="palette" data-testid="theme-save-btn" :loading="savingInvoiceSettings" @click="saveInvoiceSettings" />
             </div>
           </q-card-section>
         </q-card>
@@ -152,6 +189,7 @@
               :loading="rbacUsersLoading"
               flat
               dense
+              data-testid="users-table"
               :pagination="{ rowsPerPage: 10 }"
             >
               <template v-slot:body-cell-role="props">
@@ -200,6 +238,7 @@
                 v-model="aiForm.openrouter_api_key"
                 label="Clé API OpenRouter"
                 filled
+                data-testid="ai-api-key"
                 :type="showApiKey ? 'text' : 'password'"
                 :disable="!aiForm.ai_enabled"
                 :rules="[v => !aiForm.ai_enabled || !!v || 'Clé API requise pour utiliser l\'IA']"
@@ -215,6 +254,30 @@
                 </template>
               </q-input>
 
+              <!-- Test de connexion API -->
+              <div class="row items-center q-gutter-sm">
+                <q-btn
+                  outline
+                  color="primary"
+                  icon="wifi_tethering"
+                  label="Tester la connexion"
+                  no-caps
+                  size="sm"
+                  :loading="apiTestLoading"
+                  :disable="!aiForm.openrouter_api_key || !aiForm.ai_enabled"
+                  data-testid="ai-test-btn"
+                  @click="testApiConnection"
+                />
+                <q-chip
+                  v-if="apiTestStatus !== null"
+                  dense
+                  :color="apiTestStatus === 'ok' ? 'green' : 'red'"
+                  text-color="white"
+                  :icon="apiTestStatus === 'ok' ? 'check_circle' : 'error'"
+                  :label="apiTestStatus === 'ok' ? 'Connexion OK — ' + apiTestModel : apiTestError"
+                />
+              </div>
+
               <q-select
                 v-model="aiForm.ai_model"
                 :options="availableModels"
@@ -222,6 +285,7 @@
                 map-options
                 label="Modèle IA principal"
                 filled
+                data-testid="ai-provider-select"
                 :disable="!aiForm.ai_enabled"
                 hint="Modèle utilisé par défaut pour l'assistant fiscal"
               >
@@ -257,18 +321,56 @@
                 </template>
               </q-select>
 
-              <q-input
-                v-model="aiForm.ai_system_prompt"
-                label="Prompt système personnalisé (optionnel)"
-                filled
-                type="textarea"
-                autogrow
-                :disable="!aiForm.ai_enabled"
-                hint="Laissez vide pour utiliser le prompt fiscal par défaut"
-              />
+              <!-- Prompt système avec optimiseur -->
+              <div>
+                <div class="row items-center q-mb-xs">
+                  <div class="text-caption text-weight-medium text-grey-8">Prompt système personnalisé (optionnel)</div>
+                  <q-space />
+                  <q-btn-dropdown flat dense size="sm" label="Modèles" icon="auto_awesome" no-caps color="primary">
+                    <q-list dense>
+                      <q-item-label header class="text-caption">Modèles de prompts prêts à l'emploi</q-item-label>
+                      <q-item clickable v-close-popup @click="applyPromptTemplate('fiscal_bf')">
+                        <q-item-section avatar><q-icon name="account_balance" color="blue" /></q-item-section>
+                        <q-item-section><q-item-label>Expert fiscal Burkina Faso</q-item-label><q-item-label caption>Réglementation DGI, TVA, PSVB</q-item-label></q-item-section>
+                      </q-item>
+                      <q-item clickable v-close-popup @click="applyPromptTemplate('comptable_ohada')">
+                        <q-item-section avatar><q-icon name="calculate" color="green" /></q-item-section>
+                        <q-item-section><q-item-label>Comptable OHADA</q-item-label><q-item-label caption>Plan comptable, journaux, bilans</q-item-label></q-item-section>
+                      </q-item>
+                      <q-item clickable v-close-popup @click="applyPromptTemplate('conseiller_gestion')">
+                        <q-item-section avatar><q-icon name="trending_up" color="orange" /></q-item-section>
+                        <q-item-section><q-item-label>Conseiller en gestion</q-item-label><q-item-label caption>Analyse financière, KPIs, stratégie</q-item-label></q-item-section>
+                      </q-item>
+                      <q-item clickable v-close-popup @click="applyPromptTemplate('auditeur')">
+                        <q-item-section avatar><q-icon name="fact_check" color="red" /></q-item-section>
+                        <q-item-section><q-item-label>Auditeur interne</q-item-label><q-item-label caption>Contrôle, risques, conformité</q-item-label></q-item-section>
+                      </q-item>
+                      <q-separator />
+                      <q-item clickable v-close-popup @click="aiForm.ai_system_prompt = ''">
+                        <q-item-section avatar><q-icon name="restart_alt" color="grey" /></q-item-section>
+                        <q-item-section><q-item-label>Réinitialiser (défaut)</q-item-label></q-item-section>
+                      </q-item>
+                    </q-list>
+                  </q-btn-dropdown>
+                </div>
+                <q-input
+                  v-model="aiForm.ai_system_prompt"
+                  filled
+                  type="textarea"
+                  autogrow
+                  rows="5"
+                  :disable="!aiForm.ai_enabled"
+                  placeholder="Laissez vide pour utiliser le prompt fiscal Burkina Faso par défaut..."
+                  hint="Le prompt système définit le comportement et la personnalité de l'assistant IA"
+                />
+                <div v-if="aiForm.ai_system_prompt" class="row justify-between q-mt-xs">
+                  <div class="text-caption text-grey-6">{{ aiForm.ai_system_prompt.length }} caractères</div>
+                  <q-chip dense outline color="primary" icon="tips_and_updates" label="Conseil : soyez précis sur le contexte métier" size="sm" />
+                </div>
+              </div>
 
               <div class="row justify-end q-mt-md">
-                <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps :loading="saving" />
+                <q-btn type="submit" color="primary" icon="save" label="Enregistrer" no-caps data-testid="ai-provider-save-btn" :loading="saving" />
               </div>
             </q-form>
           </q-card-section>
@@ -548,7 +650,7 @@
                 <div class="text-caption text-grey-7">Permettez l'accès à votre système via WhatsApp, Telegram, Email ou API REST</div>
               </div>
               <q-space />
-              <q-toggle v-model="chatbotEnabled" label="Activer" @update:model-value="toggleChatbot" />
+              <q-toggle v-model="chatbotEnabled" label="Activer" data-testid="chatbot-enabled-toggle" @update:model-value="toggleChatbot" />
             </div>
           </q-card-section>
         </q-card>
@@ -560,7 +662,7 @@
               <div class="row items-center q-mb-md">
                 <div class="text-subtitle1 text-weight-medium">Clés API</div>
                 <q-space />
-                <q-btn color="primary" icon="add" label="Nouvelle clé" no-caps size="sm" @click="newKeyDialog = true" />
+                <q-btn color="primary" icon="add" label="Nouvelle clé" no-caps size="sm" data-testid="chatbot-new-key-btn" @click="newKeyDialog = true" />
               </div>
 
               <q-banner v-if="newKeyRaw" class="bg-green-1 q-mb-md" rounded>
@@ -629,7 +731,7 @@
                   <div class="text-caption text-grey-7">Exportez un fichier Markdown complet à utiliser comme base de connaissances pour votre chatbot IA</div>
                 </div>
                 <q-space />
-                <q-btn color="teal" icon="download" label="Exporter le Skill complet" no-caps @click="exportFullSkill" />
+                <q-btn color="teal" icon="download" label="Exporter le Skill complet" no-caps data-testid="chatbot-export-skill-btn" @click="exportFullSkill" />
               </div>
             </q-card-section>
           </q-card>
@@ -893,6 +995,54 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
           </q-card-section>
         </q-card>
       </q-tab-panel>
+
+      <!-- Banque / Stirling PDF OCR -->
+      <q-tab-panel name="banking">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-subtitle1 text-weight-medium q-mb-xs">
+              <q-icon name="document_scanner" class="q-mr-sm" />Configuration OCR — Stirling PDF
+            </div>
+            <div class="text-caption text-grey-7 q-mb-md">
+              Stirling PDF permet l'extraction de texte depuis vos relevés bancaires PDF pour les traiter par IA.
+              Hébergez votre propre instance (<a href="https://github.com/Stirling-Tools/Stirling-PDF" target="_blank" class="text-primary">Stirling-Tools/Stirling-PDF</a>) ou utilisez une instance SaaS.
+            </div>
+            <div class="row q-gutter-sm">
+              <q-input
+                v-model="stirlingForm.url"
+                label="URL de l'instance Stirling PDF"
+                outlined dense
+                class="col-12"
+                placeholder="https://pdf.votre-serveur.com"
+                hint="Ex : http://localhost:8080 ou https://stirling.mondomaine.com"
+                bottom-slots
+                clearable
+              >
+                <template v-slot:prepend><q-icon name="link" /></template>
+              </q-input>
+              <q-input
+                v-model="stirlingForm.key"
+                label="Clé API Stirling (optionnel)"
+                outlined dense
+                class="col-12"
+                type="password"
+                hint="Laissez vide si votre instance n'exige pas d'authentification"
+                bottom-slots
+                clearable
+              >
+                <template v-slot:prepend><q-icon name="vpn_key" /></template>
+              </q-input>
+            </div>
+            <q-banner v-if="stirlingForm.url" class="bg-teal-1 q-mt-sm" rounded dense>
+              <template v-slot:avatar><q-icon name="check_circle" color="teal" size="sm" /></template>
+              <span class="text-teal-9">Instance configurée — l'import PDF utilisera Stirling + IA pour extraire les transactions.</span>
+            </q-banner>
+          </q-card-section>
+          <q-card-actions align="right" class="q-px-md q-pb-md">
+            <q-btn color="primary" label="Enregistrer" no-caps :loading="savingStirling" @click="saveStirling" />
+          </q-card-actions>
+        </q-card>
+      </q-tab-panel>
     </q-tab-panels>
 
     <!-- RBAC: Create user dialog -->
@@ -976,8 +1126,8 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
           <div class="text-h6">Nouvelle clé API Chatbot</div>
         </q-card-section>
         <q-card-section class="q-gutter-sm">
-          <q-input v-model="newKeyForm.name" label="Nom de la clé" filled :rules="[v => !!v || 'Requis']" hint="Ex: WhatsApp Production" />
-          <q-select v-model="newKeyForm.channels" :options="channelOptions" label="Canaux autorisés" filled multiple emit-value map-options use-chips option-label="label" option-value="value" />
+          <q-input v-model="newKeyForm.name" label="Nom de la clé" filled data-testid="chatbot-key-name" :rules="[v => !!v || 'Requis']" hint="Ex: WhatsApp Production" />
+          <q-select v-model="newKeyForm.channels" :options="channelOptions" label="Canaux autorisés" filled data-testid="chatbot-key-channel" multiple emit-value map-options use-chips option-label="label" option-value="value" />
           <q-input v-model="newKeyForm.expires_at" label="Date d'expiration (optionnel)" filled type="date" clearable />
           <q-input v-model.number="newKeyForm.rate_limit" label="Limite requêtes/heure" filled type="number" :rules="[v => v > 0 || 'Min 1']" />
 
@@ -991,7 +1141,7 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Annuler" v-close-popup no-caps />
-          <q-btn color="primary" label="Créer la clé" no-caps :loading="saving" @click="onCreateKey" />
+          <q-btn color="primary" label="Créer la clé" no-caps data-testid="chatbot-key-save-btn" :loading="saving" @click="onCreateKey" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -1151,6 +1301,40 @@ const { encrypt, decrypt } = useCrypto();
 
 const tab = ref('company');
 const saving = ref(false);
+
+// --- Mon Profil Utilisateur ---
+const profileSaving = ref(false);
+const profileForm = reactive({
+  full_name: '',
+  phone: '',
+  email: '',
+  two_fa_enabled: true,
+});
+
+function initProfileForm() {
+  profileForm.full_name = authStore.fullName ?? '';
+  profileForm.phone = authStore.profile?.phone ?? '';
+  profileForm.email = authStore.user?.email ?? '';
+  profileForm.two_fa_enabled = authStore.profile?.two_fa_enabled ?? true;
+}
+
+async function saveUserProfile() {
+  profileSaving.value = true;
+  try {
+    const { error } = await insforge.database
+      .from('user_profiles')
+      .update({ full_name: profileForm.full_name, phone: profileForm.phone, two_fa_enabled: profileForm.two_fa_enabled })
+      .eq('user_id', authStore.user?.id ?? '');
+    if (error) throw new Error(error.message);
+    $q.notify({ type: 'positive', message: 'Profil mis à jour avec succès' });
+    await authStore.refreshProfile?.();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erreur lors de la mise à jour';
+    $q.notify({ type: 'negative', message: msg });
+  } finally {
+    profileSaving.value = false;
+  }
+}
 
 // --- Profil Fiscal ---
 const { taxSubRegimeOptions } = useFiscalProfile();
@@ -1339,6 +1523,61 @@ const aiForm = ref({
   ai_system_prompt: '',
   openrouter_api_key: '',
 });
+
+// --- Test de connexion API ---
+const apiTestLoading = ref(false);
+const apiTestStatus = ref<'ok' | 'error' | null>(null);
+const apiTestModel = ref('');
+const apiTestError = ref('');
+
+async function testApiConnection() {
+  if (!aiForm.value.openrouter_api_key) return;
+  apiTestLoading.value = true;
+  apiTestStatus.value = null;
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${aiForm.value.openrouter_api_key}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'WIMRUX FINANCES',
+      },
+      body: JSON.stringify({
+        model: aiForm.value.ai_model || 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Réponds uniquement "OK".' }],
+        max_tokens: 5,
+      }),
+    });
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({ error: { message: resp.statusText } })) as { error?: { message?: string } };
+      throw new Error(errData?.error?.message || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json() as { model?: string };
+    apiTestStatus.value = 'ok';
+    apiTestModel.value = data.model || aiForm.value.ai_model;
+  } catch (err: unknown) {
+    apiTestStatus.value = 'error';
+    apiTestError.value = err instanceof Error ? err.message : 'Erreur inconnue';
+  } finally {
+    apiTestLoading.value = false;
+  }
+}
+
+// --- Modèles de prompts système ---
+const PROMPT_TEMPLATES: Record<string, string> = {
+  fiscal_bf: `Tu es un expert en fiscalité burkinabè travaillant pour WIMRUX® FINANCES.\nTu maîtrises parfaitement :\n- La réglementation DGI Burkina Faso (TVA 18%, PSVB, groupes A-P)\n- Les factures normalisées certifiées et les exigences MCF/FNEC\n- Le régime RNI, RSI et les obligations déclaratives\n- Le timbre de quittance et les seuils d'application\nRéponds toujours en français. Cite les textes réglementaires quand c'est pertinent.`,
+  comptable_ohada: `Tu es un comptable expert certifié OHADA travaillant pour WIMRUX® FINANCES.\nTu maîtrises :\n- Le plan comptable OHADA (PCG OHADA)\n- La saisie comptable, les journaux et les rapprochements\n- L'établissement des états financiers (bilan, compte de résultat)\n- La clôture d'exercice et les écritures d'inventaire\nRéponds en français avec des exemples d'écritures comptables quand c'est utile.`,
+  conseiller_gestion: `Tu es un conseiller en gestion d'entreprise pour WIMRUX® FINANCES.\nTu aides les dirigeants à :\n- Analyser leurs indicateurs financiers clés (KPIs, ratios)\n- Optimiser leur trésorerie et gérer les flux de trésorerie\n- Prendre des décisions éclairées basées sur les données\n- Définir des stratégies de croissance et de rentabilité\nRéponds en français avec des conseils pratiques et actionnables.`,
+  auditeur: `Tu es un auditeur interne expert pour WIMRUX® FINANCES.\nTu analyses :\n- Les risques financiers et opérationnels\n- La conformité aux procédures internes et réglementaires\n- Les anomalies et incohérences dans les transactions\n- La ségrégation des tâches et les contrôles internes\nRéponds en français avec un niveau de risque (Faible/Moyen/Élevé) et des recommandations concrètes.`,
+};
+
+function applyPromptTemplate(key: string) {
+  if (PROMPT_TEMPLATES[key]) {
+    aiForm.value.ai_system_prompt = PROMPT_TEMPLATES[key];
+  }
+}
+
 
 interface ModelOption { label: string; value: string; provider: string; hasImage: boolean }
 
@@ -2059,6 +2298,32 @@ async function saveAiConfig() {
   }
 }
 
+// --- Stirling PDF config ---
+const stirlingForm = ref({ url: '', key: '' });
+const savingStirling = ref(false);
+
+function loadStirlingForm() {
+  stirlingForm.value.url = companyStore.company?.stirling_api_url ?? '';
+  stirlingForm.value.key = companyStore.company?.stirling_api_key ?? '';
+}
+
+async function saveStirling() {
+  savingStirling.value = true;
+  try {
+    const result = await companyStore.updateCompany({
+      stirling_api_url: stirlingForm.value.url || null,
+      stirling_api_key: stirlingForm.value.key || null,
+    });
+    if (result?.error) {
+      $q.notify({ type: 'negative', message: result.error.message });
+    } else {
+      $q.notify({ type: 'positive', message: 'Configuration Stirling enregistrée' });
+    }
+  } finally {
+    savingStirling.value = false;
+  }
+}
+
 async function saveCompany() {
   saving.value = true;
   try {
@@ -2083,6 +2348,12 @@ onMounted(async () => {
   loadChatbotState();
   initEditMatrix();
   initFiscalForm();
-  await Promise.all([chatbot.loadApiKeys(), loadRbacUsers()]);
+  initProfileForm();
+  loadStirlingForm();
+  await Promise.all([
+    chatbot.loadApiKeys(),
+    loadRbacUsers(),
+    loadUsageStats(),   // charge les stats IA dès l'ouverture
+  ]);
 });
 </script>

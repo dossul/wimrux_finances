@@ -25,7 +25,7 @@
     </div>
 
     <!-- Global KPI Cards -->
-    <div class="row q-gutter-sm q-mb-lg">
+    <div class="row q-gutter-sm q-mb-lg" data-testid="ai-usage-chart">
       <q-card flat bordered class="col">
         <q-card-section class="text-center q-pa-sm">
           <div class="text-grey-7 text-caption">Total requêtes</div>
@@ -59,7 +59,7 @@
     </div>
 
     <!-- Usage by Company -->
-    <q-card flat bordered class="q-mb-md">
+    <q-card flat bordered class="q-mb-md" data-testid="ai-usage-by-user">
       <q-card-section>
         <div class="text-subtitle1 text-weight-medium q-mb-sm">
           <q-icon name="business" class="q-mr-xs" />Consommation par entreprise
@@ -93,7 +93,7 @@
     </q-card>
 
     <!-- Usage by Model (global) -->
-    <q-card flat bordered class="q-mb-md">
+    <q-card flat bordered class="q-mb-md" data-testid="ai-usage-by-model">
       <q-card-section>
         <div class="text-subtitle1 text-weight-medium q-mb-sm">
           <q-icon name="memory" class="q-mr-xs" />Consommation par modèle (global)

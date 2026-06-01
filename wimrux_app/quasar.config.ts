@@ -15,7 +15,8 @@ export default defineConfig((ctx) => {
     boot: [
       'i18n',
       'axios',
-      'insforge'
+      'insforge',
+      'token-refresh',   // Auto-refresh JWT on 401 invalid token
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
@@ -64,7 +65,7 @@ export default defineConfig((ctx) => {
       // ignorePublicFolder: true,
       // minify: false,
       // polyfillModulePreload: true,
-      // distDir
+      distDir: 'dist/build',
 
       // extendViteConf (viteConf) {},
       // viteVuePluginOptions: {},

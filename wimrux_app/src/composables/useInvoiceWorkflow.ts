@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { insforge } from 'src/boot/insforge';
+import { useEmailService } from 'src/composables/useEmailService';
 import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } from 'src/types';
 
 // ============================================================================
@@ -66,6 +67,7 @@ function isSubmitter(invoice: Partial<Invoice>, userId: string): boolean {
 
 export function useInvoiceWorkflow() {
   const authStore = useAuthStore();
+  const emailService = useEmailService();
 
   const currentRole = computed(() => authStore.role);
   const currentUserId = computed(() => authStore.user?.id ?? '');
@@ -242,6 +244,50 @@ export function useInvoiceWorkflow() {
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    // E06 — Confirmation paiement reçu (statut 'paid' ou équivalent 'accepted' pour proforma)
+    if (targetStatus === 'accepted') {
+      const clientEmail = (invoice as Record<string, unknown>).client_email as string | undefined;
+      const clientName  = (invoice as Record<string, unknown>).client_name as string | undefined;
+      const invoiceRef  = (invoice as Record<string, unknown>).invoice_number as string | undefined;
+      const total       = (invoice as Record<string, unknown>).total_ttc as number | undefined;
+      if (clientEmail && invoiceRef) {
+        try {
+          await emailService.sendPaymentConfirmedEmail({
+            to: clientEmail,
+            clientName: clientName ?? clientEmail,
+            invoiceRef,
+            amount: total != null ? total.toFixed(0) : '',
+          });
+        } catch (emailErr) {
+          console.warn('Email confirmation paiement failed:', emailErr);
+        }
+      }
+    }
+
+    // E05 — Envoi email client quand statut = 'sent'
+    if (targetStatus === 'sent') {
+      const clientEmail = (invoice as Record<string, unknown>).client_email as string | undefined;
+      const clientName  = (invoice as Record<string, unknown>).client_name as string | undefined;
+      const invoiceRef  = (invoice as Record<string, unknown>).invoice_number as string | undefined;
+      const total       = (invoice as Record<string, unknown>).total_ttc as number | undefined;
+      const dueDate     = (invoice as Record<string, unknown>).due_date as string | undefined;
+      const companyName = authStore.fullName ?? 'WIMRUX Finance';
+      if (clientEmail && invoiceRef) {
+        try {
+          await emailService.sendInvoiceEmail({
+            to: clientEmail,
+            clientName: clientName ?? clientEmail,
+            invoiceRef,
+            amount: total != null ? total.toFixed(0) : '',
+            ...(dueDate ? { dueDate } : {}),
+            companyName,
+          });
+        } catch (emailErr) {
+          console.warn('Email facture failed:', emailErr);
+        }
+      }
     }
 
     return { success: true };

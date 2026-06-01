@@ -23,15 +23,23 @@ export function useRealtimeNotifications() {
   const authStore = useAuthStore();
   const connected = ref(false);
   const events = ref<RealtimeEvent[]>([]);
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryCount = 0;
+  const MAX_RETRY = 3;
 
   async function connect() {
     const companyId = authStore.companyId;
     if (!companyId) return;
 
+    // Éviter les reconnexions en boucle (B-03 : conflit MCF / Wimrux Facturation)
+    if (connected.value) return;
+
     try {
       await insforge.realtime.connect();
       connected.value = true;
+      retryCount = 0;
 
+      // Canaux spécifiques à Wimrux Finances
       await insforge.realtime.subscribe(`invoices:${companyId}`);
       await insforge.realtime.subscribe(`audit:${companyId}`);
 
@@ -61,23 +69,41 @@ export function useRealtimeNotifications() {
 
       insforge.realtime.on('disconnect', () => {
         connected.value = false;
+        scheduleRetry();
       });
 
       insforge.realtime.on('connect_error', () => {
         connected.value = false;
+        scheduleRetry();
       });
     } catch {
+      // B-03 : La connexion Realtime échoue silencieusement (pas d'erreur visible)
+      // Planifier une nouvelle tentative avec backoff exponentiel
       connected.value = false;
+      scheduleRetry();
     }
   }
 
+  function scheduleRetry() {
+    if (retryTimer || retryCount >= MAX_RETRY) return;
+    retryCount++;
+    const delay = Math.min(5000 * retryCount, 30000); // 5s, 10s, 15s max
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      void connect();
+    }, delay);
+  }
+
   function disconnect() {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     const companyId = authStore.companyId;
     if (companyId) {
-      insforge.realtime.unsubscribe(`invoices:${companyId}`);
-      insforge.realtime.unsubscribe(`audit:${companyId}`);
+      try {
+        insforge.realtime.unsubscribe(`invoices:${companyId}`);
+        insforge.realtime.unsubscribe(`audit:${companyId}`);
+      } catch { /* ignore */ }
     }
-    insforge.realtime.disconnect();
+    try { insforge.realtime.disconnect(); } catch { /* ignore */ }
     connected.value = false;
   }
 

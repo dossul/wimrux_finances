@@ -3,26 +3,26 @@
     <div class="row items-center q-mb-md">
       <div class="text-h5">Rapports</div>
       <q-space />
-      <q-btn outline color="primary" icon="download" label="Export CSV" no-caps size="sm" @click="exportReportCsv" />
+      <q-btn outline color="primary" icon="download" label="Export CSV" no-caps size="sm" data-testid="report-export-csv-btn" @click="exportReportCsv" />
     </div>
 
     <!-- Filters -->
     <q-card flat bordered class="q-mb-md">
       <q-card-section>
         <div class="row q-gutter-sm items-end">
-          <q-select v-model="period" :options="periodOptions" emit-value map-options outlined dense label="Période" style="min-width: 180px" />
+          <q-select v-model="period" :options="periodOptions" emit-value map-options outlined dense label="Période" data-testid="report-period" style="min-width: 180px" />
           <q-input v-model="dateFrom" outlined dense type="date" label="Du" style="width: 160px" />
           <q-input v-model="dateTo" outlined dense type="date" label="Au" style="width: 160px" />
-          <q-btn color="primary" icon="refresh" label="Générer" no-caps @click="generateReport" :loading="loading" />
+          <q-btn color="primary" icon="refresh" label="Générer" no-caps data-testid="report-generate-btn" @click="generateReport" :loading="loading" />
         </div>
       </q-card-section>
     </q-card>
 
     <!-- Tabs -->
     <q-tabs v-model="activeTab" dense class="text-grey q-mb-md" active-color="primary" indicator-color="primary" align="left" narrow-indicator>
-      <q-tab name="summary" label="Synthèse" icon="bar_chart" no-caps />
-      <q-tab name="income" label="Compte de résultat" icon="receipt_long" no-caps />
-      <q-tab name="aging" label="Balance âgée" icon="schedule" no-caps />
+      <q-tab name="summary" label="Synthèse" icon="bar_chart" no-caps data-testid="tab-summary" />
+      <q-tab name="income" label="Compte de résultat" icon="receipt_long" no-caps data-testid="tab-income" />
+      <q-tab name="aging" label="Balance âgée" icon="schedule" no-caps data-testid="tab-aging" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -34,7 +34,7 @@
             <q-card flat bordered>
               <q-card-section>
                 <div class="text-caption text-grey-7">Total factures</div>
-                <div class="text-h5 text-weight-bold">{{ report.totalCount }}</div>
+                <div class="text-h5 text-weight-bold" data-testid="kpi-invoice-count">{{ report.totalCount }}</div>
               </q-card-section>
             </q-card>
           </div>
@@ -42,7 +42,7 @@
             <q-card flat bordered>
               <q-card-section>
                 <div class="text-caption text-grey-7">CA HT</div>
-                <div class="text-h5 text-weight-bold text-blue">{{ fmtCur(report.totalHT) }}</div>
+                <div class="text-h5 text-weight-bold text-blue" data-testid="kpi-revenue-ht">{{ fmtCur(report.totalHT) }}</div>
               </q-card-section>
             </q-card>
           </div>
@@ -50,7 +50,7 @@
             <q-card flat bordered>
               <q-card-section>
                 <div class="text-caption text-grey-7">TVA collectée</div>
-                <div class="text-h5 text-weight-bold text-orange">{{ fmtCur(report.totalTVA) }}</div>
+                <div class="text-h5 text-weight-bold text-orange" data-testid="kpi-tva-collected">{{ fmtCur(report.totalTVA) }}</div>
               </q-card-section>
             </q-card>
           </div>
@@ -58,7 +58,7 @@
             <q-card flat bordered>
               <q-card-section>
                 <div class="text-caption text-grey-7">CA TTC</div>
-                <div class="text-h5 text-weight-bold text-green">{{ fmtCur(report.totalTTC) }}</div>
+                <div class="text-h5 text-weight-bold text-green" data-testid="kpi-total-ttc">{{ fmtCur(report.totalTTC) }}</div>
               </q-card-section>
             </q-card>
           </div>

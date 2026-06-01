@@ -5,7 +5,7 @@
       <q-space />
       <q-btn color="green-7" icon="arrow_downward" label="Dépôt caisse" no-caps class="q-mr-sm" @click="openCashDialog('credit')" />
       <q-btn color="red-7" icon="arrow_upward" label="Retrait caisse" no-caps class="q-mr-sm" @click="openCashDialog('debit')" />
-      <q-btn color="primary" icon="add" label="Mouvement" no-caps @click="openDialog()" />
+      <q-btn color="primary" icon="add" label="Mouvement" no-caps data-testid="treasury-new-movement-btn" @click="openDialog()" />
     </div>
 
     <!-- Account summary cards -->
@@ -26,7 +26,7 @@
           <q-card-section class="text-center text-grey-5">
             <q-icon name="account_balance" size="32px" class="q-mb-sm" />
             <div>Aucun compte</div>
-            <q-btn flat size="sm" color="primary" label="Créer un compte" no-caps @click="openAccountDialog()" class="q-mt-sm" />
+            <q-btn flat size="sm" color="primary" label="Créer un compte" no-caps data-testid="bank-account-new-btn" @click="openAccountDialog()" class="q-mt-sm" />
           </q-card-section>
         </q-card>
       </div>
@@ -74,15 +74,15 @@
         </q-card-section>
         <q-card-section>
           <q-form @submit.prevent="saveMovement" class="q-gutter-sm">
-            <q-select v-model="form.account_id" :options="accountOptions" emit-value map-options label="Compte" filled :rules="[v => !!v || 'Compte requis']" />
-            <q-btn-toggle v-model="form.type" :options="[{label:'Entrée (crédit)',value:'credit'},{label:'Sortie (débit)',value:'debit'}]" spread no-caps class="q-mb-sm" />
-            <q-input v-model.number="form.amount" label="Montant (FCFA)" filled type="number" :rules="[v => v > 0 || 'Montant > 0']" />
-            <q-input v-model="form.description" label="Description" filled :rules="[v => !!v || 'Description requise']" />
-            <q-select v-model="form.payment_type" :options="paymentOptions" emit-value map-options label="Mode de paiement" filled />
+            <q-select v-model="form.account_id" :options="accountOptions" emit-value map-options label="Compte" filled data-testid="movement-account" :rules="[v => !!v || 'Compte requis']" />
+            <q-btn-toggle v-model="form.type" :options="[{label:'Entrée (crédit)',value:'credit'},{label:'Sortie (débit)',value:'debit'}]" spread no-caps class="q-mb-sm" data-testid="movement-type" />
+            <q-input v-model.number="form.amount" label="Montant (FCFA)" filled type="number" data-testid="movement-amount" :rules="[v => v > 0 || 'Montant > 0']" />
+            <q-input v-model="form.description" label="Description" filled data-testid="movement-reference" :rules="[v => !!v || 'Description requise']" />
+            <q-select v-model="form.payment_type" :options="paymentOptions" emit-value map-options label="Mode de paiement" filled data-testid="movement-mode" />
             <q-input v-model="form.reference" label="Référence (optionnel)" filled />
             <div class="row justify-end q-gutter-sm q-mt-md">
               <q-btn flat label="Annuler" v-close-popup no-caps />
-              <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" no-caps />
+              <q-btn type="submit" color="primary" label="Enregistrer" data-testid="movement-save-btn" :loading="saving" no-caps />
             </div>
           </q-form>
         </q-card-section>
@@ -97,12 +97,12 @@
         </q-card-section>
         <q-card-section>
           <q-form @submit.prevent="saveAccount" class="q-gutter-sm">
-            <q-input v-model="accountForm.name" label="Nom du compte" filled :rules="[v => !!v || 'Nom requis']" />
-            <q-select v-model="accountForm.type" :options="['caisse','banque','mobile_money']" label="Type" filled />
-            <q-input v-model.number="accountForm.balance" label="Solde initial" filled type="number" />
+            <q-input v-model="accountForm.name" label="Nom du compte" filled data-testid="bank-account-name" :rules="[v => !!v || 'Nom requis']" />
+            <q-select v-model="accountForm.type" :options="['caisse','banque','mobile_money']" label="Type" filled data-testid="bank-account-type" />
+            <q-input v-model.number="accountForm.balance" label="Solde initial" filled type="number" data-testid="bank-account-balance" />
             <div class="row justify-end q-gutter-sm q-mt-md">
               <q-btn flat label="Annuler" v-close-popup no-caps />
-              <q-btn type="submit" color="primary" label="Créer" :loading="saving" no-caps />
+              <q-btn type="submit" color="primary" label="Créer" data-testid="bank-account-save-btn" :loading="saving" no-caps />
             </div>
           </q-form>
         </q-card-section>

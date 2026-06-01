@@ -52,6 +52,20 @@ Réponds en français de manière structurée.`,
 - Les incohérences de dates
 - Les patterns suspects
 Réponds en français avec un niveau de risque pour chaque anomalie.`,
+  bank_statement_ocr: `Tu es un expert en relevés bancaires africains (Burkina Faso, Côte d'Ivoire, Sénégal, Mali, Togo, Bénin, Guinée, Cameroun).
+À partir du texte brut d'un relevé bancaire extrait par OCR, extrait TOUTES les transactions et retourne UNIQUEMENT un tableau JSON valide.
+
+FORMAT OBLIGATOIRE (rien d'autre que le JSON) :
+[{"transaction_date":"YYYY-MM-DD","value_date":"YYYY-MM-DD ou null","amount":125000,"direction":"debit ou credit","label":"libellé","reference":"ref ou null"}]
+
+RÈGLES :
+- direction="credit" pour les entrées (virement reçu, versement, remise chèque)
+- direction="debit" pour les sorties (retrait, paiement, commission, frais)
+- amount = valeur absolue positive
+- Ignore soldes, totaux, en-têtes, pieds de page
+- Normalise les dates en YYYY-MM-DD
+- Retourne [] si aucune transaction
+- NE retourne RIEN d'autre que le tableau JSON`,
 };
 
 const DEFAULT_ROUTING: AiRouting = {
@@ -61,6 +75,7 @@ const DEFAULT_ROUTING: AiRouting = {
   suggestion_fiscale:    { model: 'anthropic/claude-sonnet-4.5', fallback: 'openai/gpt-4o', temperature: 0.4, max_tokens: 2048, enabled: true },
   classification_depense:{ model: 'openai/gpt-4o-mini', fallback: 'deepseek/deepseek-v3.2', temperature: 0.1, max_tokens: 512, enabled: true },
   detection_anomalie:    { model: 'openai/gpt-4o', fallback: 'anthropic/claude-sonnet-4.5', temperature: 0.1, max_tokens: 2048, enabled: true },
+  bank_statement_ocr:    { model: 'openai/gpt-4o', fallback: 'anthropic/claude-sonnet-4.5', temperature: 0.0, max_tokens: 4096, enabled: true },
 };
 
 interface OpenRouterResponse {
@@ -86,29 +101,58 @@ export const AI_TASK_LABELS: Record<AiTaskType, { label: string; icon: string; d
   suggestion_fiscale:     { label: 'Suggestions fiscales',    icon: 'lightbulb',       description: 'Recommandations d\'optimisation fiscale' },
   classification_depense: { label: 'Classification dépenses', icon: 'category',        description: 'Catégorisation comptable OHADA' },
   detection_anomalie:     { label: 'Détection d\'anomalies',  icon: 'warning',         description: 'Audit automatique et alertes' },
+  bank_statement_ocr:     { label: 'OCR Relevé bancaire',     icon: 'document_scanner', description: 'Extraction transactions depuis PDF/image' },
 };
 
 export function getDefaultRouting(): AiRouting {
   return JSON.parse(JSON.stringify(DEFAULT_ROUTING));
 }
 
+// ─── Module-level singleton state ────────────────────────────────────────────
+// Declared OUTSIDE useAiAssistant() so state persists across navigation /
+// component remounts. Every call to useAiAssistant() shares the same refs.
+const _messages   = ref<ChatMessage[]>([]);
+const _loading    = ref(false);
+const _error      = ref<string | null>(null);
+const _activeModel = ref('');
+const _activeTask  = ref<AiTaskType>('assistant_fiscal');
+
 export function useAiAssistant() {
-  const messages = ref<ChatMessage[]>([]);
-  const loading = ref(false);
-  const error = ref<string | null>(null);
-  const activeModel = ref('');
-  const activeTask = ref<AiTaskType>('assistant_fiscal');
+  const messages   = _messages;
+  const loading    = _loading;
+  const error      = _error;
+  const activeModel = _activeModel;
+  const activeTask  = _activeTask;
 
   const { decrypt } = useCrypto();
 
+  // Always read fresh from store so model changes in Settings apply immediately
   function getCompanyConfig() {
     const company = useCompanyStore().company;
     return {
       encryptedKey: company?.openrouter_api_key || '',
       enabled: company?.ai_enabled ?? true,
-      routing: company?.ai_routing || DEFAULT_ROUTING,
+      routing: (company?.ai_routing as AiRouting | null) || DEFAULT_ROUTING,
       customPrompt: company?.ai_system_prompt || null,
     };
+  }
+
+  /**
+   * SaaS fallback: if the current tenant has no API key,
+   * fetch the platform provider company's key transparently.
+   */
+  async function resolvePlatformKey(): Promise<string> {
+    try {
+      const { data } = await insforge.database
+        .from('companies')
+        .select('openrouter_api_key')
+        .eq('is_platform_provider', true)
+        .limit(1);
+      const row = (data as { openrouter_api_key?: string | null }[] | null)?.[0];
+      return row?.openrouter_api_key || '';
+    } catch {
+      return '';
+    }
   }
 
   async function resolveApiKey(encryptedKey: string): Promise<string> {
@@ -214,12 +258,19 @@ export function useAiAssistant() {
       addMessage('assistant', '⚠️ L\'assistant IA est désactivé. Activez-le dans Paramètres > Intelligence Artificielle.');
       return;
     }
-    if (!config.encryptedKey) {
+
+    // Resolve key: tenant key first, then platform provider key (SaaS fallback)
+    let encryptedKey = config.encryptedKey;
+    if (!encryptedKey) {
+      encryptedKey = await resolvePlatformKey();
+    }
+    if (!encryptedKey) {
       addMessage('user', userMessage);
-      addMessage('assistant', '⚠️ Aucune clé API OpenRouter configurée. Ajoutez-la dans Paramètres > Intelligence Artificielle.');
+      addMessage('assistant', '⚠️ Aucune clé API OpenRouter configurée. Contactez votre administrateur ou ajoutez votre propre clé dans Paramètres → Intelligence Artificielle.');
       return;
     }
-    const apiKey = await resolveApiKey(config.encryptedKey);
+    const apiKey = await resolveApiKey(encryptedKey);
+
 
     const route = getTaskRoute(task);
     if (!route.enabled) {
@@ -278,10 +329,19 @@ export function useAiAssistant() {
   /** One-shot AI call for programmatic use (no chat history) */
   async function runTask(task: AiTaskType, prompt: string): Promise<{ result: string; error: string | null }> {
     const config = getCompanyConfig();
-    if (!config.enabled || !config.encryptedKey) return { result: '', error: 'IA non configurée' };
-    const apiKey = await resolveApiKey(config.encryptedKey);
+    if (!config.enabled) return { result: '', error: 'IA désactivée' };
+
+    // SaaS fallback: tenant key → platform key
+    let encryptedKey = config.encryptedKey;
+    if (!encryptedKey) {
+      encryptedKey = await resolvePlatformKey();
+    }
+    if (!encryptedKey) return { result: '', error: 'IA non configurée — clé API manquante' };
+
+    const apiKey = await resolveApiKey(encryptedKey);
     const route = getTaskRoute(task);
     if (!route.enabled) return { result: '', error: 'Tâche désactivée' };
+
 
     const apiMessages = [
       { role: 'system', content: TASK_SYSTEM_PROMPTS[task] },

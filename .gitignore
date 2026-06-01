@@ -11,6 +11,16 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
+
+# Sensitive docs & credentials (never push to remote)
+product_use/
+CREDENTIALS_*.md
+EPIC_24_CREDENTIALS_REQUIREMENTS.md
+update_credentials.sql
+update_users.ps1
+update_emails.ps1
+update_auth_emails.sql
 
 # Editor directories and files
 .idea
@@ -23,3 +33,18 @@ node_modules/
 
 # OS specific
 .DS_Store
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf

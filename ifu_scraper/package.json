@@ -1,0 +1,17 @@
+{
+  "name": "wimrux-ifu-scraper",
+  "version": "1.0.0",
+  "description": "Service de vérification IFU DGI Burkina Faso via Browserless + Puppeteer",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "verify": "node verify-batch.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "p-queue": "^8.0.1",
+    "puppeteer-core": "^22.6.0"
+  }
+}

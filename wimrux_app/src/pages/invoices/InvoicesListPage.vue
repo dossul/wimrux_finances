@@ -3,8 +3,8 @@
     <div class="row items-center q-mb-md">
       <div class="text-h5">Factures</div>
       <q-space />
-      <q-btn outline color="primary" icon="download" label="Export CSV" no-caps class="q-mr-sm" @click="exportCsv" />
-      <q-btn-dropdown v-if="!isReadOnly" color="primary" icon="add" label="Nouvelle facture" no-caps>
+      <q-btn outline color="primary" icon="download" label="Export CSV" no-caps class="q-mr-sm" data-testid="export-csv-btn" @click="exportCsv" />
+      <q-btn-dropdown v-if="!isReadOnly" color="primary" icon="add" label="Nouvelle facture" no-caps data-testid="invoice-new-btn">
         <q-list>
           <q-item clickable v-close-popup v-for="t in invoiceTypeOptions" :key="t.value" @click="createInvoice(t.value)">
             <q-item-section avatar><q-icon name="receipt_long" /></q-item-section>
@@ -18,10 +18,10 @@
     </div>
 
     <div class="row q-gutter-sm q-mb-md">
-      <q-input v-model="search" outlined dense placeholder="Rechercher..." class="col" clearable>
+      <q-input v-model="search" outlined dense placeholder="Rechercher..." class="col" data-testid="invoice-search" clearable>
         <template v-slot:prepend><q-icon name="search" /></template>
       </q-input>
-      <q-select v-model="filterStatus" :options="statusOptions" emit-value map-options outlined dense clearable placeholder="Statut" style="min-width: 150px" />
+      <q-select v-model="filterStatus" :options="statusOptions" emit-value map-options outlined dense clearable placeholder="Statut" data-testid="invoice-status-filter" style="min-width: 150px" />
       <q-select v-model="filterType" :options="invoiceTypeOptions" emit-value map-options outlined dense clearable placeholder="Type" style="min-width: 120px" />
     </div>
 
@@ -34,32 +34,24 @@
       bordered
       :pagination="{ rowsPerPage: 20, sortBy: 'created_at', descending: true }"
     >
-      <template v-slot:body-cell-type="props">
-        <q-td :props="props">
-          <q-badge :color="typeColor(props.row.type)" :label="props.row.type" />
-        </q-td>
-      </template>
-      <template v-slot:body-cell-status="props">
-        <q-td :props="props">
-          <q-badge :color="statusColor(props.row.status)" :label="statusLabel(props.row.status)" />
-        </q-td>
-      </template>
-      <template v-slot:body-cell-total_ttc="props">
-        <q-td :props="props" class="text-weight-bold">
-          {{ formatCurrency(props.row.total_ttc) }}
-        </q-td>
-      </template>
-      <template v-slot:body-cell-created_at="props">
-        <q-td :props="props">
-          {{ formatDate(props.row.created_at) }}
-        </q-td>
-      </template>
-      <template v-slot:body-cell-actions="props">
-        <q-td :props="props">
-          <q-btn flat dense icon="visibility" size="sm" @click="$router.push(`/app/invoices/${props.row.id}`)" />
-          <q-btn v-if="props.row.status === 'draft'" flat dense icon="edit" size="sm" @click="$router.push(`/app/invoices/${props.row.id}`)" />
-          <q-btn v-if="props.row.status === 'draft'" flat dense icon="delete" size="sm" color="negative" @click="confirmDeleteDraft(props.row)" />
-        </q-td>
+      <template v-slot:body="props">
+        <q-tr :props="props" :data-testid="'invoice-row-' + props.row.status">
+          <q-td key="type" :props="props">
+            <q-badge :color="typeColor(props.row.type)" :label="props.row.type" />
+          </q-td>
+          <q-td key="reference" :props="props">{{ props.row.reference }}</q-td>
+          <q-td key="client" :props="props">{{ props.row.client?.name }}</q-td>
+          <q-td key="status" :props="props">
+            <q-badge :color="statusColor(props.row.status)" :label="statusLabel(props.row.status)" />
+          </q-td>
+          <q-td key="total_ttc" :props="props" class="text-weight-bold">{{ formatCurrency(props.row.total_ttc) }}</q-td>
+          <q-td key="created_at" :props="props">{{ formatDate(props.row.created_at) }}</q-td>
+          <q-td key="actions" :props="props">
+            <q-btn flat dense icon="visibility" size="sm" data-testid="invoice-menu-btn" @click="$router.push(`/app/invoices/${props.row.id}`)" />
+            <q-btn v-if="props.row.status === 'draft'" flat dense icon="edit" size="sm" data-testid="invoice-edit-btn" @click="$router.push(`/app/invoices/${props.row.id}`)" />
+            <q-btn v-if="props.row.status === 'draft'" flat dense icon="delete" size="sm" color="negative" data-testid="invoice-delete-draft-btn" @click="confirmDeleteDraft(props.row)" />
+          </q-td>
+        </q-tr>
       </template>
     </q-table>
   </q-page>
@@ -152,11 +144,11 @@ async function loadInvoices() {
   try {
     const { data, error } = await insforge.database
       .from('invoices')
-      .select('*')
+      .select('id, type, reference, status, total_ttc, created_at, client_id, client:clients(name)')
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      invoices.value = data as Invoice[];
+      invoices.value = data as unknown as Invoice[];
     }
   } finally {
     loading.value = false;

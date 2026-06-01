@@ -10,6 +10,7 @@
           v-model="companyIfu"
           label="IFU de l'entreprise"
           filled
+          data-testid="reg-ifu"
           hint="Saisissez l'IFU pour rejoindre votre entreprise"
           :rules="[val => !!val || 'IFU requis']"
           :error="!!ifuError"
@@ -32,6 +33,7 @@
           v-model="fullName"
           label="Nom complet"
           filled
+          data-testid="reg-fullname"
           :rules="[val => !!val || 'Nom requis']"
         >
           <template v-slot:prepend><q-icon name="person" /></template>
@@ -42,6 +44,7 @@
           label="Adresse email"
           type="email"
           filled
+          data-testid="reg-email"
           :rules="[val => !!val || 'Email requis', val => /.+@.+\..+/.test(val) || 'Email invalide']"
         >
           <template v-slot:prepend><q-icon name="email" /></template>
@@ -52,6 +55,7 @@
           label="Mot de passe"
           :type="showPassword ? 'text' : 'password'"
           filled
+          data-testid="reg-password"
           :rules="[val => !!val || 'Mot de passe requis', val => val.length >= 8 || 'Minimum 8 caractères']"
         >
           <template v-slot:prepend><q-icon name="lock" /></template>
@@ -71,6 +75,7 @@
           map-options
           label="Rôle"
           filled
+          data-testid="reg-role"
         >
           <template v-slot:prepend><q-icon name="badge" /></template>
         </q-select>
@@ -78,6 +83,7 @@
         <q-btn
           type="submit"
           label="S'inscrire"
+          data-testid="reg-submit"
           color="primary"
           class="full-width"
           size="lg"
@@ -101,11 +107,13 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth-store';
 import { insforge } from 'src/boot/insforge';
+import { useEmailService } from 'src/composables/useEmailService';
 import type { Company, UserRole } from 'src/types';
 
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
+const emailService = useEmailService();
 
 const companyIfu = ref('');
 const companyFound = ref<Company | null>(null);
@@ -173,11 +181,19 @@ async function onSubmit() {
       }
     }
 
+    // E03 — Email de bienvenue
+    try {
+      await emailService.sendWelcomeEmail(email.value, fullName.value);
+    } catch (err) {
+      console.error('[Register] Failed to send welcome email:', err);
+      $q.notify({ type: 'warning', message: 'Compte créé, mais l\'email de bienvenue n\'a pas pu être envoyé' });
+    }
+
     if (data?.requireEmailVerification) {
       $q.notify({ type: 'info', message: 'Veuillez vérifier votre email pour confirmer votre compte.', timeout: 6000 });
       await router.push({ name: 'login' });
     } else {
-      $q.notify({ type: 'positive', message: 'Inscription réussie !' });
+      $q.notify({ type: 'positive', message: 'Inscription réussie ! Un email de bienvenue vous a été envoyé.' });
       await router.push('/');
     }
   } catch (err: unknown) {

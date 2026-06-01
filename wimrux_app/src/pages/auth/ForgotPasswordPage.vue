@@ -14,6 +14,7 @@
           label="Adresse email"
           type="email"
           filled
+          data-testid="forgot-email"
           :rules="[val => !!val || 'Email requis']"
         >
           <template v-slot:prepend><q-icon name="email" /></template>
@@ -25,6 +26,7 @@
           color="primary"
           class="full-width"
           size="lg"
+          data-testid="forgot-submit"
           :loading="loading"
           no-caps
         />
