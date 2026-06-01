@@ -650,20 +650,33 @@ function onDelayChange() {
   let days = Number(form.value.payment_terms_days);
   if (isNaN(days) || days < 0) days = 0;
   if (days > 365) { form.value.payment_terms_days = 365; days = 365; }
-  if (days === 0) return;
+  // Si le délai est 0 ou vide → effacer l'échéance
+  if (days === 0) {
+    form.value.payment_terms_days = 0;
+    form.value.due_date = null;
+    return;
+  }
   const base = form.value.received_at
     ? dayjs(form.value.received_at.slice(0, 10))
     : dayjs();
   form.value.due_date = base.add(days, 'day').format('YYYY-MM-DD');
 }
 function onDueDateChange() {
-  if (!form.value.due_date || !form.value.received_at) return;
+  if (!form.value.due_date) {
+    form.value.payment_terms_days = 0;
+    return;
+  }
+  if (!form.value.received_at) return;
   const dueD = dayjs(form.value.due_date);
   const recD = dayjs(form.value.received_at.slice(0, 10));
   if (!dueD.isValid() || !recD.isValid()) return;
   const diff = dueD.diff(recD, 'day');
-  // Plafonner le délai à une valeur raisonnable (0-365 jours)
-  form.value.payment_terms_days = Math.max(0, Math.min(diff, 365));
+  // Si le diff est négatif ou absurde (received_at trop ancien), mettre 0
+  if (diff < 0 || diff > 365) {
+    form.value.payment_terms_days = 0;
+  } else {
+    form.value.payment_terms_days = diff;
+  }
 }
 
 // ── Validation etape ─────────────────────────────────────────────────────────
