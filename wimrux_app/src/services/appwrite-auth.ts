@@ -4,7 +4,7 @@
  */
 
 import { account, client, databases, DATABASE_ID, COLLECTIONS } from 'src/boot/appwrite';
-import { ID, OAuthProvider } from 'appwrite';
+import { ID, OAuthProvider, Query } from 'appwrite';
 
 export interface AuthResponse {
   user: AppwriteUser | null;
@@ -245,7 +245,7 @@ export const appwriteAuth = {
       const response = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.USER_PROFILES,
-        [`equal("user_id", "${userId}")`]
+        [Query.equal('user_id', userId)]
       );
 
       if (response.documents.length > 0) {
