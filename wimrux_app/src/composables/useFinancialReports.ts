@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { BalanceSheet, IncomeStatement } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useFinancialReports() {
   const companyStore = useCompanyStore();
@@ -17,7 +17,7 @@ export function useFinancialReports() {
     if (!companyId.value) return;
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('v_balance_sheet_current')
       .select('*')
       .eq('company_id', companyId.value)
@@ -31,7 +31,7 @@ export function useFinancialReports() {
     if (!companyId.value) return;
     loading.value = true;
     error.value = null;
-    let query = insforge.database
+    let query = appwriteDb
       .from('v_income_statement_monthly')
       .select('*')
       .eq('company_id', companyId.value)
@@ -48,7 +48,7 @@ export function useFinancialReports() {
     if (!companyId.value) return;
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('v_income_statement_yearly')
       .select('*')
       .eq('company_id', companyId.value)

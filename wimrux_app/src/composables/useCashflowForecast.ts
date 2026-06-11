@@ -4,12 +4,13 @@
 // Méthode ml : stub — activé après réception credentials IA
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type {
   CashflowForecast, CashflowScenario, CashflowDataPoint,
   CashflowForecastInput, CashflowScenarioInput, ScenarioAssumption
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 
 // ---------------------------------------------------------------------------
 // Helpers date
@@ -39,7 +40,7 @@ export function useCashflowForecast() {
   async function loadForecasts() {
     loading.value = true; error.value = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('cashflow_forecasts')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -60,11 +61,9 @@ export function useCashflowForecast() {
         generated_at: new Date().toISOString(),
         ...totals,
       };
-      const { data: saved, error: err } = await insforge.database
+      const { data: saved, error: err } = await appwriteDb
         .from('cashflow_forecasts')
-        .insert([row])
-        .select()
-        .single();
+        .insert([row]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (saved) forecasts.value.unshift({ ...saved, data: saved.data || [] });
       return saved as CashflowForecast;
@@ -72,7 +71,7 @@ export function useCashflowForecast() {
   }
 
   async function deleteForecast(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('cashflow_forecasts')
       .delete()
       .eq('id', id)
@@ -92,7 +91,7 @@ export function useCashflowForecast() {
   ): Promise<CashflowDataPoint[]> {
     const from = addDays(baseDate, -(lookbackMonths * 30));
 
-    const { data: txs } = await insforge.database
+    const { data: txs } = await appwriteDb
       .from('bank_transactions')
       .select('transaction_date, amount, direction')
       .eq('company_id', companyStore.company!.id)
@@ -123,7 +122,7 @@ export function useCashflowForecast() {
     const dailyOut = avgWeeklyOut / 7;
 
     // Solde courant depuis bank_accounts
-    const { data: accounts } = await insforge.database
+    const { data: accounts } = await appwriteDb
       .from('bank_accounts')
       .select('balance')
       .eq('company_id', companyStore.company!.id);
@@ -143,7 +142,7 @@ export function useCashflowForecast() {
     const endDate = addDays(baseDate, horizonDays);
 
     // 1. Factures reçues non payées → sorties à due_date
-    const { data: receivedInvoices } = await insforge.database
+    const { data: receivedInvoices } = await appwriteDb
       .from('invoices')
       .select('due_date, total_ttc, payment_status')
       .eq('company_id', companyStore.company!.id)
@@ -153,7 +152,7 @@ export function useCashflowForecast() {
       .lte('due_date', endDate);
 
     // 2. Factures émises non payées → entrées à due_date
-    const { data: issuedInvoices } = await insforge.database
+    const { data: issuedInvoices } = await appwriteDb
       .from('invoices')
       .select('due_date, total_ttc, payment_status')
       .eq('company_id', companyStore.company!.id)
@@ -164,7 +163,7 @@ export function useCashflowForecast() {
 
     // 3. Dépenses récurrentes (détection sur 3 derniers mois)
     const lookbackStart = addDays(baseDate, -90);
-    const { data: pastTxs } = await insforge.database
+    const { data: pastTxs } = await appwriteDb
       .from('bank_transactions')
       .select('transaction_date, amount, direction, label, category_id')
       .eq('company_id', companyStore.company!.id)
@@ -174,7 +173,7 @@ export function useCashflowForecast() {
     const recurring = detectRecurring(pastTxs || []);
 
     // 4. Solde de départ
-    const { data: accounts } = await insforge.database
+    const { data: accounts } = await appwriteDb
       .from('bank_accounts')
       .select('balance')
       .eq('company_id', companyStore.company!.id);
@@ -273,7 +272,7 @@ export function useCashflowForecast() {
   async function loadScenarios(forecastId?: string) {
     loading.value = true;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('cashflow_scenarios')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -318,23 +317,21 @@ export function useCashflowForecast() {
     basePoints: CashflowDataPoint[]
   ): Promise<CashflowScenario | null> {
     const totalImpact = resultPoints.reduce((s, p, i) => s + p.net - (basePoints[i]?.net ?? 0), 0);
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('cashflow_scenarios')
       .insert([{
         ...input,
         company_id: companyStore.company!.id,
         result: resultPoints,
         total_impact: totalImpact,
-      }])
-      .select()
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) scenarios.value.unshift({ ...data, assumptions: data.assumptions || [], result: data.result || null });
     return data as CashflowScenario;
   }
 
   async function deleteScenario(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('cashflow_scenarios')
       .delete()
       .eq('id', id)
@@ -502,9 +499,7 @@ export function useCashflowForecast() {
   async function runAiForecast(horizonDays = 90): Promise<AiForecastResult | null> {
     aiLoading.value = true; aiError.value = null;
     try {
-      const { data, error: fnErr } = await insforge.functions.invoke('cashflow-forecast', {
-        body: { company_id: companyStore.company?.id, horizon_days: horizonDays, currency: 'XOF' },
-      });
+      const { data, error: fnErr } = await (async () => { try { const r = await functions.createExecution('cashflow-forecast', JSON.stringify({ company_id: companyStore.company?.id, horizon_days: horizonDays, currency: 'XOF' })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
       if (fnErr || !data?.success) throw new Error(fnErr?.message ?? data?.message ?? 'Erreur prévision IA');
       aiForecast.value = data.forecast as AiForecastResult;
       return aiForecast.value;

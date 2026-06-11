@@ -76,9 +76,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Article, ArticleType, TaxGroup } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
@@ -148,7 +148,7 @@ const filtered = computed(() => {
 async function loadArticles() {
   loading.value = true;
   try {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('articles')
       .select('*')
       .order('code', { ascending: true });
@@ -196,11 +196,11 @@ async function save() {
     };
 
     if (editingId.value) {
-      const { error } = await insforge.database.from('articles').update(payload).eq('id', editingId.value);
+      const { error } = await appwriteDb.from('articles').update(editingId.value, payload);
       if (error) throw new Error(error.message);
       $q.notify({ type: 'positive', message: 'Article modifié' });
     } else {
-      const { error } = await insforge.database.from('articles').insert([payload]);
+      const { error } = await appwriteDb.from('articles').insert([payload]);
       if (error) throw new Error(error.message);
       $q.notify({ type: 'positive', message: 'Article créé' });
     }
@@ -221,7 +221,7 @@ function confirmDelete(article: Article) {
     persistent: true,
   }).onOk(() => {
     void (async () => {
-      const { error } = await insforge.database.from('articles').delete().eq('id', article.id);
+      const { error } = await appwriteDb.from('articles').delete().eq('id', article.id);
       if (error) {
         $q.notify({ type: 'negative', message: error.message });
       } else {

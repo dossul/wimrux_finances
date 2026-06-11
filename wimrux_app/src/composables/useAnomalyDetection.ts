@@ -3,8 +3,9 @@
 // Appelle l'Edge Function detect-anomalies et expose les alertes réactives
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 
@@ -47,9 +48,7 @@ export function useAnomalyDetection() {
   async function runDetection(walletId?: string, days = 90) {
     loading.value = true; error.value = null;
     try {
-      const { data, error: fnErr } = await insforge.functions.invoke('detect-anomalies', {
-        body: { company_id: companyStore.company?.id, wallet_id: walletId, days },
-      });
+      const { data, error: fnErr } = await (async () => { try { const r = await functions.createExecution('detect-anomalies', JSON.stringify({ company_id: companyStore.company?.id, wallet_id: walletId, days })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
       if (fnErr || !data?.success) throw new Error(fnErr?.message ?? data?.message ?? 'Erreur détection');
       alerts.value = data.alerts as AnomalyAlert[];
       stats.value  = data.stats as DetectionStats;
@@ -64,7 +63,7 @@ export function useAnomalyDetection() {
   async function loadAlerts(resolved = false) {
     loading.value = true; error.value = null;
     try {
-      const q = insforge.database
+      const q = appwriteDb
         .from('anomaly_alerts')
         .select('*')
         .eq('company_id', companyStore.company?.id ?? '')
@@ -82,11 +81,9 @@ export function useAnomalyDetection() {
   // ── Résoudre une alerte ─────────────────────────────────────────────────
 
   async function resolveAlert(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('anomaly_alerts')
-      .update({ is_resolved: true, resolved_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('company_id', companyStore.company?.id ?? '');
+      .update(id, { is_resolved: true, resolved_at: new Date().toISOString() })
     if (err) { error.value = err.message; return false; }
     const idx = alerts.value.findIndex(a => a.id === id);
     if (idx !== -1) alerts.value[idx] = { ...alerts.value[idx]!, is_resolved: true };

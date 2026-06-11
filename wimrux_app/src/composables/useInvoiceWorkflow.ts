@@ -1,8 +1,8 @@
 import { computed } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
-import { insforge } from 'src/boot/insforge';
 import { useEmailService } from 'src/composables/useEmailService';
 import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 // ============================================================================
 // Invoice Lifecycle Workflow — WIMRUX® FINANCES
@@ -237,10 +237,9 @@ export function useInvoiceWorkflow() {
       updates.rejection_reason = reason || 'Annulée';
     }
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('invoices')
-      .update(updates)
-      .eq('id', invoiceId);
+      .update(invoiceId, updates);
 
     if (error) {
       return { success: false, error: error.message };
@@ -305,12 +304,12 @@ export function useInvoiceWorkflow() {
     const year = now.slice(0, 4);
 
     // Get next reference for the target type
-    const { data: refData, error: refError } = await insforge.database
+    const { data: refData, error: refError } = await appwriteDb
       .rpc('next_invoice_reference', { p_company_id: proforma.company_id, p_type: targetType, p_year: Number(year) });
     if (refError) return { success: false, error: refError.message };
 
     // Create new invoice draft
-    const { data: newInv, error: invError } = await insforge.database
+    const { data: newInv, error: invError } = await appwriteDb
       .from('invoices')
       .insert({
         company_id: proforma.company_id,
@@ -329,11 +328,9 @@ export function useInvoiceWorkflow() {
         total_payment: proforma.total_payment,
         tax_calculation: proforma.tax_calculation,
         created_at: now,
-      })
-      .select('id')
-      .single();
+      }).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
 
-    if (invError || !newInv) return { success: false, error: invError?.message };
+    if (invError || !newInv) return { success: false as const, error: invError?.message ?? 'Erreur création' };
 
     const newId = (newInv as { id: string }).id;
 
@@ -345,14 +342,13 @@ export function useInvoiceWorkflow() {
         ...rest,
         invoice_id: newId,
       }));
-      await insforge.database.from('invoice_items').insert(newItems);
+      await appwriteDb.from('invoice_items').insert(newItems);
     }
 
     // Link proforma to new FV
-    await insforge.database
+    await appwriteDb
       .from('invoices')
-      .update({ proforma_converted_to: newId })
-      .eq('id', proforma.id);
+      .update(proforma.id, { proforma_converted_to: newId });
 
     return { success: true, newInvoiceId: newId };
   }

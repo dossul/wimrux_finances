@@ -1,5 +1,4 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type {
@@ -12,6 +11,7 @@ import type {
   ChatbotUsageStats,
 } from 'src/types';
 import { ALL_CHATBOT_ACTIONS } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 /**
  * Generate a random API key with a readable prefix.
@@ -45,7 +45,7 @@ export function useChatbotConfig() {
   async function loadApiKeys(): Promise<void> {
     loading.value = true;
     try {
-      const { data, error } = await insforge.database
+      const { data, error } = await appwriteDb
         .from('chatbot_api_keys')
         .select('*')
         .order('created_at', { ascending: false });
@@ -69,7 +69,7 @@ export function useChatbotConfig() {
 
     const { raw, prefix, hash } = generateApiKey();
 
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('chatbot_api_keys')
       .insert([{
         company_id: companyId,
@@ -81,9 +81,7 @@ export function useChatbotConfig() {
         expires_at: params.expires_at || null,
         rate_limit_per_hour: params.rate_limit_per_hour || 60,
         created_by: authStore.user?.id || null,
-      }])
-      .select()
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
 
     if (error) return { apiKey: null, rawKey: null, error: error.message };
 
@@ -109,7 +107,7 @@ export function useChatbotConfig() {
     }
 
     if (permRows.length > 0) {
-      await insforge.database.from('chatbot_permissions').insert(permRows);
+      await appwriteDb.from('chatbot_permissions').insert(permRows);
     }
 
     apiKeys.value.unshift(created);
@@ -117,10 +115,9 @@ export function useChatbotConfig() {
   }
 
   async function toggleApiKey(keyId: string, active: boolean): Promise<string | null> {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('chatbot_api_keys')
-      .update({ is_active: active })
-      .eq('id', keyId);
+      .update(keyId, { is_active: active });
     if (error) return error.message;
 
     const found = apiKeys.value.find(k => k.id === keyId);
@@ -129,7 +126,7 @@ export function useChatbotConfig() {
   }
 
   async function deleteApiKey(keyId: string): Promise<string | null> {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('chatbot_api_keys')
       .delete()
       .eq('id', keyId);
@@ -142,7 +139,7 @@ export function useChatbotConfig() {
   // ── Permissions ──
 
   async function loadPermissions(keyId: string): Promise<ChatbotPermission[]> {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('chatbot_permissions')
       .select('*')
       .eq('api_key_id', keyId)
@@ -153,10 +150,9 @@ export function useChatbotConfig() {
   }
 
   async function updatePermission(permId: string, updates: Partial<ChatbotPermission>): Promise<string | null> {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('chatbot_permissions')
-      .update(updates)
-      .eq('id', permId);
+      .update(permId, updates);
     return error ? error.message : null;
   }
 
@@ -165,7 +161,7 @@ export function useChatbotConfig() {
     if (!companyId) return 'Entreprise non trouvée';
 
     // Delete existing and re-create
-    await insforge.database.from('chatbot_permissions').delete().eq('api_key_id', keyId);
+    await appwriteDb.from('chatbot_permissions').delete().eq('api_key_id', keyId);
 
     const rows = permissions.map(p => ({
       api_key_id: keyId,
@@ -177,7 +173,7 @@ export function useChatbotConfig() {
       rate_limit_per_hour: p.rate_limit_per_hour || null,
     }));
 
-    const { error } = await insforge.database.from('chatbot_permissions').insert(rows);
+    const { error } = await appwriteDb.from('chatbot_permissions').insert(rows);
     return error ? error.message : null;
   }
 
@@ -186,7 +182,7 @@ export function useChatbotConfig() {
   async function loadConversations(limit = 50): Promise<void> {
     loading.value = true;
     try {
-      const { data, error } = await insforge.database
+      const { data, error } = await appwriteDb
         .from('chatbot_conversations')
         .select('*')
         .order('last_message_at', { ascending: false })
@@ -200,7 +196,7 @@ export function useChatbotConfig() {
   }
 
   async function loadMessages(conversationId: string, limit = 100): Promise<void> {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('chatbot_messages')
       .select('*')
       .eq('conversation_id', conversationId)
@@ -216,20 +212,20 @@ export function useChatbotConfig() {
   async function loadStats(from?: string): Promise<void> {
     loading.value = true;
     try {
-      // Conversations count
-      let convQuery = insforge.database.from('chatbot_conversations').select('id, channel', { count: 'exact' });
+      // Conversations undefined /* count unsupported in Appwrite */
+      let convQuery = appwriteDb.from('chatbot_conversations').select('*');
       if (from) convQuery = convQuery.gte('started_at', from);
-      const { data: convData, count: convCount } = await convQuery;
+      const { data: convData } = await convQuery;
 
-      // Messages count
-      let msgQuery = insforge.database.from('chatbot_messages').select('id, action_requested, action_status', { count: 'exact' });
+      // Messages undefined /* count unsupported in Appwrite */
+      let msgQuery = appwriteDb.from('chatbot_messages').select('*');
       if (from) msgQuery = msgQuery.gte('created_at', from);
-      const { data: msgData, count: msgCount } = await msgQuery;
+      const { data: msgData } = await msgQuery;
 
       // Active keys
-      const { count: activeKeysCount } = await insforge.database
+      const { data: activeKeysCountData } = await appwriteDb
         .from('chatbot_api_keys')
-        .select('id', { count: 'exact' })
+        .select('*')
         .eq('is_active', true);
 
       // Aggregate by channel
@@ -255,9 +251,9 @@ export function useChatbotConfig() {
       }
 
       stats.value = {
-        total_conversations: convCount || 0,
-        total_messages: msgCount || 0,
-        active_keys: activeKeysCount || 0,
+        total_conversations: (convData ?? []).length || 0,
+        total_messages: (msgData ?? []).length || 0,
+        active_keys: (activeKeysCountData ?? []).length || 0,
         actions_executed: actionsExecuted,
         actions_denied: actionsDenied,
         by_channel: byChannel as Record<ChatbotChannel, number>,
@@ -271,7 +267,7 @@ export function useChatbotConfig() {
   // ── Admin: all companies ──
 
   async function loadAllApiKeys(): Promise<ChatbotApiKey[]> {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('chatbot_api_keys')
       .select('*')
       .order('created_at', { ascending: false });
@@ -280,7 +276,7 @@ export function useChatbotConfig() {
   }
 
   async function loadAllConversations(limit = 100): Promise<ChatbotConversation[]> {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('chatbot_conversations')
       .select('*')
       .order('last_message_at', { ascending: false })
@@ -290,17 +286,17 @@ export function useChatbotConfig() {
   }
 
   async function loadAllStats(from?: string): Promise<ChatbotUsageStats> {
-    let convQuery = insforge.database.from('chatbot_conversations').select('id, channel', { count: 'exact' });
+    let convQuery = appwriteDb.from('chatbot_conversations').select('*');
     if (from) convQuery = convQuery.gte('started_at', from);
-    const { data: convData, count: convCount } = await convQuery;
+    const { data: convData } = await convQuery;
 
-    let msgQuery = insforge.database.from('chatbot_messages').select('id, action_requested, action_status', { count: 'exact' });
+    let msgQuery = appwriteDb.from('chatbot_messages').select('*');
     if (from) msgQuery = msgQuery.gte('created_at', from);
-    const { data: msgData, count: msgCount } = await msgQuery;
+    const { data: msgData } = await msgQuery;
 
-    const { count: activeKeysCount } = await insforge.database
+    const { data: activeKeysCountData } = await appwriteDb
       .from('chatbot_api_keys')
-      .select('id', { count: 'exact' })
+      .select('*')
       .eq('is_active', true);
 
     const byChannel: Record<string, number> = {};
@@ -324,9 +320,9 @@ export function useChatbotConfig() {
     }
 
     return {
-      total_conversations: convCount || 0,
-      total_messages: msgCount || 0,
-      active_keys: activeKeysCount || 0,
+      total_conversations: (convData ?? []).length || 0,
+      total_messages: (msgData ?? []).length || 0,
+      active_keys: (activeKeysCountData ?? []).length || 0,
       actions_executed: actionsExecuted,
       actions_denied: actionsDenied,
       by_channel: byChannel as Record<ChatbotChannel, number>,

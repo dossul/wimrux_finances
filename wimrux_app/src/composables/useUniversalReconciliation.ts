@@ -4,8 +4,9 @@
 // Suggestion IA via ai-router (reconciliation_suggestion → Claude Sonnet)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 
 export interface WalletTx {
   id: string;
@@ -68,7 +69,7 @@ export function useUniversalReconciliation() {
   async function loadTransactions(walletId?: string) {
     loading.value = true; error.value = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('wallet_transactions')
         .select('id,wallet_id,direction,amount,currency,label,counterparty_name,transaction_date,reconciliation_status,needs_human_review,confidence_score,matched_invoice_id,source_channel')
         .eq('company_id', companyStore.company?.id ?? '')
@@ -95,7 +96,7 @@ export function useUniversalReconciliation() {
       if (!toAnalyze.length) return;
 
       // Fetch open invoices for context
-      const { data: openInvoices } = await insforge.database
+      const { data: openInvoices } = await appwriteDb
         .from('invoices')
         .select('id,number,total_ttc,direction,status,client_name,due_date')
         .eq('company_id', companyStore.company?.id ?? '')
@@ -121,13 +122,11 @@ Pour chaque transaction, propose le meilleur rapprochement possible avec une fac
 Retourne UNIQUEMENT un tableau JSON :
 [{"wallet_tx_id":"...","invoice_id":"... ou null","invoice_number":"...","invoice_amount":0,"match_score":0.95,"match_reason":"montant exact + même client","ai_suggested":true}]`;
 
-      const { data: aiResult, error: aiErr } = await insforge.functions.invoke('ai-router', {
-        body: {
+      const { data: aiResult, error: aiErr } = await (async () => { try { const r = await functions.createExecution('ai-router', JSON.stringify({
           task_code: 'reconciliation_suggestion',
           input: { text: prompt },
           options: { language: 'fr', bypass_pii: true },
-        },
-      });
+        })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
 
       if (aiErr || !aiResult?.success) throw new Error(aiErr?.message ?? 'ai-router error');
       lastAiModel.value = aiResult.data?.model_used ?? null;
@@ -146,11 +145,9 @@ Retourne UNIQUEMENT un tableau JSON :
   // ── Apply match ───────────────────────────────────────────────────────────
 
   async function applyMatch(walletTxId: string, invoiceId: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('wallet_transactions')
-      .update({ reconciliation_status: 'reconciled', matched_invoice_id: invoiceId })
-      .eq('id', walletTxId)
-      .eq('company_id', companyStore.company?.id ?? '');
+      .update(walletTxId, { reconciliation_status: 'reconciled', matched_invoice_id: invoiceId });
 
     if (err) { error.value = err.message; return false; }
 
@@ -165,19 +162,17 @@ Retourne UNIQUEMENT un tableau JSON :
   // ── Exclude / undo ────────────────────────────────────────────────────────
 
   async function excludeTx(walletTxId: string) {
-    await insforge.database
+    await appwriteDb
       .from('wallet_transactions')
-      .update({ reconciliation_status: 'excluded' })
-      .eq('id', walletTxId).eq('company_id', companyStore.company?.id ?? '');
+      .update(walletTxId, { reconciliation_status: 'excluded' });
     const idx = transactions.value.findIndex(t => t.id === walletTxId);
     if (idx !== -1) transactions.value[idx] = { ...transactions.value[idx]!, reconciliation_status: 'excluded' };
   }
 
   async function undoMatch(walletTxId: string) {
-    await insforge.database
+    await appwriteDb
       .from('wallet_transactions')
-      .update({ reconciliation_status: 'unreconciled', matched_invoice_id: null })
-      .eq('id', walletTxId).eq('company_id', companyStore.company?.id ?? '');
+      .update(walletTxId, { reconciliation_status: 'unreconciled', matched_invoice_id: null });
     const idx = transactions.value.findIndex(t => t.id === walletTxId);
     if (idx !== -1) transactions.value[idx] = { ...transactions.value[idx]!, reconciliation_status: 'unreconciled', matched_invoice_id: null };
   }

@@ -3,8 +3,8 @@
 // Flux : PDF/image → Stirling (pdf.ulia.site) → texte brut → ai-router (DeepSeek) → JSON
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import type { ParsedTransaction } from 'src/utils/bankStatementParsers';
+import { functions } from 'src/boot/appwrite';
 
 const STIRLING_BASE_URL = 'https://pdf.ulia.site';
 
@@ -65,13 +65,7 @@ export function useBankStatementOcr() {
 
     const t0 = Date.now();
     // Appel via ai-router → DeepSeek via LiteLLM (deepseek-chat, fallback claude-haiku)
-    const { data, error } = await insforge.functions.invoke('ai-router', {
-      body: {
-        task_code: 'bank_statement_ocr',
-        input: { text: `Voici le texte OCR d'un relevé bancaire :\n\n${truncated}` },
-        options: { language: 'fr', bypass_pii: true },
-      },
-    });
+    const { data, error } = await (async () => { try { const r = await functions.createExecution('ai-router', JSON.stringify({ task_code: 'bank_statement_ocr', input: { text: `Voici le texte OCR d'un relevé bancaire :\n\n${truncated}` }, options: { language: 'fr', bypass_pii: true } })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
     job.value.aiDurationMs = Date.now() - t0;
 
     if (error || !data?.success) {

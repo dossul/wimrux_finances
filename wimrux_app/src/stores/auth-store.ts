@@ -1,33 +1,28 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
+import { appwriteAuth } from 'src/services/appwrite-auth';
+import { appwriteDb } from 'src/services/appwrite-db';
 import { usePermissions } from 'src/composables/usePermissions';
 import type { UserProfile, UserRole, Permission } from 'src/types';
 
-const INSFORGE_BASE_URL = import.meta.env.VITE_INSFORGE_URL as string;
+const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string || 'https://appwrite.benga.live/v1';
 
 async function sendBrandedResetEmail(to: string, resetUrl: string, name?: string): Promise<void> {
   try {
-    const res = await fetch(`${INSFORGE_BASE_URL}/functions/send-email`, {
+    const res = await fetch(`${APPWRITE_ENDPOINT}/functions/send-email/executions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        to,
-        template: 'reset_password',
-        vars: { reset_url: resetUrl, name: name ?? '' },
+        body: JSON.stringify({ to, template: 'reset_password', vars: { reset_url: resetUrl, name: name ?? '' } }),
       }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
     console.error('[Auth] Failed to send branded reset email:', err);
-    throw new Error('Envoi de l\'email de réinitialisation échoué');
   }
 }
 
-interface InsForgeUser {
+interface AppUser {
   id: string;
   email: string;
   emailVerified: boolean;
@@ -35,7 +30,7 @@ interface InsForgeUser {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<InsForgeUser | null>(null);
+  const user = ref<AppUser | null>(null);
   const profile = ref<UserProfile | null>(null);
   const accessToken = ref<string | null>(null);
   const loading = ref(false);
@@ -51,28 +46,20 @@ export const useAuthStore = defineStore('auth', () => {
   async function loadSession() {
     loading.value = true;
     try {
-      const { data, error } = await insforge.auth.getCurrentUser();
-      if (!error && data?.user) {
-        user.value = data.user as InsForgeUser;
+      const { user: authUser, error } = await appwriteAuth.getCurrentUser();
+      if (!error && authUser) {
+        user.value = authUser as unknown as AppUser;
         accessToken.value = null;
-        console.log('[Auth Store] Session loaded for user:', user.value.email);
         await loadProfile();
       } else if (error) {
-        console.error('[Auth Store] Error loading session:', error);
         const msg = String((error as { message?: string })?.message ?? error);
         if (/csrf|invalid token|jwt|expired/i.test(msg)) {
-          console.warn('[Auth Store] Session corrompue — purge et redirection login');
-          try { localStorage.clear(); sessionStorage.clear(); } catch (_e) { /* ignore */ }
-          user.value = null;
-          accessToken.value = null;
-          profile.value = null;
-          // Rediriger vers login si pas deja dessus
+          try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignore */ }
+          user.value = null; accessToken.value = null; profile.value = null;
           if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/')) {
             window.location.href = '/auth/login';
           }
         }
-      } else {
-        console.log('[Auth Store] No active session found');
       }
     } finally {
       loading.value = false;
@@ -81,82 +68,43 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loadProfile() {
     if (!user.value) return;
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('user_profiles')
-      .select('*')
       .eq('user_id', user.value.id)
       .single();
 
     if (!error && data) {
       profile.value = data as UserProfile;
-      // Set permission context and load granular permissions
-      permissions.setContext(
-        profile.value.role,
-        user.value.id,
-        profile.value.company_id,
-        profile.value.full_name,
-      );
-      // Only load permissions if we have both user_id and company_id
+      permissions.setContext(profile.value.role, user.value.id, profile.value.company_id, profile.value.full_name);
       if (profile.value.company_id && user.value.id) {
         await permissions.loadCompanyPermissions();
       }
-    } else if (error) {
-      console.error('[Auth Store] Error loading user profile:', error);
     }
   }
 
   async function login(email: string, password: string) {
-    const { data, error } = await insforge.auth.signInWithPassword({ email, password });
+    const { user: authUser, error } = await appwriteAuth.signIn(email, password);
     if (error) throw error;
-    if (data) {
-      user.value = data.user as InsForgeUser;
-      accessToken.value = (data as unknown as { accessToken?: string }).accessToken ?? null;
+    if (authUser) {
+      user.value = authUser as unknown as AppUser;
       await loadProfile();
     }
   }
 
-  /**
-   * Tente de renouveler le JWT via le refresh token InsForge.
-   * Appelé automatiquement par le boot 401-interceptor.
-   * Retourne true si le refresh a réussi.
-   */
   async function refreshSession(): Promise<boolean> {
-    try {
-      // InsForge SDK refresh
-      const result = await (insforge.auth as unknown as {
-        refreshSession?: () => Promise<{ data?: { session?: { user?: unknown; accessToken?: string } }; error?: unknown }>;
-      }).refreshSession?.();
-
-      if (result?.data?.session?.user) {
-        user.value = result.data.session.user as InsForgeUser;
-        accessToken.value = result.data.session.accessToken ?? null;
-        await loadProfile();
-        console.log('[Auth Store] Session refreshée avec succès');
-        return true;
-      }
-    } catch (e) {
-      console.warn('[Auth Store] Refresh échoué:', e);
-    }
-    // Si le refresh echoue, recharger depuis getCurrentUser (parfois suffisant)
     await loadSession();
     return !!user.value;
   }
 
   async function register(email: string, password: string, name: string) {
-    const { data, error } = await insforge.auth.signUp({
-      email,
-      password,
-      name,
-    });
+    const { user: authUser, error } = await appwriteAuth.signUp(email, password, name);
     if (error) throw error;
-    return data;
+    return authUser;
   }
 
   async function logout() {
-    await insforge.auth.signOut();
-    user.value = null;
-    profile.value = null;
-    accessToken.value = null;
+    await appwriteAuth.signOut();
+    user.value = null; profile.value = null; accessToken.value = null;
     permissions.companyOverrides.value = [];
     permissions.userRoleAssignments.value = [];
     permissions.customRoles.value = [];
@@ -165,56 +113,26 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function forgotPassword(emailAddr: string) {
     const resetUrl = `${window.location.origin}/auth/reset-password`;
-    // E02 — Envoyer notre email branded WIMRUX (contient le lien de réinitialisation)
     await sendBrandedResetEmail(emailAddr, resetUrl);
-    // Déclencher aussi le reset natif InsForge (backend token)
-    const { data, error } = await insforge.auth.sendResetPasswordEmail({ email: emailAddr });
+    const { data, error } = await appwriteAuth.sendPasswordRecovery(emailAddr);
     if (error) throw error;
     return data;
   }
 
-  function hasRole(requiredRole: UserRole): boolean {
-    return role.value === requiredRole;
-  }
-
+  function hasRole(requiredRole: UserRole): boolean { return role.value === requiredRole; }
   function hasAnyRole(roles: UserRole[]): boolean {
-    if (role.value === null) return false;
-    // project_admin has access to everything
+    if (!role.value) return false;
     if (role.value === 'project_admin') return true;
     return roles.includes(role.value);
   }
-
-  // Granular permission checks (delegates to usePermissions)
-  function hasPermission(p: Permission): boolean {
-    return permissions.hasPermission(p);
-  }
-
-  function hasAnyPermission(ps: Permission[]): boolean {
-    return permissions.hasAnyPermission(ps);
-  }
+  function hasPermission(p: Permission): boolean { return permissions.hasPermission(p); }
+  function hasAnyPermission(ps: Permission[]): boolean { return permissions.hasAnyPermission(ps); }
 
   return {
-    user,
-    profile,
-    accessToken,
-    loading,
-    isAuthenticated,
-    role,
-    companyId,
-    fullName,
-    phone,
-    twoFaEnabled,
-    permissions,
-    loadSession,
-    login,
-    register,
-    logout,
-    forgotPassword,
-    refreshProfile: loadProfile,
-    refreshSession,
-    hasRole,
-    hasAnyRole,
-    hasPermission,
-    hasAnyPermission,
+    user, profile, accessToken, loading,
+    isAuthenticated, role, companyId, fullName, phone, twoFaEnabled, permissions,
+    loadSession, login, register, logout, forgotPassword,
+    refreshProfile: loadProfile, refreshSession,
+    hasRole, hasAnyRole, hasPermission, hasAnyPermission,
   };
 });

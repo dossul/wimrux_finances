@@ -36,8 +36,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const companyStore = useCompanyStore();
 const companyId = computed(() => companyStore.company?.id ?? '');
@@ -68,7 +68,7 @@ function typeLabel(t: string) { return { invoice: 'Facture', payment: 'Paiement'
 function fmt(n: number) { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n); }
 
 async function loadKpis() {
-  const { data } = await insforge.database
+  const { data } = await appwriteDb
     .from('v_company_kpis')
     .select('*')
     .eq('company_id', companyId.value)
@@ -77,7 +77,7 @@ async function loadKpis() {
 }
 
 async function loadActivities() {
-  const { data } = await insforge.database
+  const { data } = await appwriteDb
     .from('v_recent_activity')
     .select('*')
     .eq('company_id', companyId.value)

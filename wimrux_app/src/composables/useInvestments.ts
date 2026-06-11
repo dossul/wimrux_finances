@@ -2,9 +2,9 @@
 // WIMRUX® FINANCES — Composable Investissements (EPIC 8)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Investment, InvestmentInput, InvestmentValuation, InvestmentType } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useInvestments() {
   const investments = ref<Investment[]>([]);
@@ -16,7 +16,7 @@ export function useInvestments() {
   async function loadInvestments(filters?: { type?: InvestmentType; status?: string }) {
     loading.value = true;
     try {
-      let q = insforge.database.from('investments').select('*')
+      let q = appwriteDb.from('investments').select('*')
         .eq('company_id', companyStore.company!.id)
         .order('purchase_date', { ascending: false });
       if (filters?.type)   q = q.eq('type', filters.type);
@@ -28,21 +28,20 @@ export function useInvestments() {
   }
 
   async function createInvestment(payload: InvestmentInput) {
-    const { data, error: err } = await insforge.database.from('investments').insert([{
+    const { data, error: err } = await appwriteDb.from('investments').insert([{
       ...payload,
       company_id: companyStore.company!.id,
       current_price: payload.purchase_price,
       current_value: payload.total_invested,
-    }]).select().single();
+    }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) investments.value.unshift(data);
     return data as Investment;
   }
 
   async function updateInvestment(id: string, payload: Partial<Investment>) {
-    const { data, error: err } = await insforge.database.from('investments')
-      .update(payload).eq('id', id).eq('company_id', companyStore.company!.id)
-      .select().single();
+    const { data, error: err } = await appwriteDb.from('investments')
+      .update(id, payload)
     if (err) { error.value = err.message; return null; }
     if (data) {
       const idx = investments.value.findIndex(i => i.id === id);
@@ -52,7 +51,7 @@ export function useInvestments() {
   }
 
   async function deleteInvestment(id: string) {
-    const { error: err } = await insforge.database.from('investments')
+    const { error: err } = await appwriteDb.from('investments')
       .delete().eq('id', id).eq('company_id', companyStore.company!.id);
     if (err) { error.value = err.message; return false; }
     investments.value = investments.value.filter(i => i.id !== id);
@@ -66,7 +65,7 @@ export function useInvestments() {
   }
 
   async function loadValuations(investmentId: string) {
-    const { data } = await insforge.database.from('investment_valuations')
+    const { data } = await appwriteDb.from('investment_valuations')
       .select('*').eq('investment_id', investmentId)
       .eq('company_id', companyStore.company!.id)
       .order('valuation_date', { ascending: false });
@@ -77,11 +76,11 @@ export function useInvestments() {
     const inv = investments.value.find(i => i.id === investmentId);
     if (!inv) return null;
     const totalValue = (inv.quantity ?? 1) * price;
-    const { data, error: err } = await insforge.database.from('investment_valuations').insert([{
+    const { data, error: err } = await appwriteDb.from('investment_valuations').insert([{
       investment_id: investmentId,
       company_id: companyStore.company!.id,
       valuation_date: date, price, total_value: totalValue, source,
-    }]).select().single();
+    }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await updateInvestment(investmentId, { current_price: price, current_value: totalValue });
     if (data) valuations.value.unshift(data);

@@ -299,11 +299,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar, copyToClipboard as qCopy } from 'quasar';
-import { createClient } from '@insforge/sdk';
-import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
 import type { Client, ClientType, Company, UserRole } from 'src/types';
 import { isValidCadastralAddress, isValidIFU, isValidExportIFU } from 'src/utils/validators';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { appwriteAuth } from 'src/services/appwrite-auth';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -455,10 +455,9 @@ const ifuRules = computed(() => {
 
 async function toggleClientActive(client: Client, val: boolean) {
   try {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('clients')
-      .update({ is_active: val })
-      .eq('id', client.id);
+      .update(client.id, { is_active: val });
 
     if (error) throw new Error(error.message);
 
@@ -483,7 +482,7 @@ function typeLabel(t: string) {
 async function loadCompanies() {
   loading.value = true;
   try {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('companies')
       .select('*')
       .order('name', { ascending: true });
@@ -516,10 +515,9 @@ function openCompanyDialog(company?: Company) {
 
 async function toggleCompanyActive(company: Company, val: boolean) {
   try {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('companies')
-      .update({ is_active: val })
-      .eq('id', company.id);
+      .update(company.id, { is_active: val });
 
     if (error) throw new Error(error.message);
 
@@ -563,36 +561,27 @@ async function createCompanyUser() {
   if (!targetCompany.value) return;
   savingUser.value = true;
   try {
-    const freshClient = createClient({
-      baseUrl: import.meta.env.VITE_INSFORGE_URL as string,
-      anonKey: import.meta.env.VITE_INSFORGE_ANON_KEY as string,
-    });
-
+    
     let userId: string | undefined;
 
     // Step 1: Try signUp
-    const { data: authData, error: authError } = await freshClient.auth.signUp({
-      email: userForm.value.email,
-      password: userForm.value.password,
-      name: userForm.value.full_name,
-    });
+    const { user: authUser, error: authError } = await appwriteAuth.signUp(userForm.value.email, userForm.value.password, userForm.value.full_name);
+    const authData = authUser ? { user: authUser } : null;
 
     if (authError) {
       const msg = (authError.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
         // User auth account exists — try signIn to get their ID
-        const { data: loginData, error: loginError } = await freshClient.auth.signInWithPassword({
-          email: userForm.value.email,
-          password: userForm.value.password,
-        });
+        const { user: loginUser, error: loginError } = await appwriteAuth.signIn(userForm.value.email, userForm.value.password);
+        const loginData = loginUser ? { user: loginUser } : null;
 
         if (loginError || !loginData?.user?.id) {
           throw new Error('Cet email est déjà utilisé par un compte existant. Vérifiez le mot de passe ou utilisez un autre email.');
         }
 
-        userId = loginData.user.id;
+        userId = (loginData?.user as any)?.id ?? (loginData?.user as any)?.$id;
         // Sign out from the fresh client to avoid session conflicts
-        await freshClient.auth.signOut();
+        await appwriteAuth.signOut();
       } else {
         throw new Error(authError.message || 'Erreur lors de la création du compte');
       }
@@ -602,7 +591,7 @@ async function createCompanyUser() {
 
     if (!userId) {
       // Email confirmation enabled — retrieve ID via secure RPC
-      const { data: rpcId } = await insforge.database
+      const { data: rpcId } = await appwriteDb
         .rpc('get_user_id_by_email', { p_email: userForm.value.email });
       userId = rpcId as string | undefined;
     }
@@ -610,7 +599,7 @@ async function createCompanyUser() {
     if (!userId) throw new Error('Impossible de recuperer l ID utilisateur. Veuillez reessayer.');
 
     // Step 2: Check if profile already exists for this user
-    const { data: existingProfile } = await insforge.database
+    const { data: existingProfile } = await appwriteDb
       .from('user_profiles')
       .select('id, company_id, role')
       .eq('user_id', userId)
@@ -623,7 +612,7 @@ async function createCompanyUser() {
     }
 
     // Step 3: Create user_profile
-    const { error: profileError } = await insforge.database
+    const { error: profileError } = await appwriteDb
       .from('user_profiles')
       .insert({
         user_id: userId,
@@ -675,15 +664,14 @@ async function saveCompany() {
     };
 
     if (editingCompany.value) {
-      const { error } = await insforge.database
+      const { error } = await appwriteDb
         .from('companies')
-        .update(payload)
-        .eq('id', editingCompany.value.id);
+        .update(editingCompany.value.id, payload);
 
       if (error) throw new Error(error.message);
       $q.notify({ type: 'positive', message: 'Entreprise modifiée' });
     } else {
-      const { error } = await insforge.database
+      const { error } = await appwriteDb
         .from('companies')
         .insert(payload);
 
@@ -704,7 +692,7 @@ async function saveCompany() {
 async function loadClients() {
   loading.value = true;
   try {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('clients')
       .select('*')
       .order('name', { ascending: true });
@@ -752,15 +740,14 @@ async function saveClient() {
     };
 
     if (editingClient.value) {
-      const { error } = await insforge.database
+      const { error } = await appwriteDb
         .from('clients')
-        .update(payload)
-        .eq('id', editingClient.value.id);
+        .update(editingClient.value.id, payload);
 
       if (error) throw new Error(error.message);
       $q.notify({ type: 'positive', message: 'Client modifié' });
     } else {
-      const { error } = await insforge.database
+      const { error } = await appwriteDb
         .from('clients')
         .insert(payload);
 
@@ -785,7 +772,7 @@ function confirmDelete(client: Client) {
     cancel: true,
     persistent: true,
   }).onOk(() => void (async () => {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('clients')
       .delete()
       .eq('id', client.id);

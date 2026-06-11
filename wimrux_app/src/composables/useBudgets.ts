@@ -3,7 +3,6 @@
 // Gestion budgétaire : budgets + lignes + suivi consommation vs réalisé
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useEmailService } from 'src/composables/useEmailService';
@@ -11,6 +10,7 @@ import type {
   Budget, BudgetLine, BudgetVsActual, BudgetInput, BudgetLineInput,
   BudgetStatus, BudgetPeriodType
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useBudgets() {
   const budgets       = ref<Budget[]>([]);
@@ -33,7 +33,7 @@ export function useBudgets() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('budgets')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -56,11 +56,9 @@ export function useBudgets() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('budgets')
-        .insert([{ ...payload, company_id: companyStore.company!.id }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company!.id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) budgets.value.unshift(data);
       return data as Budget;
@@ -73,13 +71,9 @@ export function useBudgets() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('budgets')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, { ...payload, updated_at: new Date().toISOString() })
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = budgets.value.findIndex(b => b.id === id);
@@ -92,7 +86,7 @@ export function useBudgets() {
   }
 
   async function deleteBudget(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('budgets')
       .delete()
       .eq('id', id)
@@ -106,14 +100,14 @@ export function useBudgets() {
     loading.value = true;
     try {
       // Charger le budget source + ses lignes
-      const { data: source } = await insforge.database
+      const { data: source } = await appwriteDb
         .from('budgets')
         .select('*')
         .eq('id', sourceId)
         .single();
       if (!source) { error.value = 'Budget source introuvable'; return null; }
 
-      const { data: lines } = await insforge.database
+      const { data: lines } = await appwriteDb
         .from('budget_lines')
         .select('*')
         .eq('budget_id', sourceId);
@@ -126,7 +120,7 @@ export function useBudgets() {
       newEnd.setFullYear(newEnd.getFullYear() + yearDiff);
 
       // Créer le nouveau budget
-      const { data: newBudget, error: err1 } = await insforge.database
+      const { data: newBudget, error: err1 } = await appwriteDb
         .from('budgets')
         .insert([{
           company_id: companyStore.company!.id,
@@ -138,9 +132,7 @@ export function useBudgets() {
           total_planned: source.total_planned,
           status: 'draft' as BudgetStatus,
           notes: `Copie de "${source.name}" (${source.fiscal_year})`,
-        }])
-        .select()
-        .single();
+        }]);
 
       if (err1 || !newBudget) { error.value = err1?.message ?? 'Erreur copie budget'; return null; }
 
@@ -157,7 +149,7 @@ export function useBudgets() {
           sort_order: l.sort_order,
           notes: l.notes,
         }));
-        await insforge.database.from('budget_lines').insert(newLines);
+        await appwriteDb.from('budget_lines').insert(newLines);
       }
 
       budgets.value.unshift(newBudget);
@@ -173,7 +165,7 @@ export function useBudgets() {
   async function loadBudgetLines(budgetId: string) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('budget_lines')
         .select('*')
         .eq('budget_id', budgetId)
@@ -190,15 +182,13 @@ export function useBudgets() {
   async function createBudgetLine(budgetId: string, payload: BudgetLineInput) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('budget_lines')
         .insert([{
           ...payload,
           budget_id: budgetId,
           company_id: companyStore.company!.id,
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) budgetLines.value.push(data);
       return data as BudgetLine;
@@ -210,13 +200,9 @@ export function useBudgets() {
   async function updateBudgetLine(id: string, payload: Partial<BudgetLineInput>) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('budget_lines')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, { ...payload, updated_at: new Date().toISOString() })
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = budgetLines.value.findIndex(l => l.id === id);
@@ -229,7 +215,7 @@ export function useBudgets() {
   }
 
   async function deleteBudgetLine(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('budget_lines')
       .delete()
       .eq('id', id)
@@ -245,7 +231,7 @@ export function useBudgets() {
   async function loadBudgetVsActual(budgetId: string) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('v_budget_vs_actual')
         .select('*')
         .eq('budget_id', budgetId)

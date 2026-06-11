@@ -198,9 +198,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useUniversalReconciliation, type WalletTx } from 'src/composables/useUniversalReconciliation';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const companyStore = useCompanyStore();
 const {
@@ -290,7 +290,7 @@ async function reload() {
 
 onMounted(async () => {
   // Load wallets
-  const { data: wallets } = await insforge.database
+  const { data: wallets } = await appwriteDb
     .from('payment_wallets')
     .select('id,name,provider_code')
     .eq('company_id', companyStore.company?.id ?? '')
@@ -301,7 +301,7 @@ onMounted(async () => {
   }));
 
   // Load open invoices for manual match
-  const { data: inv } = await insforge.database
+  const { data: inv } = await appwriteDb
     .from('invoices')
     .select('id,number,total_ttc,client_name')
     .eq('company_id', companyStore.company?.id ?? '')

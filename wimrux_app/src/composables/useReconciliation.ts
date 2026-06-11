@@ -6,9 +6,9 @@
 // - CRUD règles utilisateur (reconciliation_rules)
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { AutoReconcileResult, ReconciliationRule, BankTransaction } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface ReconciliationSuggestion extends AutoReconcileResult {
   transaction?: BankTransaction;
@@ -29,7 +29,7 @@ export function useReconciliation() {
     loading.value = true;
     error.value = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .rpc('auto_reconcile', { p_bank_account_id: bankAccountId });
       if (err) { error.value = err.message; return []; }
 
@@ -56,16 +56,13 @@ export function useReconciliation() {
     matchedInvoiceId: string | null,
     matchedMovementId: string | null = null,
   ) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_transactions')
-      .update({
+      .update(transactionId, {
         reconciliation_status: 'matched',
         matched_invoice_id: matchedInvoiceId,
         matched_movement_id: matchedMovementId,
-      })
-      .eq('id', transactionId)
-      .select()
-      .single();
+      });
     if (err) throw new Error(err.message);
 
     // Marquer la suggestion comme appliquée
@@ -79,10 +76,9 @@ export function useReconciliation() {
   // IGNORER une transaction (ne pas rapprocher)
   // ---------------------------------------------------------------------------
   async function ignoreTransaction(transactionId: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('bank_transactions')
-      .update({ reconciliation_status: 'ignored' })
-      .eq('id', transactionId);
+      .update(transactionId, { reconciliation_status: 'ignored' });
     if (err) throw new Error(err.message);
     suggestions.value = suggestions.value.filter(s => s.transaction_id !== transactionId);
   }
@@ -91,14 +87,13 @@ export function useReconciliation() {
   // UNDO : retour unreconciled
   // ---------------------------------------------------------------------------
   async function undoMatch(transactionId: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('bank_transactions')
-      .update({
+      .update(transactionId, {
         reconciliation_status: 'unreconciled',
         matched_invoice_id: null,
         matched_movement_id: null,
-      })
-      .eq('id', transactionId);
+      });
     if (err) throw new Error(err.message);
   }
 
@@ -106,7 +101,7 @@ export function useReconciliation() {
   // CHARGER les transactions non rapprochées d'un compte
   // ---------------------------------------------------------------------------
   async function loadUnreconciled(bankAccountId: string): Promise<BankTransaction[]> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_transactions')
       .select('*, category:transaction_categories(id, name, color, type)')
       .eq('bank_account_id', bankAccountId)
@@ -122,7 +117,7 @@ export function useReconciliation() {
   async function loadRules() {
     loadingRules.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('reconciliation_rules')
         .select('*')
         .order('priority', { ascending: true })
@@ -136,11 +131,9 @@ export function useReconciliation() {
 
   async function createRule(payload: Omit<ReconciliationRule, 'id' | 'created_at' | 'company_id'>) {
     const companyId = useCompanyStore().companyId;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('reconciliation_rules')
-      .insert([{ ...payload, company_id: companyId }])
-      .select()
-      .single();
+      .insert([{ ...payload, company_id: companyId }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) throw new Error(err.message);
     const created = data as ReconciliationRule;
     rules.value.push(created);
@@ -149,12 +142,9 @@ export function useReconciliation() {
   }
 
   async function updateRule(id: string, updates: Partial<ReconciliationRule>) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('reconciliation_rules')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+      .update(id, updates);
     if (err) throw new Error(err.message);
     const updated = data as ReconciliationRule;
     const idx = rules.value.findIndex(r => r.id === id);
@@ -163,7 +153,7 @@ export function useReconciliation() {
   }
 
   async function deleteRule(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('reconciliation_rules')
       .delete()
       .eq('id', id);

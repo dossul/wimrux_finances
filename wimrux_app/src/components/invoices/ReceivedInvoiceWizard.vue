@@ -5,8 +5,9 @@
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none bg-primary text-white">
         <q-icon name="receipt_long" size="24px" class="q-mr-sm" />
-        <div class="text-h6">{{ invoice ? 'Modifier la facture' : 'Nouvelle facture recue' }}</div>
+        <div class="text-h6">{{ invoice ? (isReadOnly ? 'Détail facture' : 'Modifier la facture') : 'Nouvelle facture recue' }}</div>
         <q-space />
+        <q-badge v-if="isReadOnly" color="orange-8" label="Lecture seule" class="q-mr-md" />
         <q-btn flat round dense icon="close" color="white" @click="$emit('update:modelValue', false)" />
       </q-card-section>
 
@@ -53,12 +54,18 @@
               <span v-if="selectedSupplier.rccm"><q-icon name="business" /> RCCM: {{ selectedSupplier.rccm }}</span>
               <span v-if="selectedSupplier.phone"><q-icon name="phone" /> {{ selectedSupplier.phone }}</span>
               <span v-if="selectedSupplier.email"><q-icon name="email" /> {{ selectedSupplier.email }}</span>
+              <q-badge v-if="selectedSupplier.regime_fiscal" :color="regimeColor(selectedSupplier.regime_fiscal)" :label="selectedSupplier.regime_fiscal" />
             </div>
             <div v-if="selectedSupplier.address" class="text-caption q-mt-xs">
               <q-icon name="location_on" /> {{ selectedSupplier.address }}
             </div>
           </q-card-section>
         </q-card>
+        <!-- Blocage TVA si régime sans TVA -->
+        <q-banner v-if="tvaBlocked" dense rounded class="bg-orange-1 text-orange-9 text-caption q-mt-sm">
+          <template #avatar><q-icon name="info" color="orange" /></template>
+          Fournisseur en régime {{ selectedSupplier?.regime_fiscal }} — <strong>TVA non applicable</strong> sur cette facture.
+        </q-banner>
 
         <q-input v-model="form.supplier_invoice_number" label="N° facture fournisseur" outlined dense
           hint="Tel qu'il apparait sur la facture originale" />
@@ -132,6 +139,7 @@
           <q-input v-model.number="form.total_ht" label="Total HT *" type="number" outlined dense class="col"
             :rules="[v => v >= 0 || 'Requis']" @update:model-value="autoCalcTva" />
           <q-input v-model.number="form.total_tva" label="TVA (18%)" type="number" outlined dense class="col"
+            :disable="tvaBlocked" :hint="tvaBlocked ? 'TVA bloquée (régime ' + selectedSupplier?.regime_fiscal + ')' : ''"
             @update:model-value="autoCalcTtc" />
         </div>
         <div class="row q-gutter-sm">
@@ -139,6 +147,17 @@
             hint="Prelevement special vehicules/biens" @update:model-value="autoCalcTtc" />
           <q-input v-model.number="form.stamp_duty" label="Droit de timbre" type="number" outlined dense class="col"
             @update:model-value="autoCalcTtc" />
+        </div>
+        <!-- Retenue à la source -->
+        <q-separator class="q-my-xs" />
+        <div class="text-caption text-grey-7 q-mb-xs">Retenue à la source (RAS)</div>
+        <div class="row q-gutter-sm items-center">
+          <q-select v-model="form.withholding_tax_rate" :options="rasRates" emit-value map-options
+            label="Taux RAS" outlined dense class="col-4" clearable
+            @update:model-value="autoCalcRas" />
+          <q-input v-model.number="form.withholding_tax_amount" label="Montant RAS (XOF)" type="number"
+            outlined dense class="col" :disable="!!form.withholding_tax_rate"
+            hint="Calculé automatiquement si taux sélectionné" />
         </div>
         <q-separator class="q-my-sm" />
         <div class="row q-gutter-sm items-center">
@@ -184,7 +203,7 @@
           <div class="recap-section">
             <div class="recap-title"><q-icon name="receipt" class="q-mr-xs" />Identification</div>
             <div class="row q-gutter-sm">
-              <q-input v-model="form.reference" label="Reference" outlined dense class="col" />
+              <q-input v-model="form.reference" label="BC / Réf. Interne" outlined dense class="col" />
               <q-select v-model="form.type" :options="typeOptions" emit-value map-options
                 label="Type" outlined dense class="col-4" />
               <q-select v-model="form.price_mode" :options="['TTC','HT']" label="Mode" outlined dense class="col-3" />
@@ -352,7 +371,7 @@
         <q-btn v-if="step > 1" flat no-caps icon="arrow_back" label="Precedent" @click="step--" />
         <q-btn v-if="step < 4" color="primary" no-caps icon-right="arrow_forward" label="Suivant"
           :disable="!stepValid" @click="nextStep" />
-        <q-btn v-if="step === 4" color="positive" no-caps icon="save" label="Enregistrer"
+        <q-btn v-if="step === 4 && !isReadOnly" color="positive" no-caps icon="save" label="Enregistrer"
           :loading="loading" @click="submit" />
       </q-card-actions>
     </q-card>
@@ -395,11 +414,13 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import dayjs from 'dayjs';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useSuppliers } from 'src/composables/useSuppliers';
 import { useReceivedInvoices, type ReceivedInvoice } from 'src/composables/useReceivedInvoices';
 import type { FiscalComplianceStatus } from 'src/types';
+import { verifyTaxIdOnline } from 'src/utils/fiscalCompliance';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { appwriteStorage } from 'src/services/appwrite-storage';
 
 const BUCKET = 'invoices-scans';
 const window = globalThis as unknown as Window & typeof globalThis;
@@ -407,6 +428,7 @@ const window = globalThis as unknown as Window & typeof globalThis;
 const props = defineProps<{
   modelValue: boolean;
   invoice?: ReceivedInvoice | null;
+  readOnly?: boolean;
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void;
@@ -417,6 +439,12 @@ const $q            = useQuasar();
 const companyStore  = useCompanyStore();
 const { suppliers, loadSuppliers } = useSuppliers();
 const { createInvoice, updateInvoice, loading } = useReceivedInvoices();
+
+const isReadOnly = computed(() => {
+  if (props.readOnly) return true;
+  const status = props.invoice?.status;
+  return !!status && !['draft'].includes(status);
+});
 
 // ── Wizard ──────────────────────────────────────────────────────────────────
 const step = ref(1);
@@ -444,6 +472,8 @@ const emptyForm = () => ({
   total_psvb:              0,
   stamp_duty:              0,
   total_ttc:               0,
+  withholding_tax_rate:    null as number | null,
+  withholding_tax_amount:  0,
   fiscal_compliance_status: 'pending' as FiscalComplianceStatus,
   fiscal_compliance_notes: null as string | null,
   ifu_verified:            false,
@@ -459,13 +489,6 @@ watch(() => props.modelValue, (open) => {
     if (props.invoice) {
       const inv = props.invoice;
 
-      // ══ DEBUG DATES ════════════════════════════════════════════════════════
-      console.group('[WIMRUX] Édition facture — DEBUG DATES');
-      console.log('ref                  :', inv.reference);
-      console.log('received_at (RAW BD) :', inv.received_at);
-      console.log('due_date    (RAW BD) :', inv.due_date);
-      console.log('payment_terms_days BD:', inv.payment_terms_days);
-      // ═══════════════════════════════════════════════════════════════════════
 
       // Calcul du délai — priorité à la valeur BD, sinon diff des dates
       const receivedStr  = inv.received_at ? dayjs(inv.received_at).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
@@ -483,13 +506,6 @@ watch(() => props.modelValue, (open) => {
         computedDays = 30; // défaut raisonnable
       }
 
-      // ══ DEBUG DATES (suite) ════════════════════════════════════════════════
-      console.log('receivedStr (dayjs)  :', receivedStr);
-      console.log('dueStr      (dayjs)  :', dueStr);
-      console.log('payment_terms_days BD:', inv.payment_terms_days);
-      console.log('computedDays (final) :', computedDays);
-      console.groupEnd();
-      // ═══════════════════════════════════════════════════════════════════════
 
       form.value = {
         supplier_id:              inv.supplier_id,
@@ -507,6 +523,8 @@ watch(() => props.modelValue, (open) => {
         total_psvb:               Number(inv.total_psvb)  || 0,
         stamp_duty:               Number(inv.stamp_duty)  || 0,
         total_ttc:                Number(inv.total_ttc)   || 0,
+        withholding_tax_rate:     inv.withholding_tax_rate   ?? null,
+        withholding_tax_amount:   Number(inv.withholding_tax_amount) || 0,
         fiscal_compliance_status: inv.fiscal_compliance_status ?? 'pending',
         fiscal_compliance_notes:  inv.fiscal_compliance_notes,
         ifu_verified:             inv.ifu_verified ?? false,
@@ -535,6 +553,25 @@ const selectedSupplier = computed(() =>
 function filterSuppliers(val: string, update: (fn: () => void) => void) {
   update(() => { supplierSearch.value = val; });
 }
+
+// ── Régime fiscal & blocage TVA ──────────────────────────────────────────────
+const tvaBlocked = computed(() => {
+  const rf = selectedSupplier.value?.regime_fiscal;
+  return rf === 'RSI' || rf === 'CME' || rf === 'CSE' || rf === 'RND';
+});
+function regimeColor(r: string) {
+  const colors: Record<string, string> = {
+    RNI: 'blue-7', RSI: 'orange-7', CME: 'grey-6', CSE: 'green-7', RND: 'purple-6'
+  };
+  return colors[r] ?? 'grey';
+}
+
+watch(() => form.value.supplier_id, () => {
+  if (tvaBlocked.value) {
+    form.value.total_tva = 0;
+    autoCalcTtc();
+  }
+});
 // ── Upload document facture ───────────────────────────────────────────────────
 // Le SDK upload() DOIT etre utilise. L'erreur "uploaded_via" est TROMPEUSE (cf. SKILL.md)
 // et survient en realite quand l'upload S3 echoue (ex: fichier vide).
@@ -552,7 +589,7 @@ async function uploadFile(file: File) {
   }
   uploading.value = true;
   try {
-    // Cle sanitisee (upload officiel InsForge SDK)
+    // Cle sanitisee (upload officiel Appwrite SDK)
     const safeName = file.name
       .normalize('NFKD').replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_');
     const key = `${Date.now()}-${safeName}`;
@@ -561,10 +598,8 @@ async function uploadFile(file: File) {
     if (scanBlobUrl.value) URL.revokeObjectURL(scanBlobUrl.value);
     scanBlobUrl.value = URL.createObjectURL(file);
 
-    // Upload officiel InsForge
-    const { data, error } = await insforge.storage
-      .from(BUCKET)
-      .upload(key, file);
+    // Upload officiel Appwrite
+    const { data, error } = await appwriteStorage.upload(BUCKET, file, key);
 
     if (error) throw new Error(error.message);
 
@@ -601,7 +636,7 @@ async function createSupplier() {
   if (!newSup.value.name) return;
   creatingSupplier.value = true;
   try {
-    const { data, error } = await insforge.database.from('suppliers').insert([{
+    const { data, error } = await appwriteDb.from('suppliers').insert([{
       company_id: companyStore.company!.id,
       name: newSup.value.name,
       ifu: newSup.value.ifu || null,
@@ -614,7 +649,7 @@ async function createSupplier() {
       bank_bic: newSup.value.bank_bic || null,
       notes: newSup.value.notes || null,
       is_active: true, country: 'BF',
-    }]).select('id, name').single();
+    }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (error) { $q.notify({ type: 'negative', message: error.message }); return; }
     await loadSuppliers();
     form.value.supplier_id = (data as { id: string }).id;
@@ -624,9 +659,31 @@ async function createSupplier() {
   } finally { creatingSupplier.value = false; }
 }
 
+// ── Options RAS ─────────────────────────────────────────────────────────────
+const rasRates = [
+  { label: 'IS 5%',   value: 0.05 },
+  { label: 'IS 25%',  value: 0.25 },
+  { label: 'IRNR 20%', value: 0.20 },
+  { label: 'IRNR 15%', value: 0.15 },
+  { label: 'TVA 18%', value: 0.18 },
+];
+function autoCalcRas() {
+  const rate = form.value.withholding_tax_rate;
+  if (rate != null && rate > 0) {
+    form.value.withholding_tax_amount = Math.round(form.value.total_ht * rate * 100) / 100;
+  } else {
+    form.value.withholding_tax_amount = 0;
+  }
+}
+
 // ── Calculs montants ─────────────────────────────────────────────────────────
 function autoCalcTva() {
-  form.value.total_tva = Math.round(form.value.total_ht * 0.18 * 100) / 100;
+  if (tvaBlocked.value) {
+    form.value.total_tva = 0;
+  } else {
+    form.value.total_tva = Math.round(form.value.total_ht * 0.18 * 100) / 100;
+  }
+  autoCalcRas();
   autoCalcTtc();
 }
 function autoCalcTtc() {
@@ -635,7 +692,9 @@ function autoCalcTtc() {
 function recalcAll() {
   if (form.value.total_ttc > 0 && form.value.total_ht === 0) {
     form.value.total_ht  = Math.round(form.value.total_ttc / 1.18 * 100) / 100;
-    form.value.total_tva = Math.round(form.value.total_ht * 0.18 * 100) / 100;
+    if (!tvaBlocked.value) {
+      form.value.total_tva = Math.round(form.value.total_ht * 0.18 * 100) / 100;
+    }
   } else { autoCalcTtc(); }
 }
 const montantInconsistant = computed(() => {
@@ -686,10 +745,18 @@ const stepValid = computed(() => {
   if (step.value === 3) return form.value.total_ttc > 0;
   return true;
 });
-function nextStep() {
+async function nextStep() {
   if (!stepValid.value) { $q.notify({ type: 'warning', message: 'Remplir les champs obligatoires (*)' }); return; }
   if (step.value === 2 && !form.value.reference) {
-    form.value.reference = `FR-${Date.now().toString(36).toUpperCase()}`;
+    const companyId = companyStore.company!.id;
+    const year = new Date().getFullYear();
+    try {
+      const { data } = await appwriteDb
+        .rpc('next_invoice_reference', { p_company_id: companyId, p_type: 'FR', p_year: year });
+      form.value.reference = (data as string) || `FR-${year}-${Date.now().toString(36).toUpperCase()}`;
+    } catch {
+      form.value.reference = `FR-${year}-${Date.now().toString(36).toUpperCase()}`;
+    }
   }
   step.value++;
 }
@@ -718,6 +785,12 @@ async function submit() {
     payload.total_ttc  = Number(props.invoice.total_ttc);
   }
 
+  // A3 guard: bloquer la soumission si facture non-draft (immutabilité)
+  if (props.invoice && !['draft'].includes(props.invoice.status)) {
+    $q.notify({ type: 'warning', message: `Facture ${props.invoice.status} — non modifiable` });
+    return;
+  }
+
   let result;
   if (props.invoice) {
     result = await updateInvoice(props.invoice.id, payload as Partial<ReceivedInvoice>);
@@ -725,6 +798,25 @@ async function submit() {
     result = await createInvoice(payload as Partial<ReceivedInvoice>);
   }
   if (result) {
+    // Enregistrer la retenue à la source — A2: éviter les doublons
+    const rasAmount = Number(form.value.withholding_tax_amount) || 0;
+    const rasRate   = form.value.withholding_tax_rate;
+    const rasInvoiceId = (result as ReceivedInvoice).id;
+    // Toujours supprimer l'éventuelle RAS existante pour cette facture (update safe)
+    await appwriteDb.from('withholding_taxes').delete().eq('invoice_id', rasInvoiceId);
+    if (rasAmount > 0 && rasRate != null) {
+      const periodMonth = (form.value.received_at || new Date().toISOString()).slice(0, 7);
+      await appwriteDb.from('withholding_taxes').insert([{
+        company_id:   companyStore.company!.id,
+        invoice_id:   rasInvoiceId,
+        tax_type:     rasRates.find(r => r.value === rasRate)?.label ?? 'RAS',
+        rate:         rasRate,
+        base_amount:  Number(form.value.total_ht),
+        tax_amount:   rasAmount,
+        period_month: periodMonth,
+        status:       'pending',
+      }]);
+    }
     $q.notify({ type: 'positive', message: props.invoice ? 'Facture modifiee' : 'Facture cree avec succes' });
     emit('saved', result as ReceivedInvoice);
     emit('update:modelValue', false);
@@ -754,109 +846,42 @@ const supplierIfu = computed(() =>
   suppliers.value.find(s => s.id === form.value.supplier_id)?.ifu ?? null
 );
 
-// URL Dify depuis la config InsForge ou env
-const DIFY_IFU_WORKFLOW  = import.meta.env.VITE_DIFY_IFU_WORKFLOW_URL  as string | undefined;
-const IFU_SCRAPER_URL    = import.meta.env.VITE_IFU_SCRAPER_URL        as string | undefined;
-
+// URL Dify depuis la config Appwrite ou env
 async function verifierIfuDgi() {
   const ifu = supplierIfu.value;
   if (!ifu) return;
   ifuResult.value = null;
+  ifuLoading.value = true;
 
-  // ── MODE 1 : Scraper Browserless (serveur Node.js + Puppeteer) ────────────
-  if (IFU_SCRAPER_URL) {
-    ifuLoading.value = true;
-    try {
-      const res = await fetch(`${IFU_SCRAPER_URL}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ifu }),
-      });
-      if (res.ok) {
-        const json = await res.json() as {
-          statut: string;
-          resultat?: {
-            etat?: string; nom?: string; rccm?: string; regime?: string; adresse?: string;
-            champs?: { label: string; valeur: string; actif: boolean }[];
-          };
-          message?: string;
-        };
-        if (json.statut === 'ok' && json.resultat) {
-          const r = json.resultat;
-          ifuResult.value = {
-            nom:     r.nom    ?? '',
-            etat:    r.etat   ?? 'INCONNU',
-            rccm:    r.rccm   ?? '',
-            regime:  r.regime ?? '',
-            adresse: r.adresse ?? '',
-            tel:     '',
-            email:   '',
-            champs:  r.champs ?? [],
-          };
-          if (r.etat === 'ACTIF') {
-            form.value.ifu_verified = true;
-            form.value.fiscal_compliance_status = 'valid';
-            $q.notify({ type: 'positive', icon: 'verified_user',
-              message: `IFU vérifié ✓ — ${r.nom || ifu}`, timeout: 5000 });
-          } else if (r.etat === 'INVALIDE') {
-            $q.notify({ type: 'warning', icon: 'warning',
-              message: `IFU introuvable dans la base DGI`, timeout: 5000 });
-          } else {
-            $q.notify({ type: 'info', icon: 'help_outline',
-              message: `IFU : résultat ambigu — vérification manuelle recommandée`, timeout: 5000 });
-          }
-        } else {
-          $q.notify({ type: 'warning', message: json.message ?? 'Scraper IFU : réponse inattendue' });
-        }
-      }
-    } catch (e) {
-      console.warn('[IFU] Scraper error:', e);
-      $q.notify({ type: 'warning', message: 'Service IFU indisponible — page DGI ouverte manuellement' });
-    } finally {
-      ifuLoading.value = false;
+  try {
+    const result = await verifyTaxIdOnline('BF', ifu);
+    if (result.online_check === 'valid') {
+      ifuResult.value = {
+        nom: result.online_message || ifu, etat: 'ACTIF',
+        rccm: '', regime: '', adresse: '', tel: '', email: ''
+      };
+      form.value.ifu_verified = true;
+      form.value.fiscal_compliance_status = 'valid';
+      $q.notify({ type: 'positive', icon: 'verified_user',
+        message: `IFU vérifié ✓ — ${ifu}`, timeout: 5000 });
+    } else if (result.online_check === 'invalid') {
+      ifuResult.value = {
+        nom: ifu, etat: 'INVALIDE',
+        rccm: '', regime: '', adresse: '', tel: '', email: ''
+      };
+      $q.notify({ type: 'warning', icon: 'warning',
+        message: 'IFU introuvable dans la base DGI', timeout: 5000 });
+    } else {
+      $q.notify({ type: 'info', icon: 'help_outline',
+        message: result.online_message || 'Vérification ambiguë — page DGI ouverte', timeout: 5000 });
+      globalThis.open(`https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(ifu)}`, '_blank');
     }
-    // Pas d'ouverture d'onglet si le scraper a répondu
-    if (ifuResult.value) return;
+  } catch (e) {
+    console.warn('[IFU] ai-router error:', e);
+    globalThis.open(`https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(ifu)}`, '_blank');
+  } finally {
+    ifuLoading.value = false;
   }
-
-  // ── MODE 2 : Workflow Dify (fallback si pas de scraper) ───────────────────
-  if (DIFY_IFU_WORKFLOW) {
-    ifuLoading.value = true;
-    try {
-      const res = await fetch(DIFY_IFU_WORKFLOW, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: { ifu }, response_mode: 'blocking', user: 'wimrux' }),
-      });
-      if (res.ok) {
-        const json = await res.json() as { data?: { outputs?: { nom?: string; etat?: string; rccm?: string; regime?: string; adresse?: string; tel?: string; email?: string } } };
-        const out = json.data?.outputs;
-        if (out) {
-          ifuResult.value = {
-            nom:     out.nom    ?? '',
-            etat:    out.etat   ?? 'INCONNU',
-            rccm:    out.rccm   ?? '',
-            regime:  out.regime ?? '',
-            adresse: out.adresse ?? '',
-            tel:     out.tel    ?? '',
-            email:   out.email  ?? '',
-          };
-          if (out.etat === 'ACTIVE') {
-            form.value.ifu_verified = true;
-            form.value.fiscal_compliance_status = 'valid';
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[IFU] Dify workflow error:', e);
-    } finally {
-      ifuLoading.value = false;
-    }
-    if (ifuResult.value) return;
-  }
-
-  // ── MODE 3 : Ouverture manuelle dans un onglet (dernier recours) ──────────
-  globalThis.open(`https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(ifu)}`, '_blank');
 }
 
 // ── Options ───────────────────────────────────────────────────────────────────

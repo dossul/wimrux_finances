@@ -3,9 +3,9 @@
 // Workflow statut : in_circulation → cashed | bounced | endorsed | cancelled
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Check, CheckType, CheckStatus } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface CheckStats {
   totalInCirculation: number;
@@ -34,7 +34,7 @@ export function useChecks() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('checks')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -64,11 +64,9 @@ export function useChecks() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('checks')
-        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'in_circulation' }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'in_circulation' }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) checks.value.unshift(data);
       return data;
@@ -84,13 +82,9 @@ export function useChecks() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('checks')
-        .update(payload)
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, payload);
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = checks.value.findIndex(c => c.id === id);
@@ -131,7 +125,7 @@ export function useChecks() {
     loading.value = true;
     error.value   = null;
     try {
-      const { error: err } = await insforge.database
+      const { error: err } = await appwriteDb
         .from('checks')
         .delete()
         .eq('id', id)

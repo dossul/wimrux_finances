@@ -1,10 +1,11 @@
-import { insforge } from 'src/boot/insforge';
 import { useInvoicePdf } from './useInvoicePdf';
 import type { Invoice, InvoiceItem } from 'src/types';
 import type { PdfCompanyInfo, PdfClientInfo, PdfOptions } from './useInvoicePdf';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { appwriteStorage } from 'src/services/appwrite-storage';
 
 // ============================================================================
-// Stockage PDF — Upload vers InsForge Storage + lien dans la facture
+// Stockage PDF — Upload vers Appwrite Storage + lien dans la facture
 // Réf. Spéc. SFE §2.37 : archivage 10 ans
 // ============================================================================
 
@@ -26,25 +27,20 @@ export function usePdfStorage() {
       const suffix = options?.isDuplicate ? '_DUPLICATA' : '';
       const fileName = `${invoice.company_id}/${invoice.reference}${suffix}.pdf`;
 
-      const { error: uploadError } = await insforge.storage
-        .from(BUCKET_NAME)
-        .upload(fileName, pdfBlob);
+      const { error: uploadError } = await appwriteStorage.upload(BUCKET_NAME, pdfBlob, fileName);
 
       if (uploadError) {
         console.error('PDF upload error:', uploadError);
         return null;
       }
 
-      const publicUrl = insforge.storage
-        .from(BUCKET_NAME)
-        .getPublicUrl(fileName);
+      const publicUrl = appwriteStorage.getPublicUrl(BUCKET_NAME, fileName);
 
       // Update invoice with PDF URL
       if (publicUrl && !options?.isDuplicate) {
-        await insforge.database
+        await appwriteDb
           .from('invoices')
-          .update({ pdf_url: publicUrl })
-          .eq('id', invoice.id);
+          .update(invoice.id, { pdf_url: publicUrl });
       }
 
       return publicUrl;

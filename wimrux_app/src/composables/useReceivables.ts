@@ -2,10 +2,10 @@
 // WIMRUX® FINANCES — Balance âgée des créances (T3.2) + Relances (T3.3)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useEmailService } from 'src/composables/useEmailService';
 import type { ClientReceivable, ReminderTemplate, ReminderLog, ReminderChannel } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useReceivables() {
   const receivables       = ref<ClientReceivable[]>([]);
@@ -23,7 +23,7 @@ export function useReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('v_client_receivables')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -58,7 +58,7 @@ export function useReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('reminder_templates')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -74,11 +74,9 @@ export function useReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('reminder_templates')
-        .insert([{ ...payload, company_id: companyStore.company!.id }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company!.id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) reminderTemplates.value.push(data);
       return data;
@@ -91,13 +89,9 @@ export function useReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('reminder_templates')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, { ...payload, updated_at: new Date().toISOString() })
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = reminderTemplates.value.findIndex(t => t.id === id);
@@ -113,7 +107,7 @@ export function useReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { error: err } = await insforge.database
+      const { error: err } = await appwriteDb
         .from('reminder_templates')
         .delete()
         .eq('id', id)
@@ -161,7 +155,7 @@ export function useReceivables() {
         }
       }
 
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('reminder_logs')
         .insert([{
           invoice_id: opts.invoice_id,
@@ -173,9 +167,7 @@ export function useReceivables() {
           company_id: companyStore.company!.id,
           status: 'sent',
           sent_at: new Date().toISOString(),
-        }])
-        .select()
-        .single();
+        }]).then((r:any)=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       return data;
     } finally {
@@ -187,7 +179,7 @@ export function useReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('reminder_logs')
         .select('*')
         .eq('invoice_id', invoiceId)

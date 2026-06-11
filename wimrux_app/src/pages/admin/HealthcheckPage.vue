@@ -32,7 +32,7 @@
       <q-card-section>
         <div class="row q-gutter-md">
           <div><strong>Frontend</strong> : Quasar + Vue 3</div>
-          <div><strong>Backend</strong> : InsForge (PostgreSQL + PostgREST)</div>
+          <div><strong>Backend</strong> : Appwrite (PostgreSQL + PostgREST)</div>
           <div><strong>Build</strong> : {{ buildDate }}</div>
         </div>
       </q-card-section>
@@ -42,7 +42,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { appwriteAuth } from 'src/services/appwrite-auth';
+import { appwriteStorage } from 'src/services/appwrite-storage';
+import { appwriteRealtime } from 'src/services/appwrite-realtime';
 
 interface ServiceCheck {
   name: string;
@@ -67,23 +70,23 @@ async function checkService(svc: ServiceCheck) {
   try {
     switch (svc.name) {
       case 'database': {
-        const { error } = await insforge.database.from('companies').select('id').limit(1);
+        const { error } = await appwriteDb.from('companies').select('id').limit(1);
         svc.status = error ? 'error' : 'ok';
         break;
       }
       case 'auth': {
-        const { error } = await insforge.auth.getCurrentUser();
+        const { error } = await appwriteAuth.getCurrentUser();
         svc.status = error ? 'error' : 'ok';
         break;
       }
       case 'storage': {
-        const { error } = await insforge.storage.from('company-logos').list();
+        const { error } = await appwriteStorage.list('company-logos');
         svc.status = error ? 'error' : 'ok';
         break;
       }
       case 'realtime': {
         // Simple check — si le module existe c'est OK
-        svc.status = insforge.realtime ? 'ok' : 'error';
+        svc.status = appwriteRealtime ? 'ok' : 'error';
         break;
       }
     }

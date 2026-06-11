@@ -1,5 +1,4 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type {
@@ -12,6 +11,7 @@ import type {
   ReplenishmentRequestInput,
   ReplenishmentApproval,
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function usePettyCash() {
   const companyStore = useCompanyStore();
@@ -32,7 +32,7 @@ export function usePettyCash() {
   async function loadAccounts() {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('petty_cash_accounts')
       .select('*')
       .eq('company_id', companyId.value)
@@ -45,7 +45,7 @@ export function usePettyCash() {
   async function loadSummaries() {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('v_petty_cash_summary')
       .select('*')
       .eq('company_id', companyId.value);
@@ -55,29 +55,25 @@ export function usePettyCash() {
   }
 
   async function createAccount(input: PettyCashAccountInput): Promise<PettyCashAccount | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('petty_cash_accounts')
-      .insert([{ ...input, company_id: companyId.value }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyId.value }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadSummaries();
     return data as PettyCashAccount;
   }
 
   async function updateAccount(id: string, input: Partial<PettyCashAccountInput>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('petty_cash_accounts')
-      .update(input)
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, input);
     if (err) { error.value = err.message; return false; }
     await loadSummaries();
     return true;
   }
 
   async function deleteAccount(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('petty_cash_accounts')
       .delete()
       .eq('id', id)
@@ -92,7 +88,7 @@ export function usePettyCash() {
   async function loadMovements(pettyCashId: string) {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('petty_cash_movements')
       .select('*')
       .eq('petty_cash_id', pettyCashId)
@@ -104,11 +100,9 @@ export function usePettyCash() {
   }
 
   async function addMovement(input: PettyCashMovementInput): Promise<PettyCashMovement | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('petty_cash_movements')
-      .insert([{ ...input, company_id: companyId.value, recorded_by: input.recorded_by || currentUserId.value }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyId.value, recorded_by: input.recorded_by || currentUserId.value }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
 
     // Update balance on the account
@@ -116,10 +110,9 @@ export function usePettyCash() {
       || summaries.value.find(s => s.id === input.petty_cash_id);
     if (account) {
       const delta = input.direction === 'in' ? input.amount : -input.amount;
-      await insforge.database
+      await appwriteDb
         .from('petty_cash_accounts')
-        .update({ current_balance: (account.current_balance || 0) + delta })
-        .eq('id', input.petty_cash_id);
+        .update(input.petty_cash_id, { current_balance: (account.current_balance || 0) + delta });
     }
 
     await loadMovements(input.petty_cash_id);
@@ -128,7 +121,7 @@ export function usePettyCash() {
   }
 
   async function deleteMovement(movement: PettyCashMovement): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('petty_cash_movements')
       .delete()
       .eq('id', movement.id);
@@ -138,10 +131,9 @@ export function usePettyCash() {
     const account = summaries.value.find(s => s.id === movement.petty_cash_id);
     if (account) {
       const delta = movement.direction === 'in' ? -movement.amount : movement.amount;
-      await insforge.database
+      await appwriteDb
         .from('petty_cash_accounts')
-        .update({ current_balance: (account.current_balance || 0) + delta })
-        .eq('id', movement.petty_cash_id);
+        .update(movement.petty_cash_id, { current_balance: (account.current_balance || 0) + delta });
     }
 
     await loadMovements(movement.petty_cash_id);
@@ -153,7 +145,7 @@ export function usePettyCash() {
 
   async function loadRequests(targetId?: string) {
     loading.value = true;
-    let query = insforge.database
+    let query = appwriteDb
       .from('replenishment_requests')
       .select('*')
       .eq('company_id', companyId.value)
@@ -166,26 +158,22 @@ export function usePettyCash() {
   }
 
   async function createRequest(input: ReplenishmentRequestInput): Promise<ReplenishmentRequest | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('replenishment_requests')
       .insert([{
         ...input,
         company_id: companyId.value,
         requested_by: currentUserId.value,
-      }])
-      .select()
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadRequests();
     return data as ReplenishmentRequest;
   }
 
   async function cancelRequest(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('replenishment_requests')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, { status: 'cancelled' });
     if (err) { error.value = err.message; return false; }
     await loadRequests();
     return true;
@@ -194,7 +182,7 @@ export function usePettyCash() {
   // --- Approvals ---
 
   async function loadApprovals(requestId: string) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('replenishment_approvals')
       .select('*')
       .eq('request_id', requestId)
@@ -204,7 +192,7 @@ export function usePettyCash() {
   }
 
   async function approve(requestId: string, level: number, comment?: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('replenishment_approvals')
       .insert([{
         request_id: requestId,
@@ -224,10 +212,9 @@ export function usePettyCash() {
       } else {
         nextStatus = `approved_l${level}`;
       }
-      await insforge.database
+      await appwriteDb
         .from('replenishment_requests')
-        .update({ status: nextStatus, current_level: level + 1 })
-        .eq('id', requestId);
+        .update(requestId, { status: nextStatus, current_level: level + 1 });
     }
 
     await loadRequests();
@@ -236,7 +223,7 @@ export function usePettyCash() {
   }
 
   async function reject(requestId: string, level: number, comment?: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('replenishment_approvals')
       .insert([{
         request_id: requestId,
@@ -247,10 +234,9 @@ export function usePettyCash() {
       }]);
     if (err) { error.value = err.message; return false; }
 
-    await insforge.database
+    await appwriteDb
       .from('replenishment_requests')
-      .update({ status: 'rejected' })
-      .eq('id', requestId);
+      .update(requestId, { status: 'rejected' });
 
     await loadRequests();
     await loadApprovals(requestId);
@@ -258,10 +244,9 @@ export function usePettyCash() {
   }
 
   async function disburse(requestId: string, pettyCashId: string, amount: number): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('replenishment_requests')
-      .update({ status: 'disbursed', disbursed_at: new Date().toISOString() })
-      .eq('id', requestId);
+      .update(requestId, { status: 'disbursed', disbursed_at: new Date().toISOString() });
     if (err) { error.value = err.message; return false; }
 
     // Add 'in' movement to the petty cash account

@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { ApprovalWorkflow, ApprovalWorkflowInput } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export const APPROVAL_DOMAINS = [
   { value: 'petty_cash_replenishment', label: 'Approvisionnement petite caisse' },
@@ -24,7 +24,7 @@ export function useApprovalWorkflow() {
   async function loadWorkflows() {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('approval_workflows')
       .select('*')
       .eq('company_id', companyId.value)
@@ -36,29 +36,25 @@ export function useApprovalWorkflow() {
   }
 
   async function createWorkflow(input: ApprovalWorkflowInput): Promise<ApprovalWorkflow | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('approval_workflows')
-      .insert([{ ...input, company_id: companyId.value }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyId.value }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadWorkflows();
     return data as ApprovalWorkflow;
   }
 
   async function updateWorkflow(id: string, input: Partial<ApprovalWorkflowInput>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('approval_workflows')
-      .update(input)
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, input);
     if (err) { error.value = err.message; return false; }
     await loadWorkflows();
     return true;
   }
 
   async function deleteWorkflow(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('approval_workflows')
       .delete()
       .eq('id', id)
@@ -69,11 +65,9 @@ export function useApprovalWorkflow() {
   }
 
   async function toggleActive(id: string, isActive: boolean): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('approval_workflows')
-      .update({ is_active: isActive })
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, { is_active: isActive });
     if (err) { error.value = err.message; return false; }
     await loadWorkflows();
     return true;

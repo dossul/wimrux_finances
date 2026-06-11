@@ -196,9 +196,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { AiCreditPack, CompanyAiCredits } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const $q = useQuasar();
 const $router = useRouter();
@@ -276,7 +276,7 @@ async function loadData() {
     if (!companyId) return;
 
     // Load credit packs
-    const { data: packs } = await insforge.database
+    const { data: packs } = await appwriteDb
       .from('ai_credit_packs')
       .select('*')
       .eq('is_active', true)
@@ -284,7 +284,7 @@ async function loadData() {
     creditPacks.value = packs || [];
 
     // Load credit balance
-    const { data: credits } = await insforge.database
+    const { data: credits } = await appwriteDb
       .from('company_ai_credits')
       .select('*')
       .eq('company_id', companyId)
@@ -294,7 +294,7 @@ async function loadData() {
     }
 
     // Load transactions
-    const { data: txs } = await insforge.database
+    const { data: txs } = await appwriteDb
       .from('ai_credit_transactions')
       .select('*')
       .eq('company_id', companyId)
@@ -318,7 +318,7 @@ async function initiatePayment() {
     if (!companyId) throw new Error('No company selected');
 
     // Create transaction record
-    const { error: txError } = await insforge.database
+    const { error: txError } = await appwriteDb
       .from('ai_credit_transactions')
       .insert([{
         company_id: companyId,
@@ -337,7 +337,7 @@ async function initiatePayment() {
     if (txError) throw txError;
 
     // Update credit balance
-    const { error: creditError } = await insforge.database
+    const { error: creditError } = await appwriteDb
       .rpc('increment_ai_credits', {
         p_company_id: companyId,
         p_amount_usd: selectedPack.value.credits_usd,
@@ -345,16 +345,16 @@ async function initiatePayment() {
 
     if (creditError) {
       // Fallback: manual update if RPC doesn't exist
-      const { data: current } = await insforge.database
+      const { data: current } = await appwriteDb
         .from('company_ai_credits')
         .select('*')
         .eq('company_id', companyId)
         .single();
       
       if (current) {
-        await insforge.database
+        await appwriteDb
           .from('company_ai_credits')
-          .update({
+          .updateWhere({
             balance_usd: current.balance_usd + selectedPack.value.credits_usd,
             total_purchased_usd: current.total_purchased_usd + selectedPack.value.credits_usd,
             updated_at: new Date().toISOString(),

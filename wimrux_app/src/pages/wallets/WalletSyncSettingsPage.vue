@@ -178,9 +178,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { insforge } from 'src/boot/insforge';
 import { useQuasar } from 'quasar';
 import PaymentEvidencePasteZone from 'src/components/PaymentEvidencePasteZone.vue';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const $q = useQuasar();
 const route = useRoute();
@@ -220,7 +220,7 @@ const apiStatusColor = computed(() => {
   return 'positive';
 });
 const lastSyncText = computed(() => wallet.value?.last_sync_at ? new Date(wallet.value.last_sync_at).toLocaleString('fr-FR') : 'Jamais');
-const webhookEndpoint = computed(() => `https://gfe4bd9y.eu-central.insforge.app/api/functions/ingest-webhook-${provider.value?.code || 'generic'}?wallet=${walletId.value}`);
+const webhookEndpoint = computed(() => `https://gfe4bd9y.eu-central.appwrite.benga.live/api/functions/ingest-webhook-${provider.value?.code || 'generic'}?wallet=${walletId.value}`);
 
 const providerCapabilities = computed(() => [
   { code: 'pull', label: 'API Pull (polling)', supported: provider.value?.supports_pull, icon: 'download' },
@@ -231,7 +231,7 @@ const providerCapabilities = computed(() => [
 
 // ─── Methods ──────────────────────────────────────────────────────────────
 async function loadWallet() {
-  const { data } = await insforge.database.from('payment_wallets')
+  const { data } = await appwriteDb.from('payment_wallets')
     .select('*, payment_providers(*)')
     .eq('id', walletId.value)
     .single();
@@ -245,7 +245,7 @@ async function loadWallet() {
 }
 
 async function loadSyncHistory() {
-  const { data } = await insforge.database.from('wallet_sync_logs')
+  const { data } = await appwriteDb.from('wallet_sync_logs')
     .select('*')
     .eq('wallet_id', walletId.value)
     .order('started_at', { ascending: false })

@@ -2,8 +2,8 @@
 // WIMRUX® FINANCES — Composable Company Theme (T18.1)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface CompanyTheme {
   id: string;
@@ -45,7 +45,7 @@ export function useCompanyTheme() {
   // THEME
   // ---------------------------------------------------------------------------
   async function loadTheme() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('company_themes')
       .select('*')
       .eq('company_id', companyId.value);
@@ -56,20 +56,15 @@ export function useCompanyTheme() {
     loading.value = true;
     try {
       if (theme.value) {
-        const { data, error: err } = await insforge.database
+        const { data, error: err } = await appwriteDb
           .from('company_themes')
-          .update(updates)
-          .eq('id', theme.value.id)
-          .select()
-          .single();
+          .update(theme.value.id, updates);
         if (err) { error.value = err.message; return; }
         theme.value = data;
       } else {
-        const { data, error: err } = await insforge.database
+        const { data, error: err } = await appwriteDb
           .from('company_themes')
-          .insert([{ company_id: companyId.value, ...updates }])
-          .select()
-          .single();
+          .insert([{ company_id: companyId.value, ...updates }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
         if (err) { error.value = err.message; return; }
         theme.value = data;
       }
@@ -80,7 +75,7 @@ export function useCompanyTheme() {
   // TEMPLATES FACTURES
   // ---------------------------------------------------------------------------
   async function loadTemplates() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('invoice_templates')
       .select('*')
       .eq('company_id', companyId.value)
@@ -91,11 +86,9 @@ export function useCompanyTheme() {
   async function createTemplate(payload: { name: string; html_template: string; css_styles?: string; description?: string }) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('invoice_templates')
-        .insert([{ company_id: companyId.value, ...payload }])
-        .select()
-        .single();
+        .insert([{ company_id: companyId.value, ...payload }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) templates.value.push(data);
       return data as InvoiceTemplate;
@@ -103,33 +96,29 @@ export function useCompanyTheme() {
   }
 
   async function updateTemplate(id: string, updates: Partial<InvoiceTemplate>) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('invoice_templates')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+      .update(id, updates);
     if (err) { error.value = err.message; return; }
     const idx = templates.value.findIndex(t => t.id === id);
     if (idx !== -1 && data) templates.value[idx] = data;
   }
 
   async function deleteTemplate(id: string) {
-    await insforge.database.from('invoice_templates').delete().eq('id', id);
+    await appwriteDb.from('invoice_templates').delete().eq('id', id);
     templates.value = templates.value.filter(t => t.id !== id);
   }
 
   async function setDefaultTemplate(id: string) {
     // Désactiver tous les autres
-    await insforge.database
+    await appwriteDb
       .from('invoice_templates')
-      .update({ is_default: false })
+      .updateWhere({ is_default: false })
       .eq('company_id', companyId.value);
     // Activer celui-ci
-    await insforge.database
+    await appwriteDb
       .from('invoice_templates')
-      .update({ is_default: true })
-      .eq('id', id);
+      .update(id, { is_default: true });
     templates.value = templates.value.map(t => ({ ...t, is_default: t.id === id }));
   }
 

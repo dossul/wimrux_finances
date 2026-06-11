@@ -152,17 +152,33 @@
               @click="openPaymentHistory(props.row)" />
             <q-btn flat round dense size="sm" icon="payments" color="positive"
               title="Enregistrer paiement" @click="openPaymentDialog(props.row)" />
-            <q-btn flat round dense size="sm" icon="edit" color="grey-7"
-              title="Modifier" @click="openEdit(props.row)" />
-            <!-- Annuler (visible si pas déjà annulé) -->
+            <!-- Boutons workflow -->
             <q-btn
-              v-if="props.row.status !== 'cancelled'"
+              v-if="props.row.status === 'draft'"
+              flat round dense size="sm" icon="send" color="primary"
+              title="Soumettre pour validation"
+              @click="confirmSubmit(props.row)" />
+            <q-btn
+              v-if="props.row.status === 'pending_validation'"
+              flat round dense size="sm" icon="thumb_up" color="teal-7"
+              title="Approuver"
+              @click="confirmApprove(props.row)" />
+            <q-btn
+              v-if="props.row.status === 'approved'"
+              flat round dense size="sm" icon="verified" color="positive"
+              title="Valider définitivement"
+              @click="confirmValidate(props.row)" />
+            <q-btn flat round dense size="sm" icon="edit" color="grey-7"
+              title="Voir / Modifier" @click="openEdit(props.row)" />
+            <!-- Annuler (visible si pas déjà annulé ou validé) -->
+            <q-btn
+              v-if="['draft','pending_validation','approved'].includes(props.row.status)"
               flat round dense size="sm" icon="cancel" color="orange-7"
               title="Annuler la facture"
               @click="confirmCancel(props.row)" />
-            <!-- Supprimer (visible uniquement si aucun paiement) -->
+            <!-- Supprimer (uniquement brouillon sans paiement) -->
             <q-btn
-              v-if="props.row.paid_amount === 0 && props.row.payment_status === 'unpaid'"
+              v-if="props.row.status === 'draft' && props.row.paid_amount === 0 && props.row.payment_status === 'unpaid'"
               flat round dense size="sm" icon="delete_forever" color="negative"
               title="Supprimer la facture"
               @click="confirmDelete(props.row)" />
@@ -291,6 +307,7 @@
     <received-invoice-wizard
       v-model="showForm"
       :invoice="editingInvoice"
+      :read-only="wizardReadOnly"
       @saved="onInvoiceSaved"
     />
 
@@ -399,7 +416,11 @@ import PaymentDialog from 'src/components/payments/PaymentDialog.vue';
 import type { InvoicePaymentStatus, FiscalComplianceStatus } from 'src/types';
 
 const $q = useQuasar();
-const { invoices, loading, error, stats, loadInvoices, cancelInvoice, deleteInvoice } = useReceivedInvoices();
+const {
+  invoices, loading, error, stats,
+  loadInvoices, cancelInvoice, deleteInvoice,
+  submitInvoice, approveInvoice, validateInvoice,
+} = useReceivedInvoices();
 const { state: ocrState, reset: ocrReset, extractOnly: ocrExtract } = useSupplierInvoiceOcr();
 
 const showOcrDialog  = ref(false);
@@ -540,14 +561,58 @@ function resetFilters() {
 // Form (wizard)
 const showForm       = ref(false);
 const editingInvoice = ref<ReceivedInvoice | null>(null);
+const wizardReadOnly = ref(false);
 
-function openCreate() { editingInvoice.value = null; showForm.value = true; }
-function openEdit(inv: ReceivedInvoice) { editingInvoice.value = inv; showForm.value = true; }
+const READ_ONLY_STATUSES = ['validated', 'certified', 'pending_validation', 'approved'];
+
+function openCreate() { editingInvoice.value = null; wizardReadOnly.value = false; showForm.value = true; }
+function openEdit(inv: ReceivedInvoice) {
+  editingInvoice.value = inv;
+  wizardReadOnly.value = READ_ONLY_STATUSES.includes(inv.status);
+  showForm.value = true;
+}
 function openDetail(inv: ReceivedInvoice) { openEdit(inv); }
 function onInvoiceSaved() { void applyFilters(); }
 function openInvoiceFile(inv: ReceivedInvoice) {
   const url = inv.scan_url || inv.ocr_source_url;
   if (url) window.open(url, '_blank');
+}
+
+// ── Actions workflow ─────────────────────────────────────────────────────────
+function confirmSubmit(inv: ReceivedInvoice) {
+  $q.dialog({
+    title: 'Soumettre pour validation',
+    message: `Soumettre la facture ${inv.reference ?? ''} pour validation ?`,
+    cancel: true, ok: { color: 'primary', label: 'Soumettre' },
+  }).onOk(async () => {
+    const ok = await submitInvoice(inv.id);
+    if (ok) { $q.notify({ type: 'positive', message: 'Facture soumise pour validation' }); void applyFilters(); }
+    else     { $q.notify({ type: 'negative', message: 'Erreur lors de la soumission' }); }
+  });
+}
+
+function confirmApprove(inv: ReceivedInvoice) {
+  $q.dialog({
+    title: 'Approuver la facture',
+    message: `Approuver la facture ${inv.reference ?? ''} ?`,
+    cancel: true, ok: { color: 'teal', label: 'Approuver' },
+  }).onOk(async () => {
+    const ok = await approveInvoice(inv.id);
+    if (ok) { $q.notify({ type: 'positive', message: 'Facture approuvée' }); void applyFilters(); }
+    else     { $q.notify({ type: 'negative', message: 'Erreur lors de l\'approbation' }); }
+  });
+}
+
+function confirmValidate(inv: ReceivedInvoice) {
+  $q.dialog({
+    title: 'Valider la facture',
+    message: `Valider définitivement la facture ${inv.reference ?? ''} ?\nElle deviendra non modifiable.`,
+    cancel: true, ok: { color: 'positive', label: 'Valider' },
+  }).onOk(async () => {
+    const ok = await validateInvoice(inv.id);
+    if (ok) { $q.notify({ type: 'positive', message: 'Facture validée' }); void applyFilters(); }
+    else     { $q.notify({ type: 'negative', message: 'Erreur lors de la validation' }); }
+  });
 }
 
 // ── Annuler facture ──────────────────────────────────────────────────────────
@@ -563,7 +628,7 @@ function confirmCancel(inv: ReceivedInvoice) {
       $q.notify({ type: 'positive', message: 'Facture annulée' });
       void applyFilters();
     } else {
-      $q.notify({ type: 'negative', message: 'Erreur lors de l\'annulation' });
+      $q.notify({ type: 'negative', message: error.value || 'Erreur lors de l\'annulation' });
     }
   });
 }
@@ -572,6 +637,10 @@ function confirmCancel(inv: ReceivedInvoice) {
 function confirmDelete(inv: ReceivedInvoice) {
   if (inv.paid_amount > 0 || inv.payment_status !== 'unpaid') {
     $q.notify({ type: 'warning', message: 'Impossible de supprimer une facture avec des paiements enregistrés. Utilisez "Annuler" à la place.' });
+    return;
+  }
+  if (inv.status !== 'draft') {
+    $q.notify({ type: 'warning', message: 'Seules les factures en brouillon peuvent être supprimées.' });
     return;
   }
   $q.dialog({
@@ -584,7 +653,7 @@ function confirmDelete(inv: ReceivedInvoice) {
     if (ok) {
       $q.notify({ type: 'positive', message: 'Facture supprimée' });
     } else {
-      $q.notify({ type: 'negative', message: 'Erreur lors de la suppression (vérifiez les permissions)' });
+      $q.notify({ type: 'negative', message: error.value || 'Erreur lors de la suppression' });
     }
   });
 }

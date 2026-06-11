@@ -106,9 +106,9 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth-store';
-import { insforge } from 'src/boot/insforge';
 import { useEmailService } from 'src/composables/useEmailService';
 import type { Company, UserRole } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const router = useRouter();
 const $q = useQuasar();
@@ -138,7 +138,7 @@ async function verifyIfu() {
   companyFound.value = null;
   ifuError.value = '';
   try {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('companies')
       .select('*')
       .eq('ifu', companyIfu.value.trim())
@@ -169,10 +169,10 @@ async function onSubmit() {
     const data = await authStore.register(email.value, password.value, fullName.value);
 
     // Create user_profile linked to company
-    if (data?.user) {
-      const userId = typeof data.user === 'object' && 'id' in data.user ? (data.user as { id: string }).id : null;
+    if (data) {
+      const userId = (data as any)?.$id ?? (data as any)?.id ?? null;
       if (userId && companyFound.value) {
-        await insforge.database.from('user_profiles').insert({
+        await appwriteDb.from('user_profiles').insert({
           user_id: userId,
           company_id: companyFound.value.id,
           role: role.value,
@@ -189,13 +189,8 @@ async function onSubmit() {
       $q.notify({ type: 'warning', message: 'Compte créé, mais l\'email de bienvenue n\'a pas pu être envoyé' });
     }
 
-    if (data?.requireEmailVerification) {
-      $q.notify({ type: 'info', message: 'Veuillez vérifier votre email pour confirmer votre compte.', timeout: 6000 });
-      await router.push({ name: 'login' });
-    } else {
-      $q.notify({ type: 'positive', message: 'Inscription réussie ! Un email de bienvenue vous a été envoyé.' });
-      await router.push('/');
-    }
+    $q.notify({ type: 'positive', message: 'Inscription réussie ! Un email de bienvenue vous a été envoyé.' });
+    await router.push('/');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur d\'inscription';
     $q.notify({ type: 'negative', message });

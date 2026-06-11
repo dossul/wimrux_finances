@@ -168,6 +168,7 @@ const navItems: NavItem[] = [
   { label: 'Wallets mobiles', icon: 'smartphone', route: '/app/mobile-wallets', permissions: ['treasury.read'] },
   { label: 'Wallets de paiement', icon: 'account_balance_wallet', route: '/app/wallets', permissions: ['treasury.read'] },
   { label: 'Déclarations fiscales', icon: 'gavel', route: '/app/fiscal/declarations', permissions: ['treasury.read'] },
+  { label: 'Retenues à la source', icon: 'account_balance_wallet', route: '/app/fiscal/withholding', permissions: ['treasury.read'] },
   { label: "Workflows d'approbation", icon: 'account_tree', route: '/app/approvals/workflows', permissions: ['settings.manage'] },
   { label: 'Articles', icon: 'inventory_2', route: '/app/articles', permissions: ['invoices.create'] },
   { label: 'Clients', icon: 'people', route: '/app/clients', permissions: ['clients.read'] },

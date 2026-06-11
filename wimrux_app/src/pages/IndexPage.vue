@@ -207,8 +207,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import type { Invoice } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 type Period = 'month' | 'quarter' | 'year';
 
@@ -310,21 +310,21 @@ async function loadDashboard() {
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
     const [periodRes, allRes, pendingRes, treasuryRes] = await Promise.all([
-      insforge.database
+      appwriteDb
         .from('invoices')
         .select('id, reference, type, status, total_ttc, client_id, created_at')
         .gte('created_at', periodStart)
         .order('created_at', { ascending: false }),
-      insforge.database
+      appwriteDb
         .from('invoices')
         .select('id, status, total_ttc, client_id, created_at')
         .gte('created_at', twelveMonthsAgo.toISOString()),
-      insforge.database
+      appwriteDb
         .from('invoices')
         .select('id, reference, type, status, total_ttc')
         .in('status', ['pending_validation', 'approved'])
         .order('created_at', { ascending: false }),
-      insforge.database
+      appwriteDb
         .from('treasury_accounts')
         .select('balance'),
     ]);
@@ -354,7 +354,7 @@ async function loadDashboard() {
 
     const clientIds = Object.keys(clientMap);
     if (clientIds.length > 0) {
-      const { data: clientsData } = await insforge.database
+      const { data: clientsData } = await appwriteDb
         .from('clients')
         .select('id, name')
         .in('id', clientIds.slice(0, 20));

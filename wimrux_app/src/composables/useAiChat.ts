@@ -4,11 +4,12 @@
 // Calls OpenRouter directly (same pattern as useAiAssistant) to avoid 403.
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useCrypto } from 'src/composables/useCrypto';
 import type { AiRouting } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -137,7 +138,7 @@ export function useAiChat() {
   // ─── Key resolution ───────────────────────────────────────────────────────
   async function resolvePlatformKey(): Promise<string> {
     try {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('companies')
         .select('openrouter_api_key')
         .eq('is_platform_provider', true)
@@ -182,7 +183,7 @@ export function useAiChat() {
       const companyId = companyStore.company?.id;
       const userId    = authStore.user?.id;
       if (!companyId || !userId) return;
-      await insforge.database.from('ai_usage_logs').insert([{
+      await appwriteDb.from('ai_usage_logs').insert([{
         company_id: companyId, user_id: userId, ...params,
       }]);
     } catch { /* silent */ }
@@ -242,10 +243,10 @@ export function useAiChat() {
     return { content, model_used: modelId, is_fallback: isFallbackCall };
   }
 
-  // ─── Safe SQL executor via InsForge DB ────────────────────────────────────
+  // ─── Safe SQL executor via Appwrite DB ────────────────────────────────────
   /**
    * Extracts the table name from the SQL, validates it against the whitelist,
-   * and runs a scoped SELECT via InsForge database (always filtered by company_id).
+   * and runs a scoped SELECT via Appwrite database (always filtered by company_id).
    */
   async function executeSqlDirect(sql: string): Promise<unknown[]> {
     const tableMatch = sql.match(/FROM\s+["']?(\w+)["']?/i);
@@ -260,7 +261,7 @@ export function useAiChat() {
     if (!companyId) throw new Error('Entreprise non chargée.');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query: any = insforge.database
+    let query: any = appwriteDb
       .from(tableName)
       .select('*')
       .eq('company_id', companyId)
@@ -350,11 +351,9 @@ export function useAiChat() {
     // ── Case 2: Generate SQL from natural language ─────────────────────────
     const apiKey = await resolveApiKey();
 
-    // Try InsForge function first (it may work for some tenants)
+    // Try Appwrite function first (it may work for some tenants)
     try {
-      const { data, error: fnErr } = await insforge.functions.invoke('nl-to-sql', {
-        body: { question, company_id: companyId, execute, api_key: apiKey },
-      });
+      const { data, error: fnErr } = await (async () => { try { const r = await functions.createExecution('nl-to-sql', JSON.stringify({ question, company_id: companyId, execute, api_key: apiKey })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
       if (!fnErr && data?.success) {
         if (execute && data.rows) {
           const r: { content: string; sql?: string; rows?: unknown[] } = {

@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { TransactionCategory } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useCategories() {
   const companyStore = useCompanyStore();
@@ -14,7 +14,7 @@ export function useCategories() {
   async function loadCategories(typeFilter?: TransactionCategory['type']) {
     loading.value = true;
     error.value = null;
-    let query = insforge.database
+    let query = appwriteDb
       .from('transaction_categories')
       .select('*')
       .eq('company_id', companyId.value)
@@ -27,29 +27,25 @@ export function useCategories() {
   }
 
   async function createCategory(input: Partial<TransactionCategory>): Promise<TransactionCategory | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('transaction_categories')
-      .insert([{ ...input, company_id: companyId.value }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyId.value }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadCategories();
     return data as TransactionCategory;
   }
 
   async function updateCategory(id: string, input: Partial<TransactionCategory>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('transaction_categories')
-      .update(input)
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, input);
     if (err) { error.value = err.message; return false; }
     await loadCategories();
     return true;
   }
 
   async function deleteCategory(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('transaction_categories')
       .delete()
       .eq('id', id)

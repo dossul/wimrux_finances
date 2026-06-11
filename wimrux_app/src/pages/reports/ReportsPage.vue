@@ -215,10 +215,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useExportCsv } from 'src/composables/useExportCsv';
 import type { Invoice, Client, TaxGroup } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const loading = ref(false);
 const dateFrom = ref('');
@@ -347,7 +347,7 @@ async function generateReport() {
     const range = getDateRange();
 
     // Load invoices
-    let query = insforge.database
+    let query = appwriteDb
       .from('invoices')
       .select('*')
       .in('status', ['validated', 'certified']);
@@ -358,7 +358,7 @@ async function generateReport() {
     allInvoices.value = invoices;
 
     // Load clients for aging
-    const { data: clientData } = await insforge.database.from('clients').select('id, name');
+    const { data: clientData } = await appwriteDb.from('clients').select('id, name');
     allClients.value = (clientData || []) as Client[];
 
     // Summary
@@ -406,7 +406,7 @@ async function generateReport() {
 
 function exportReportCsv() {
   const rows = report.value.byType.map(r => ({
-    Type: r.type, Label: r.label, Nombre: r.count, HT: r.ht, TVA: r.tva, TTC: r.ttc,
+    Type: r.type, Label: r.label, Nombre: (r as any).count ?? 0, HT: r.ht, TVA: r.tva, TTC: r.ttc,
   }));
   exportGeneric(
     ['Type', 'Label', 'Nombre', 'HT', 'TVA', 'TTC'],

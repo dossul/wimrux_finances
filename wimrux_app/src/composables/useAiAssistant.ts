@@ -1,9 +1,9 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type { AiTaskType, AiTaskRoute, AiRouting } from 'src/types';
 import { useCrypto } from 'src/composables/useCrypto';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -143,7 +143,7 @@ export function useAiAssistant() {
    */
   async function resolvePlatformKey(): Promise<string> {
     try {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('companies')
         .select('openrouter_api_key')
         .eq('is_platform_provider', true)
@@ -239,7 +239,7 @@ export function useAiAssistant() {
       const companyId = useCompanyStore().company?.id;
       const userId = useAuthStore().user?.id;
       if (!companyId || !userId) return;
-      await insforge.database.from('ai_usage_logs').insert([{
+      await appwriteDb.from('ai_usage_logs').insert([{
         company_id: companyId,
         user_id: userId,
         ...params,

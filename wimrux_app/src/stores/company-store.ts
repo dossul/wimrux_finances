@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { appwriteStorage } from 'src/services/appwrite-storage';
 import type { Company, InvoiceSettings, FiscalProfile, FiscalConfig } from 'src/types';
 
 export const useCompanyStore = defineStore('company', () => {
@@ -15,65 +16,41 @@ export const useCompanyStore = defineStore('company', () => {
   async function loadCompanies(userCompanyId: string) {
     loading.value = true;
     try {
-      const { data, error } = await insforge.database
-        .from('companies')
-        .select('*')
-        .eq('id', userCompanyId);
-
+      const { data, error } = await appwriteDb.from('companies').eq('id', userCompanyId).select('*');
       if (!error && data) {
         companies.value = data as Company[];
-        if (companies.value.length > 0) {
-          company.value = companies.value[0] ?? null;
-        }
+        if (companies.value.length > 0) company.value = companies.value[0] ?? null;
       }
-    } finally {
-      loading.value = false;
-    }
+    } finally { loading.value = false; }
   }
 
-  function setActiveCompany(c: Company) {
-    company.value = c;
-  }
+  function setActiveCompany(c: Company) { company.value = c; }
 
   async function updateCompany(updates: Partial<Company>) {
     if (!company.value) return;
-    const { data, error } = await insforge.database
-      .from('companies')
-      .update(updates)
-      .eq('id', company.value.id)
-      .select()
-      .single();
-
-    if (!error && data) {
-      company.value = data as Company;
-    }
+    const { data, error } = await appwriteDb.from('companies').update(company.value.id, updates);
+    if (!error && data) company.value = data as Company;
     return { data, error };
   }
 
   async function uploadLogo(file: File): Promise<{ url: string | null; error: Error | null }> {
     if (!company.value) return { url: null, error: new Error('No company') };
     const ext = file.name.split('.').pop() ?? 'png';
-    const path = `${company.value.id}/logo.${ext}`;
-    const { data, error } = await insforge.storage
-      .from('company-logos')
-      .upload(path, file);
+    const fileName = `${company.value.id}/logo.${ext}`;
+    const { data, error } = await appwriteStorage.upload('company-logos', file, fileName);
     if (error || !data) return { url: null, error: error as Error };
-    const url: string = (data as { url: string }).url;
-    await updateCompany({ logo_url: url });
-    return { url, error: null };
+    await updateCompany({ logo_url: data.url });
+    return { url: data.url, error: null };
   }
 
   async function deleteLogo(): Promise<void> {
     if (!company.value?.logo_url) return;
-    const path = company.value.logo_url.split('/company-logos/').pop() ?? '';
-    await insforge.storage.from('company-logos').remove(path);
+    const fileId = company.value.logo_url.split('/').pop() ?? '';
+    await appwriteStorage.remove('company-logos', fileId);
     await updateCompany({ logo_url: null });
   }
 
-  async function updateFiscalConfig(
-    profile: FiscalProfile,
-    config: FiscalConfig,
-  ): Promise<void> {
+  async function updateFiscalConfig(profile: FiscalProfile, config: FiscalConfig): Promise<void> {
     await updateCompany({ fiscal_profile: profile, fiscal_config: config });
   }
 
@@ -85,12 +62,7 @@ export const useCompanyStore = defineStore('company', () => {
   }
 
   async function createCompany(newCompany: Omit<Company, 'id' | 'created_at'>) {
-    const { data, error } = await insforge.database
-      .from('companies')
-      .insert(newCompany)
-      .select()
-      .single();
-
+    const { data, error } = await appwriteDb.from('companies').insert(newCompany);
     if (!error && data) {
       const created = data as Company;
       companies.value.push(created);
@@ -100,19 +72,8 @@ export const useCompanyStore = defineStore('company', () => {
   }
 
   return {
-    company,
-    companies,
-    loading,
-    companyId,
-    companyName,
-    companyIfu,
-    loadCompanies,
-    setActiveCompany,
-    updateCompany,
-    createCompany,
-    uploadLogo,
-    deleteLogo,
-    updateFiscalConfig,
-    updateInvoiceSettings,
+    company, companies, loading, companyId, companyName, companyIfu,
+    loadCompanies, setActiveCompany, updateCompany, createCompany,
+    uploadLogo, deleteLogo, updateFiscalConfig, updateInvoiceSettings,
   };
 });

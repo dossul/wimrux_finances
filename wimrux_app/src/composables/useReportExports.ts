@@ -1,10 +1,11 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type {
   ReportExport, ReportExportInput, ReportType, ReportFormat,
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 
 export function useReportExports() {
   const companyStore = useCompanyStore();
@@ -19,7 +20,7 @@ export function useReportExports() {
   async function loadExports(limit = 50): Promise<void> {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('report_exports')
       .select('*')
       .eq('company_id', companyId.value)
@@ -37,7 +38,7 @@ export function useReportExports() {
    * an edge function; this composable just persists the metadata.
    */
   async function recordExport(input: ReportExportInput, fileUrl?: string): Promise<ReportExport | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('report_exports')
       .insert([{
         company_id: companyId.value,
@@ -48,16 +49,14 @@ export function useReportExports() {
         file_url: fileUrl || null,
         status: fileUrl ? 'completed' : 'pending',
         generated_at: fileUrl ? new Date().toISOString() : null,
-      }])
-      .select()
-      .single();
+      }]).then((r:any)=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadExports();
     return data as ReportExport;
   }
 
   async function deleteExport(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('report_exports')
       .delete()
       .eq('id', id)
@@ -208,14 +207,10 @@ tr:nth-child(even) { background: #fafafa; }
     loading.value = true;
     error.value = null;
     try {
-      const { data, error: fnErr } = await insforge.functions.invoke('export-report', {
-        body: {
-          report_type: reportType,
+      const { data, error: fnErr } = await (async () => { try { const r = await functions.createExecution('export-report', JSON.stringify({report_type: reportType,
           format,
           company_id: companyId.value,
-          parameters,
-        },
-      });
+          parameters,})); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
       if (fnErr) { error.value = fnErr.message; return null; }
       if (data?.success === false) { error.value = data?.error ?? 'Erreur edge function'; return null; }
 

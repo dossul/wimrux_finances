@@ -2,12 +2,12 @@
 // WIMRUX® FINANCES — Composable Immobilisations & Amortissement (T6.x)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type {
   FixedAsset, FixedAssetInput, AssetCategory, AssetDepreciationEntry,
   DepreciationMethod, AssetStatus
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 interface ScheduleRow {
   period_year: number;
@@ -26,15 +26,15 @@ export function useDepreciation() {
   const companyStore = useCompanyStore();
 
   async function loadCategories() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('asset_categories').select('*')
       .eq('company_id', companyStore.company!.id).order('name');
     categories.value = data || [];
   }
 
   async function createCategory(payload: Partial<AssetCategory>) {
-    const { data, error: err } = await insforge.database.from('asset_categories')
-      .insert([{ ...payload, company_id: companyStore.company!.id }]).select().single();
+    const { data, error: err } = await appwriteDb.from('asset_categories')
+      .insert([{ ...payload, company_id: companyStore.company!.id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) categories.value.push(data);
     return data;
@@ -43,7 +43,7 @@ export function useDepreciation() {
   async function loadAssets(filters?: { status?: AssetStatus; category_id?: string }) {
     loading.value = true;
     try {
-      let q = insforge.database.from('fixed_assets').select('*')
+      let q = appwriteDb.from('fixed_assets').select('*')
         .eq('company_id', companyStore.company!.id)
         .order('acquisition_date', { ascending: false });
       if (filters?.status)      q = q.eq('status', filters.status);
@@ -58,14 +58,14 @@ export function useDepreciation() {
     loading.value = true;
     try {
       const nbv = payload.acquisition_value - (payload.residual_value ?? 0);
-      const { data, error: err } = await insforge.database.from('fixed_assets').insert([{
+      const { data, error: err } = await appwriteDb.from('fixed_assets').insert([{
         ...payload,
         company_id: companyStore.company!.id,
         residual_value: payload.residual_value ?? 0,
         degressive_rate: payload.degressive_rate ?? 0,
         net_book_value: nbv,
         accumulated_depreciation: 0,
-      }]).select().single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) {
         assets.value.unshift(data);
@@ -76,9 +76,8 @@ export function useDepreciation() {
   }
 
   async function updateAsset(id: string, payload: Partial<FixedAsset>) {
-    const { data, error: err } = await insforge.database.from('fixed_assets')
-      .update(payload).eq('id', id).eq('company_id', companyStore.company!.id)
-      .select().single();
+    const { data, error: err } = await appwriteDb.from('fixed_assets')
+      .update(id, payload)
     if (err) { error.value = err.message; return null; }
     if (data) {
       const idx = assets.value.findIndex(a => a.id === id);
@@ -92,7 +91,7 @@ export function useDepreciation() {
   }
 
   async function deleteAsset(id: string) {
-    const { error: err } = await insforge.database.from('fixed_assets')
+    const { error: err } = await appwriteDb.from('fixed_assets')
       .delete().eq('id', id).eq('company_id', companyStore.company!.id);
     if (err) { error.value = err.message; return false; }
     assets.value = assets.value.filter(a => a.id !== id);
@@ -193,7 +192,7 @@ export function useDepreciation() {
       asset.depreciation_method, asset.acquisition_date, asset.degressive_rate
     );
     // Effacer ancien tableau
-    await insforge.database.from('asset_depreciation_entries')
+    await appwriteDb.from('asset_depreciation_entries')
       .delete().eq('asset_id', assetId);
     // Insérer nouveau
     if (rows.length > 0) {
@@ -203,12 +202,12 @@ export function useDepreciation() {
         company_id: companyStore.company!.id,
         is_posted: false,
       }));
-      await insforge.database.from('asset_depreciation_entries').insert(toInsert);
+      await appwriteDb.from('asset_depreciation_entries').insert(toInsert);
     }
   }
 
   async function loadSchedule(assetId: string) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('asset_depreciation_entries').select('*')
       .eq('asset_id', assetId).eq('company_id', companyStore.company!.id)
       .order('period_year').order('period_month');

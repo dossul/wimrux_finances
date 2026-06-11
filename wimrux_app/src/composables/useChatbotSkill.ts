@@ -53,7 +53,7 @@ export function useChatbotSkill() {
     enabledActions: ChatbotAction[],
   ): string {
     const now = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
-    const gatewayUrl = `${import.meta.env.VITE_INSFORGE_URL as string || '<INSFORGE_URL>'}/functions/chatbot-gateway`;
+    const gatewayUrl = `${import.meta.env.VITE_APPWRITE_ENDPOINT as string}/functions/chatbot-gateway`;
 
     const sections: string[] = [];
 

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 import type { Invoice, InvoiceItem, InvoiceType, InvoiceStatus } from 'src/types';
 
 export const useInvoiceStore = defineStore('invoice', () => {
@@ -24,72 +25,45 @@ export const useInvoiceStore = defineStore('invoice', () => {
   async function loadInvoices(filters?: { status?: InvoiceStatus; type?: InvoiceType; limit?: number }) {
     loading.value = true;
     try {
-      let query = insforge.database
-        .from('invoices')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (filters?.status) query = query.eq('status', filters.status);
-      if (filters?.type) query = query.eq('type', filters.type);
-      if (filters?.limit) query = query.limit(filters.limit);
-
-      const { data, error } = await query;
-      if (!error && data) {
-        invoices.value = data as Invoice[];
-      }
+      let q = appwriteDb.from('invoices').order('created_at', { ascending: false });
+      if (filters?.status) q = q.eq('status', filters.status) as typeof q;
+      if (filters?.type) q = q.eq('type', filters.type) as typeof q;
+      if (filters?.limit) q = q.limit(filters.limit) as typeof q;
+      const { data, error } = await q.select('*');
+      if (!error && data) invoices.value = data as Invoice[];
       return { data, error };
-    } finally {
-      loading.value = false;
-    }
+    } finally { loading.value = false; }
   }
 
   async function loadInvoiceById(id: string) {
     const [invRes, itemsRes] = await Promise.all([
-      insforge.database.from('invoices').select('*').eq('id', id).single(),
-      insforge.database.from('invoice_items').select('*').eq('invoice_id', id).order('sort_order', { ascending: true }),
+      appwriteDb.from('invoices').eq('id', id).single(),
+      appwriteDb.from('invoice_items').eq('invoice_id', id).order('sort_order', { ascending: true }).select('*'),
     ]);
-
     if (invRes.data) currentInvoice.value = invRes.data as Invoice;
     if (itemsRes.data) currentItems.value = itemsRes.data as InvoiceItem[];
-
     return { invoice: invRes, items: itemsRes };
   }
 
-  // Génère la référence via séquence DB (atomique, ininterrompue)
-  // Fallback: comptage local si la table invoice_sequences n'existe pas encore
   async function getNextReference(type: InvoiceType, companyId: string): Promise<string> {
     const year = new Date().getFullYear();
     try {
-      const { data } = await insforge.database.rpc('next_invoice_reference', {
-        p_company_id: companyId,
-        p_type: type,
-        p_year: year,
-      });
-      if (data) return data as string;
-    } catch {
-      // Fallback si la fonction DB n'est pas encore déployée
-    }
-    // Fallback: comptage local (temporaire)
+      const resp = await functions.createExecution(
+        'next_invoice_reference',
+        JSON.stringify({ p_company_id: companyId, p_type: type, p_year: year })
+      );
+      if (resp.responseBody) return JSON.parse(resp.responseBody) as string;
+    } catch { /* fallback */ }
     const count = invoices.value.filter(i => i.type === type).length + 1;
     return `${type}-${year}-${String(count).padStart(5, '0')}`;
   }
 
   async function createDraft(type: InvoiceType, companyId: string, operatorName: string) {
     const reference = await getNextReference(type, companyId);
-
-    const { data, error } = await insforge.database
-      .from('invoices')
-      .insert({
-        company_id: companyId,
-        type,
-        reference,
-        status: 'draft',
-        price_mode: 'TTC',
-        operator_name: operatorName,
-      })
-      .select()
-      .single();
-
+    const { data, error } = await appwriteDb.from('invoices').insert({
+      company_id: companyId, type, reference, status: 'draft',
+      price_mode: 'TTC', operator_name: operatorName,
+    });
     if (!error && data) {
       const created = data as Invoice;
       invoices.value.unshift(created);
@@ -99,13 +73,7 @@ export const useInvoiceStore = defineStore('invoice', () => {
   }
 
   async function updateInvoice(id: string, updates: Partial<Invoice>) {
-    const { data, error } = await insforge.database
-      .from('invoices')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
+    const { data, error } = await appwriteDb.from('invoices').update(id, updates);
     if (!error && data) {
       const updated = data as Invoice;
       currentInvoice.value = updated;
@@ -116,76 +84,50 @@ export const useInvoiceStore = defineStore('invoice', () => {
   }
 
   async function saveItems(invoiceId: string, items: Partial<InvoiceItem>[]) {
-    // Delete existing items and re-insert
-    await insforge.database.from('invoice_items').delete().eq('invoice_id', invoiceId);
-
+    const { data: existing } = await appwriteDb.from('invoice_items').eq('invoice_id', invoiceId).select('$id');
+    for (const doc of (existing as Array<{ $id: string }> | null) ?? []) {
+      const { databases, DATABASE_ID } = await import('src/boot/appwrite');
+      await databases.deleteDocument(DATABASE_ID, 'invoice_items', doc.$id);
+    }
     if (items.length === 0) return { data: null, error: null };
-
-    const { data, error } = await insforge.database.from('invoice_items').insert(
+    return appwriteDb.from('invoice_items').insert(
       items.map((item, idx) => ({
         invoice_id: invoiceId,
         code: item.code || `ART${String(idx + 1).padStart(3, '0')}`,
-        name: item.name,
-        type: item.type,
-        price: item.price,
-        quantity: item.quantity,
-        unit: item.unit || 'unité',
-        tax_group: item.tax_group,
-        specific_tax: item.specific_tax || 0,
-        discount: item.discount || 0,
-        amount_ht: item.amount_ht,
-        amount_tva: item.amount_tva,
-        amount_psvb: item.amount_psvb,
-        amount_ttc: item.amount_ttc,
-        sort_order: idx,
+        name: item.name, type: item.type, price: item.price, quantity: item.quantity,
+        unit: item.unit || 'unité', tax_group: item.tax_group,
+        specific_tax: item.specific_tax || 0, discount: item.discount || 0,
+        amount_ht: item.amount_ht, amount_tva: item.amount_tva,
+        amount_psvb: item.amount_psvb, amount_ttc: item.amount_ttc, sort_order: idx,
       }))
     );
-
-    return { data, error };
   }
 
   async function deleteDraft(id: string) {
-    // Sécurité : seuls les brouillons peuvent être supprimés
     const target = invoices.value.find(i => i.id === id);
     if (target && target.status !== 'draft') {
       return { data: null, error: { message: 'Seuls les brouillons peuvent être supprimés' } };
     }
-
-    // Supprimer les lignes d'abord (FK)
-    await insforge.database.from('invoice_items').delete().eq('invoice_id', id);
-    const { error } = await insforge.database.from('invoices').delete().eq('id', id);
-
+    const { data: items } = await appwriteDb.from('invoice_items').eq('invoice_id', id).select('$id');
+    const { databases, DATABASE_ID } = await import('src/boot/appwrite');
+    for (const doc of (items as Array<{ $id: string }> | null) ?? []) {
+      await databases.deleteDocument(DATABASE_ID, 'invoice_items', doc.$id);
+    }
+    const { error } = await databases.deleteDocument(DATABASE_ID, 'invoices', id).then(
+      () => ({ error: null }), (e: Error) => ({ error: e })
+    );
     if (!error) {
       invoices.value = invoices.value.filter(i => i.id !== id);
-      if (currentInvoice.value?.id === id) {
-        currentInvoice.value = null;
-        currentItems.value = [];
-      }
+      if (currentInvoice.value?.id === id) { currentInvoice.value = null; currentItems.value = []; }
     }
     return { data: null, error };
   }
 
-  function clearCurrent() {
-    currentInvoice.value = null;
-    currentItems.value = [];
-  }
+  function clearCurrent() { currentInvoice.value = null; currentItems.value = []; }
 
   return {
-    invoices,
-    currentInvoice,
-    currentItems,
-    loading,
-    draftCount,
-    pendingCount,
-    approvedCount,
-    certifiedCount,
-    totalTTCThisMonth,
-    loadInvoices,
-    loadInvoiceById,
-    createDraft,
-    updateInvoice,
-    saveItems,
-    deleteDraft,
-    clearCurrent,
+    invoices, currentInvoice, currentItems, loading,
+    draftCount, pendingCount, approvedCount, certifiedCount, totalTTCThisMonth,
+    loadInvoices, loadInvoiceById, createDraft, updateInvoice, saveItems, deleteDraft, clearCurrent,
   };
 });

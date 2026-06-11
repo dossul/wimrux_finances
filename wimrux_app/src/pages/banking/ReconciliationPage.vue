@@ -294,10 +294,10 @@
 import { ref, computed, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useReconciliation } from 'src/composables/useReconciliation';
 import type { ReconciliationRule, BankTransaction } from 'src/types';
 import type { ReconciliationSuggestion } from 'src/composables/useReconciliation';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 interface InvoiceLite {
   id: string;
@@ -385,12 +385,12 @@ async function loadStats() {
   loadingStats.value = true;
   try {
     // Nom du compte
-    const { data: acc } = await insforge.database
+    const { data: acc } = await appwriteDb
       .from('bank_accounts').select('bank_name, account_number').eq('id', accountId).single();
     if (acc) accountName.value = `${acc.bank_name} — ${acc.account_number}`;
 
     // Comptages
-    const { data: counts } = await insforge.database
+    const { data: counts } = await appwriteDb
       .from('bank_transactions')
       .select('reconciliation_status')
       .eq('bank_account_id', accountId);
@@ -448,7 +448,7 @@ async function doIgnore(txId: string) {
 async function loadManualData() {
   const [txs, invData] = await Promise.all([
     loadUnreconciled(accountId),
-    insforge.database
+    appwriteDb
       .from('invoices')
       .select('id, reference, total_ttc, client_id, certification_datetime, created_at')
       .eq('reconciliation_status' as never, 'unreconciled' as never)
@@ -466,7 +466,7 @@ async function loadManualData() {
   const clientIds = [...new Set(rawInvoices.map(i => i.client_id).filter(Boolean))] as string[];
   let clientMap: Record<string, string> = {};
   if (clientIds.length) {
-    const { data: cls } = await insforge.database.from('clients').select('id, name').in('id', clientIds);
+    const { data: cls } = await appwriteDb.from('clients').select('id, name').in('id', clientIds);
     clientMap = Object.fromEntries((cls || []).map((c: { id: string; name: string }) => [c.id, c.name]));
   }
   invoices.value = rawInvoices.map(i => ({

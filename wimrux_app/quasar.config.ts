@@ -15,8 +15,7 @@ export default defineConfig((ctx) => {
     boot: [
       'i18n',
       'axios',
-      'insforge',
-      'token-refresh',   // Auto-refresh JWT on 401 invalid token
+      'appwrite',
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css

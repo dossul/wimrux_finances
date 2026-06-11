@@ -233,7 +233,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { 
   CompanyAiQuotaUsage, 
@@ -241,6 +240,7 @@ import type {
   AiUsageLog,
   AiTask 
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const companyStore = useCompanyStore();
 
@@ -425,7 +425,7 @@ async function loadData() {
   loading.value = true;
   try {
     // Load quota
-    const { data: quota } = await insforge.database
+    const { data: quota } = await appwriteDb
       .from('company_ai_quota_usage')
       .select('*')
       .eq('company_id', companyId.value)
@@ -433,7 +433,7 @@ async function loadData() {
     quotaUsage.value = quota || null;
 
     // Load credits
-    const { data: creds } = await insforge.database
+    const { data: creds } = await appwriteDb
       .from('company_ai_credits')
       .select('*')
       .eq('company_id', companyId.value)
@@ -441,7 +441,7 @@ async function loadData() {
     credits.value = creds || null;
 
     // Load usage logs (last 100)
-    const { data: logs } = await insforge.database
+    const { data: logs } = await appwriteDb
       .from('ai_usage_logs')
       .select('*')
       .eq('company_id', companyId.value)
@@ -450,7 +450,7 @@ async function loadData() {
     usageLogs.value = logs || [];
 
     // Load tasks for names
-    const { data: taskList } = await insforge.database
+    const { data: taskList } = await appwriteDb
       .from('ai_tasks')
       .select('id, code, name');
     tasks.value = taskList || [];

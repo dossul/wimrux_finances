@@ -5,7 +5,7 @@
 //  1. PDF → PNG pages via Stirling /api/v1/convert/pdf/img (ZIP)
 //  2. Images → GPT-4o-mini Vision → JSON structuré
 //  3. Matching fournisseur par IFU ou nom (fuzzy) → créer si absent
-//  4. Créer received_invoice dans InsForge
+//  4. Créer received_invoice dans Appwrite
 //
 // POURQUOI VISION IA plutôt que Tesseract OCR :
 //  - Factures burkinabè scannées avec stickers fiscaux DGI, tampons, écritures
@@ -14,9 +14,9 @@
 //  - Coût marginal (~$0.01-0.02/facture vs ~$0.005 avec Tesseract)
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useCrypto } from 'src/composables/useCrypto';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 const VISION_MODEL     = 'openai/gpt-4o-mini';   // Vision + JSON mode
@@ -66,7 +66,7 @@ export type OcrStep =
   | 'analyzing'    // Vision IA
   | 'matching'     // Matching fournisseur
   | 'ready'        // Extraction terminée, en attente review humaine
-  | 'importing'    // Insertion InsForge (après confirmation)
+  | 'importing'    // Insertion Appwrite (après confirmation)
   | 'done'
   | 'error';
 
@@ -103,7 +103,7 @@ export function useSupplierInvoiceOcr() {
     const company = companyStore.company;
     let enc = company?.openrouter_api_key || '';
     if (!enc) {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('companies').select('openrouter_api_key')
         .eq('is_platform_provider', true).limit(1);
       enc = (data as { openrouter_api_key?: string | null }[] | null)?.[0]?.openrouter_api_key || '';
@@ -137,7 +137,7 @@ export function useSupplierInvoiceOcr() {
       return { url: c.stirling_api_url.replace(/\/$/, ''), key };
     }
     try {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('companies').select('stirling_api_url, stirling_api_key')
         .eq('is_platform_provider', true).limit(1);
       const row = (data as { stirling_api_url?: string | null; stirling_api_key?: string | null }[] | null)?.[0];
@@ -156,10 +156,10 @@ export function useSupplierInvoiceOcr() {
   // ── Étape 1 : PDF → Images PNG via Stirling ─────────────────────────────────
   // Endpoint : POST /api/v1/convert/pdf/img → ZIP d'images PNG
 
-  // ── Étape 1 : PDF/Image → base64 PNG via fonction edge InsForge ─────────────
-  // Appel fetch direct (le SDK InsForge sérialise FormData en JSON → KO)
+  // ── Étape 1 : PDF/Image → base64 PNG via fonction edge Appwrite ─────────────
+  // Appel fetch direct (le SDK Appwrite sérialise FormData en JSON → KO)
   async function pdfToBase64Images(file: File): Promise<string[]> {
-    const FUNC_URL = 'https://gfe4bd9y.functions.insforge.app/pdf-to-images';
+    const FUNC_URL = 'https://gfe4bd9y.functions.appwrite.benga.live/pdf-to-images';
     const ANON_KEY = 'ik_1358be6dcbccff7c0d6636b011559406';
 
     const form = new FormData();
@@ -345,7 +345,7 @@ RÈGLES IMPORTANTES :
 
     // 1. Recherche par IFU exact (identifiant fiscal unique)
     if (ocr.supplier_ifu) {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('suppliers')
         .select('id, name')
         .eq('company_id', companyId)
@@ -360,7 +360,7 @@ RÈGLES IMPORTANTES :
     // 2. Recherche par nom (ilike, tolérant aux variations mineures)
     if (ocr.supplier_name) {
       const nameParts = ocr.supplier_name.trim().split(/\s+/).slice(0, 2).join(' ');
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('suppliers')
         .select('id, name')
         .eq('company_id', companyId)
@@ -374,7 +374,7 @@ RÈGLES IMPORTANTES :
 
     // 3. Créer nouveau fournisseur
     const name = ocr.supplier_name || 'Fournisseur inconnu';
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('suppliers')
       .insert([{
         company_id: companyId,
@@ -382,16 +382,14 @@ RÈGLES IMPORTANTES :
         ifu:       ocr.supplier_ifu   || null,
         is_active: true,
         country:   'BF',
-      }])
-      .select('id, name')
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
 
     if (error) throw new Error(`Création fournisseur : ${error.message}`);
     const created = data as { id: string; name: string };
     return { id: created.id, name: created.name, created: true };
   }
 
-  // ── Étape 4 : Création de la facture reçue dans InsForge ────────────────────
+  // ── Étape 4 : Création de la facture reçue dans Appwrite ────────────────────
   async function createReceivedInvoice(
     ocr:         OcrInvoiceData,
     supplierId:  string,
@@ -402,7 +400,7 @@ RÈGLES IMPORTANTES :
     // Générer une référence interne
     const ref = `FR-${Date.now().toString(36).toUpperCase()}`;
 
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('invoices')
       .insert([{
         company_id:              companyId,
@@ -428,9 +426,7 @@ RÈGLES IMPORTANTES :
           : null,
         ocr_source_url:          sourceUrl,
         ocr_confidence:          { global: ocr.confidence },
-      }])
-      .select('id, reference')
-      .single();
+      }]);
 
     if (error) throw new Error(`Création facture : ${error.message}`);
     const inv = data as { id: string; reference: string };
@@ -520,7 +516,7 @@ RÈGLES IMPORTANTES :
 
     try {
       state.value = { ...state.value, step: 'importing', progress: 90,
-        message: 'Import de la facture dans InsForge…' };
+        message: 'Import de la facture dans Appwrite…' };
 
       const invoice = await createReceivedInvoice(extracted.ocr, extracted.supplier_id, null);
 

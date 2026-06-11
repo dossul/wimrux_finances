@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { BankAccountFull } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useBankAccounts() {
   const accounts      = ref<BankAccountFull[]>([]);
@@ -13,7 +13,7 @@ export function useBankAccounts() {
     loading.value = true;
     error.value = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('bank_accounts')
         .select('*')
         .order('bank_name');
@@ -27,11 +27,9 @@ export function useBankAccounts() {
   async function createAccount(payload: Omit<BankAccountFull, 'id' | 'created_at' | 'updated_at' | 'company_id'>) {
     const company_id = companyStore.company?.id;
     if (!company_id) throw new Error('Entreprise non chargée');
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_accounts')
-      .insert([{ ...payload, company_id }])
-      .select()
-      .single();
+      .insert([{ ...payload, company_id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) throw new Error(err.message);
     const created = data as BankAccountFull;
     accounts.value.push(created);
@@ -39,12 +37,9 @@ export function useBankAccounts() {
   }
 
   async function updateAccount(id: string, updates: Partial<BankAccountFull>) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_accounts')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+      .update(id, { ...updates, updated_at: new Date().toISOString() })
     if (err) throw new Error(err.message);
     const updated = data as BankAccountFull;
     const idx = accounts.value.findIndex(a => a.id === id);
@@ -57,7 +52,7 @@ export function useBankAccounts() {
   }
 
   async function deleteAccount(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('bank_accounts')
       .delete()
       .eq('id', id);

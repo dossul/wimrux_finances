@@ -3,11 +3,11 @@
 // Méthodes : constant_annuity | constant_principal | bullet
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type {
   Loan, LoanInput, LoanScheduleEntry, AmortizationMethod, PaymentFrequency, DebtRatio
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 interface ScheduleRow {
   installment_number: number;
@@ -29,7 +29,7 @@ export function useLoans() {
   async function loadLoans(filters?: { status?: string }) {
     loading.value = true;
     try {
-      let q = insforge.database.from('loans').select('*')
+      let q = appwriteDb.from('loans').select('*')
         .eq('company_id', companyStore.company!.id)
         .order('start_date', { ascending: false });
       if (filters?.status) q = q.eq('status', filters.status);
@@ -42,11 +42,11 @@ export function useLoans() {
   async function createLoan(payload: LoanInput) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database.from('loans').insert([{
+      const { data, error: err } = await appwriteDb.from('loans').insert([{
         ...payload,
         company_id: companyStore.company!.id,
         outstanding_balance: payload.principal_amount,
-      }]).select().single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) {
         loans.value.unshift(data);
@@ -57,9 +57,8 @@ export function useLoans() {
   }
 
   async function updateLoan(id: string, payload: Partial<Loan>) {
-    const { data, error: err } = await insforge.database.from('loans')
-      .update(payload).eq('id', id).eq('company_id', companyStore.company!.id)
-      .select().single();
+    const { data, error: err } = await appwriteDb.from('loans')
+      .update(id, payload)
     if (err) { error.value = err.message; return null; }
     if (data) {
       const idx = loans.value.findIndex(l => l.id === id);
@@ -69,7 +68,7 @@ export function useLoans() {
   }
 
   async function deleteLoan(id: string) {
-    const { error: err } = await insforge.database.from('loans')
+    const { error: err } = await appwriteDb.from('loans')
       .delete().eq('id', id).eq('company_id', companyStore.company!.id);
     if (err) { error.value = err.message; return false; }
     loans.value = loans.value.filter(l => l.id !== id);
@@ -166,18 +165,18 @@ export function useLoans() {
       loan.amortization_method, loan.first_payment_date, loan.payment_frequency
     );
     // Effacer ancien
-    await insforge.database.from('loan_schedule')
+    await appwriteDb.from('loan_schedule')
       .delete().eq('loan_id', loanId);
     if (rows.length > 0) {
       const toInsert = rows.map(r => ({
         ...r, loan_id: loanId, company_id: companyStore.company!.id, is_paid: false,
       }));
-      await insforge.database.from('loan_schedule').insert(toInsert);
+      await appwriteDb.from('loan_schedule').insert(toInsert);
     }
   }
 
   async function loadSchedule(loanId: string) {
-    const { data, error: err } = await insforge.database.from('loan_schedule')
+    const { data, error: err } = await appwriteDb.from('loan_schedule')
       .select('*').eq('loan_id', loanId).eq('company_id', companyStore.company!.id)
       .order('installment_number');
     if (err) { error.value = err.message; return; }
@@ -191,12 +190,12 @@ export function useLoans() {
       paid_amount: paidAmount,
     };
     if (txId) update.bank_transaction_id = txId;
-    const { data, error: err } = await insforge.database.from('loan_schedule')
-      .update(update).eq('id', scheduleId).select().single();
+    const { data, error: err } = await appwriteDb.from('loan_schedule')
+      .update(scheduleId, update);
     if (err) { error.value = err.message; return null; }
     // Recalculer outstanding_balance du loan
     if (data) {
-      const { data: remaining } = await insforge.database.from('loan_schedule')
+      const { data: remaining } = await appwriteDb.from('loan_schedule')
         .select('principal').eq('loan_id', data.loan_id).eq('is_paid', false);
       const newBalance = (remaining || []).reduce((s, r) => s + Number(r.principal), 0);
       await updateLoan(data.loan_id, { outstanding_balance: newBalance });
@@ -205,7 +204,7 @@ export function useLoans() {
   }
 
   async function loadDebtRatio() {
-    const { data } = await insforge.database.from('v_debt_ratio')
+    const { data } = await appwriteDb.from('v_debt_ratio')
       .select('*').eq('company_id', companyStore.company!.id).single();
     debtRatio.value = data ?? null;
   }

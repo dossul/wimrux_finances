@@ -1,5 +1,4 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type {
   MobileWallet,
@@ -9,6 +8,7 @@ import type {
   MobileWalletSummary,
   MobileWalletProvider,
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const PROVIDER_LABELS: Record<MobileWalletProvider, string> = {
   orange_money: 'Orange Money',
@@ -34,7 +34,7 @@ export function useMobileWallets() {
   async function loadWallets() {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('mobile_wallets')
       .select('*')
       .eq('company_id', companyId.value)
@@ -47,7 +47,7 @@ export function useMobileWallets() {
   async function loadSummaries() {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('v_mobile_wallet_summary')
       .select('*')
       .eq('company_id', companyId.value);
@@ -57,29 +57,25 @@ export function useMobileWallets() {
   }
 
   async function createWallet(input: MobileWalletInput): Promise<MobileWallet | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('mobile_wallets')
-      .insert([{ ...input, company_id: companyId.value }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyId.value }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadSummaries();
     return data as MobileWallet;
   }
 
   async function updateWallet(id: string, input: Partial<MobileWalletInput>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('mobile_wallets')
-      .update(input)
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, input);
     if (err) { error.value = err.message; return false; }
     await loadSummaries();
     return true;
   }
 
   async function deleteWallet(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('mobile_wallets')
       .delete()
       .eq('id', id)
@@ -90,11 +86,9 @@ export function useMobileWallets() {
   }
 
   async function toggleActive(id: string, isActive: boolean): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('mobile_wallets')
-      .update({ is_active: isActive })
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, { is_active: isActive });
     if (err) { error.value = err.message; return false; }
     await loadSummaries();
     return true;
@@ -105,7 +99,7 @@ export function useMobileWallets() {
   async function loadTransactions(walletId: string, limit = 200) {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('mobile_wallet_transactions')
       .select('*')
       .eq('wallet_id', walletId)
@@ -135,11 +129,9 @@ export function useMobileWallets() {
   }
 
   async function addTransaction(input: MobileWalletTransactionInput): Promise<MobileWalletTransaction | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('mobile_wallet_transactions')
-      .insert([{ ...input, company_id: companyId.value, fees: input.fees ?? 0 }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyId.value, fees: input.fees ?? 0 }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
 
     // Update wallet balance
@@ -147,10 +139,9 @@ export function useMobileWallets() {
       || summaries.value.find(s => s.id === input.wallet_id);
     if (wallet) {
       const delta = computeBalanceDelta(input);
-      await insforge.database
+      await appwriteDb
         .from('mobile_wallets')
-        .update({ current_balance: (wallet.current_balance || 0) + delta })
-        .eq('id', input.wallet_id);
+        .update(input.wallet_id, { current_balance: (wallet.current_balance || 0) + delta });
     }
 
     await loadTransactions(input.wallet_id);
@@ -159,7 +150,7 @@ export function useMobileWallets() {
   }
 
   async function deleteTransaction(tx: MobileWalletTransaction): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('mobile_wallet_transactions')
       .delete()
       .eq('id', tx.id);
@@ -169,10 +160,9 @@ export function useMobileWallets() {
     const wallet = summaries.value.find(s => s.id === tx.wallet_id);
     if (wallet) {
       const delta = -computeBalanceDelta(tx);
-      await insforge.database
+      await appwriteDb
         .from('mobile_wallets')
-        .update({ current_balance: (wallet.current_balance || 0) + delta })
-        .eq('id', tx.wallet_id);
+        .update(tx.wallet_id, { current_balance: (wallet.current_balance || 0) + delta });
     }
 
     await loadTransactions(tx.wallet_id);

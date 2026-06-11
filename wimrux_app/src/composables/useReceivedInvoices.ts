@@ -1,13 +1,13 @@
 // =============================================================================
 // WIMRUX FINANCES - Factures recues (fournisseurs)
-// Schéma BD réel exploré via InsForge SDK CLI (58 colonnes)
+// Schéma BD réel exploré via Appwrite SDK CLI (58 colonnes)
 // direction = 'received', type = 'FT' OBLIGATOIRE (CHECK constraint: FV,FT,FA,EV,ET,EA,PF)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type { InvoicePaymentStatus, FiscalComplianceStatus } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 // Toutes les colonnes reelles de la table invoices
 export interface ReceivedInvoice {
@@ -28,12 +28,14 @@ export interface ReceivedInvoice {
   supplier_invoice_number: string | null;
 
   // Montants (tous presents dans le schema)
-  total_ht:      number;
-  total_tva:     number;
-  total_psvb:    number;   // Prelevement special vehicules/biens
-  total_ttc:     number;
-  stamp_duty:    number;   // Droit de timbre
-  total_payment: number;
+  total_ht:               number;
+  total_tva:              number;
+  total_psvb:             number;   // Prelevement special vehicules/biens
+  total_ttc:              number;
+  stamp_duty:             number;   // Droit de timbre
+  total_payment:          number;
+  withholding_tax_rate:   number | null;  // Taux RAS en fraction (0.05 = 5%)
+  withholding_tax_amount: number;
 
   // Dates
   due_date:    string | null;
@@ -60,6 +62,15 @@ export interface ReceivedInvoice {
   // Description et notes complementaires (JSONB)
   description: string | null;
   comments:    { label: string; content: string }[] | null;
+
+  // Tracking workflow
+  submitted_by?:   string | null;
+  submitted_at?:   string | null;
+  approved_by?:    string | null;
+  approved_at?:    string | null;
+  rejected_by?:    string | null;
+  rejected_at?:    string | null;
+  rejection_reason?: string | null;
 
   // Jointure — nom retourné par PostgREST = nom de la table liée
   suppliers?: {
@@ -93,9 +104,8 @@ export function useReceivedInvoices() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('invoices')
-        .select('*, suppliers(id, name, ifu, rccm, phone, email, address)')
         .eq('company_id', companyStore.company!.id)
         .eq('direction', 'received')
         .order('created_at', { ascending: false });
@@ -107,7 +117,7 @@ export function useReceivedInvoices() {
       if (filters?.date_from)                 q = q.gte('received_at', filters.date_from);
       if (filters?.date_to)                   q = q.lte('received_at', filters.date_to);
 
-      const { data, error: err } = await q;
+      const { data, error: err } = await q.select('*');
       if (err) { error.value = err.message; return; }
       invoices.value = (data || []) as ReceivedInvoice[];
     } finally {
@@ -123,7 +133,7 @@ export function useReceivedInvoices() {
     error.value   = null;
     try {
       const operatorName = authStore.user?.email ?? 'Utilisateur';
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('invoices')
         .insert([{
           ...payload,
@@ -134,13 +144,15 @@ export function useReceivedInvoices() {
           price_mode:               payload.price_mode ?? 'TTC',
           operator_name:            operatorName,
           status:                   payload.status ?? 'draft',
-          reference:                payload.reference ?? `FR-${Date.now().toString(36).toUpperCase()}`,
+          reference:                payload.reference ?? await generateReference(companyStore.company!.id),
           // Montants
           total_ht:                 Number(payload.total_ht)    || 0,
           total_tva:                Number(payload.total_tva)   || 0,
           total_psvb:               Number(payload.total_psvb)  || 0,
           total_ttc:                Number(payload.total_ttc)   || 0,
           stamp_duty:               Number(payload.stamp_duty)  || 0,
+          withholding_tax_rate:     payload.withholding_tax_rate  ?? null,
+          withholding_tax_amount:   Number(payload.withholding_tax_amount) || 0,
           total_payment:            0,
           // Paiement
           payment_status:           'unpaid',
@@ -153,12 +165,11 @@ export function useReceivedInvoices() {
           received_at:              payload.received_at ?? new Date().toISOString(),
           // Notes (tableau JSONB)
           comments:                 payload.comments ?? [],
-        }])
-        .select()
-        .single();
+        }]);
       if (err) { error.value = err.message; return null; }
-      if (data) invoices.value.unshift(data as ReceivedInvoice);
-      return data;
+      const inserted = Array.isArray(data) ? data[0] : data;
+      if (inserted) invoices.value.unshift(inserted as ReceivedInvoice);
+      return inserted;
     } finally {
       loading.value = false;
     }
@@ -171,13 +182,9 @@ export function useReceivedInvoices() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('invoices')
-        .update(payload)
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, payload);
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = invoices.value.findIndex(i => i.id === id);
@@ -190,34 +197,96 @@ export function useReceivedInvoices() {
   }
 
   // ---------------------------------------------------------------------------
-  // VALIDER / REJETER
+  // VALIDER — draft → pending_validation → approved → validated
   // ---------------------------------------------------------------------------
   async function validateInvoice(id: string) {
-    return updateInvoice(id, { status: 'validated', fiscal_compliance_status: 'valid' } as Partial<ReceivedInvoice>);
+    const now = new Date().toISOString();
+    const userName = authStore.fullName ?? authStore.user?.email ?? 'Utilisateur';
+    return updateInvoice(id, {
+      status: 'validated',
+      fiscal_compliance_status: 'valid',
+      approved_by: userName,
+      approved_at: now,
+    } as Partial<ReceivedInvoice>);
   }
+
+  // ---------------------------------------------------------------------------
+  // SOUMETTRE — draft → pending_validation
+  // ---------------------------------------------------------------------------
+  async function submitInvoice(id: string) {
+    const now = new Date().toISOString();
+    const userName = authStore.fullName ?? authStore.user?.email ?? 'Utilisateur';
+    return updateInvoice(id, {
+      status: 'pending_validation',
+      submitted_by: userName,
+      submitted_at: now,
+    } as Partial<ReceivedInvoice>);
+  }
+
+  // ---------------------------------------------------------------------------
+  // APPROUVER — pending_validation → approved
+  // ---------------------------------------------------------------------------
+  async function approveInvoice(id: string) {
+    const now = new Date().toISOString();
+    const userName = authStore.fullName ?? authStore.user?.email ?? 'Utilisateur';
+    return updateInvoice(id, {
+      status: 'approved',
+      approved_by: userName,
+      approved_at: now,
+    } as Partial<ReceivedInvoice>);
+  }
+
+  // ---------------------------------------------------------------------------
+  // REJETER (retour brouillon avec motif)
+  // ---------------------------------------------------------------------------
   async function rejectInvoice(id: string, reason: string) {
-    return updateInvoice(id, { status: 'cancelled', fiscal_compliance_notes: reason } as Partial<ReceivedInvoice>);
+    const now = new Date().toISOString();
+    const userName = authStore.fullName ?? authStore.user?.email ?? 'Utilisateur';
+    return updateInvoice(id, {
+      status: 'draft',
+      rejected_by: userName,
+      rejected_at: now,
+      rejection_reason: reason,
+      approved_by: null,
+      approved_at: null,
+    } as Partial<ReceivedInvoice>);
   }
 
   // ---------------------------------------------------------------------------
-  // ANNULER (sans supprimer) — facture reste dans le système avec statut 'cancelled'
+  // ANNULER (sans supprimer) — reste dans le système avec statut 'cancelled'
   // ---------------------------------------------------------------------------
-  async function cancelInvoice(id: string) {
-    return updateInvoice(id, { status: 'cancelled' } as Partial<ReceivedInvoice>);
+  async function cancelInvoice(id: string, reason?: string) {
+    const now = new Date().toISOString();
+    const userName = authStore.fullName ?? authStore.user?.email ?? 'Utilisateur';
+    return updateInvoice(id, {
+      status: 'cancelled',
+      rejected_by: userName,
+      rejected_at: now,
+      rejection_reason: reason ?? 'Annulée',
+    } as Partial<ReceivedInvoice>);
   }
 
   // ---------------------------------------------------------------------------
-  // SUPPRIMER — uniquement si aucun paiement enregistré
+  // SUPPRIMER — uniquement si aucun paiement et statut draft
   // ---------------------------------------------------------------------------
   async function deleteInvoice(id: string): Promise<boolean> {
+    const target = invoices.value.find(i => i.id === id);
+    if (target) {
+      if (Number(target.paid_amount) > 0 || target.payment_status !== 'unpaid') {
+        error.value = 'Impossible de supprimer une facture avec des paiements enregistrés.';
+        return false;
+      }
+      if (target.status !== 'draft') {
+        error.value = 'Seules les factures en brouillon peuvent être supprimées.';
+        return false;
+      }
+    }
     loading.value = true;
     error.value   = null;
     try {
-      const { error: err } = await insforge.database
-        .from('invoices')
-        .delete()
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id);
+      const { databases, DATABASE_ID } = await import('src/boot/appwrite');
+      const { error: err } = await databases.deleteDocument(DATABASE_ID, 'invoices', id)
+        .then(() => ({ error: null }), (e: Error) => ({ error: e }));
       if (err) { error.value = err.message; return false; }
       invoices.value = invoices.value.filter(i => i.id !== id);
       return true;
@@ -266,9 +335,25 @@ export function useReceivedInvoices() {
     loadInvoices,
     createInvoice,
     updateInvoice,
+    submitInvoice,
+    approveInvoice,
     validateInvoice,
     rejectInvoice,
     cancelInvoice,
     deleteInvoice,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Générer une référence séquentielle via la RPC next_invoice_reference
+// Fallback sur timestamp si la RPC échoue
+// ---------------------------------------------------------------------------
+async function generateReference(companyId: string): Promise<string> {
+  const year = new Date().getFullYear();
+  try {
+    const { data, error } = await appwriteDb
+      .rpc('next_invoice_reference', { p_company_id: companyId, p_type: 'FR', p_year: year });
+    if (!error && data) return data as string;
+  } catch { /* ignore */ }
+  return `FR-${year}-${Date.now().toString(36).toUpperCase()}`;
 }

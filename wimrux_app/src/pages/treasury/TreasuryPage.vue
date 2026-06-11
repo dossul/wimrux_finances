@@ -114,8 +114,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 interface TreasuryAccount {
   id: string;
@@ -242,8 +242,8 @@ async function loadData() {
   loading.value = true;
   try {
     const [accRes, movRes] = await Promise.all([
-      insforge.database.from('treasury_accounts').select('*').order('name', { ascending: true }),
-      insforge.database.from('treasury_movements').select('*').order('created_at', { ascending: false }).limit(200),
+      appwriteDb.from('treasury_accounts').select('*').order('name', { ascending: true }),
+      appwriteDb.from('treasury_movements').select('*').order('created_at', { ascending: false }).limit(200),
     ]);
     if (accRes.data) accounts.value = accRes.data as TreasuryAccount[];
     if (movRes.data) movements.value = movRes.data as TreasuryMovement[];
@@ -255,7 +255,7 @@ async function loadData() {
 async function saveMovement() {
   saving.value = true;
   try {
-    const { error } = await insforge.database.from('treasury_movements').insert({
+    const { error } = await appwriteDb.from('treasury_movements').insert({
       company_id: authStore.companyId,
       account_id: form.value.account_id,
       type: form.value.type,
@@ -271,9 +271,8 @@ async function saveMovement() {
     const account = accounts.value.find(a => a.id === form.value.account_id);
     if (account) {
       const delta = form.value.type === 'credit' ? form.value.amount : -form.value.amount;
-      await insforge.database.from('treasury_accounts')
-        .update({ balance: account.balance + delta })
-        .eq('id', account.id);
+      await appwriteDb.from('treasury_accounts')
+        .update(account.id, { balance: account.balance + delta });
     }
 
     dialogOpen.value = false;
@@ -289,7 +288,7 @@ async function saveMovement() {
 async function saveAccount() {
   saving.value = true;
   try {
-    const { error } = await insforge.database.from('treasury_accounts').insert({
+    const { error } = await appwriteDb.from('treasury_accounts').insert({
       company_id: authStore.companyId,
       name: accountForm.value.name,
       type: accountForm.value.type,

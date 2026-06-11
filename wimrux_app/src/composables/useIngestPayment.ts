@@ -6,7 +6,7 @@
 //   file     → ingest-statement-file
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
+import { functions } from 'src/boot/appwrite';
 
 export type IngestChannel = 'text' | 'sms' | 'image' | 'file';
 
@@ -49,14 +49,7 @@ export function useIngestPayment() {
     job.value = { ...emptyState(), status: 'processing', channel: payload.channel ?? 'text' };
     const t0 = Date.now();
     try {
-      const { data, error } = await insforge.functions.invoke('ingest-payment', {
-        body: {
-          source_channel: payload.channel ?? 'text',
-          wallet_id: payload.wallet_id,
-          content: payload.content,
-          options: { language: payload.language ?? 'fr' },
-        },
-      });
+      const { data, error } = await (async () => { try { const r = await functions.createExecution('ingest-payment', JSON.stringify({ source_channel: payload.channel ?? 'text', wallet_id: payload.wallet_id, content: payload.content, options: { language: payload.language ?? 'fr' } })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
       job.value.durationMs = Date.now() - t0;
       if (error) throw new Error(error.message);
       if (!data?.success) {
@@ -97,11 +90,9 @@ export function useIngestPayment() {
       if (payload.language) formData.append('language', payload.language);
 
       job.value.status = 'processing';
-      const { data, error } = await insforge.functions.invoke('ingest-image-payment', {
-        body: formData,
-      });
+      const { data, error } = await (async () => { try { const r = await functions.createExecution('ingest-image-payment', JSON.stringify({ wallet_id: payload.wallet_id })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch (e) { return { data: null, error: e as Error }; } })();
       job.value.durationMs = Date.now() - t0;
-      if (error) throw new Error(error.message);
+      if (error) throw new Error((error as Error).message);
       if (!data?.success) throw new Error(data?.error ?? 'Extraction échouée');
       job.value.status = 'done';
       job.value.evidenceId = data.evidence_id ?? null;
@@ -132,11 +123,9 @@ export function useIngestPayment() {
       if (payload.language) formData.append('language', payload.language);
 
       job.value.status = 'processing';
-      const { data, error } = await insforge.functions.invoke('ingest-statement-file', {
-        body: formData,
-      });
+      const { data, error } = await (async () => { try { const r = await functions.createExecution('ingest-statement-file', JSON.stringify({ wallet_id: payload.wallet_id })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch (e) { return { data: null, error: e as Error }; } })();
       job.value.durationMs = Date.now() - t0;
-      if (error) throw new Error(error.message);
+      if (error) throw new Error((error as Error).message);
       job.value.status = 'done';
       job.value.evidenceId = data?.evidence_id ?? null;
       job.value.inserted = data?.inserted ?? 0;

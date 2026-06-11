@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type {
   CustomDashboard, CustomDashboardInput, DashboardWidget,
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useDashboards() {
   const companyStore = useCompanyStore();
@@ -20,7 +20,7 @@ export function useDashboards() {
   async function loadDashboards(): Promise<void> {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('custom_dashboards')
       .select('*')
       .eq('company_id', companyId.value)
@@ -37,7 +37,7 @@ export function useDashboards() {
   }
 
   async function loadDashboard(id: string): Promise<void> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('custom_dashboards')
       .select('*')
       .eq('id', id)
@@ -48,27 +48,23 @@ export function useDashboards() {
   }
 
   async function createDashboard(input: CustomDashboardInput): Promise<CustomDashboard | null> {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('custom_dashboards')
       .insert([{
         ...input,
         company_id: companyId.value,
         user_id: userId.value,
         layout: input.layout ?? [],
-      }])
-      .select()
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadDashboards();
     return data as CustomDashboard;
   }
 
   async function updateDashboard(id: string, input: Partial<CustomDashboardInput>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('custom_dashboards')
-      .update(input)
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, input);
     if (err) { error.value = err.message; return false; }
     await loadDashboards();
     if (currentDashboard.value?.id === id) await loadDashboard(id);
@@ -76,7 +72,7 @@ export function useDashboards() {
   }
 
   async function deleteDashboard(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('custom_dashboards')
       .delete()
       .eq('id', id)
@@ -89,9 +85,9 @@ export function useDashboards() {
 
   async function setDefault(id: string): Promise<boolean> {
     // Unset previous default
-    await insforge.database
+    await appwriteDb
       .from('custom_dashboards')
-      .update({ is_default: false })
+      .updateWhere({ is_default: false })
       .eq('company_id', companyId.value)
       .eq('is_default', true);
     return updateDashboard(id, { is_default: true });

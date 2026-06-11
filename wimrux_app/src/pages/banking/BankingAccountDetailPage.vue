@@ -203,10 +203,10 @@
 import { ref, computed, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useBankTransactions } from 'src/composables/useBankTransactions';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { BankAccountFull, BankTransaction, ReconciliationStatus } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const route = useRoute();
 const $q = useQuasar();
@@ -402,7 +402,7 @@ async function saveTransaction() {
 }
 
 async function loadAccount() {
-  const { data } = await insforge.database
+  const { data } = await appwriteDb
     .from('bank_accounts')
     .select('*')
     .eq('id', accountId)

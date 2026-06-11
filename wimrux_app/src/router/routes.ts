@@ -90,6 +90,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'admin/kpi', name: 'admin-kpi', component: () => import('pages/admin/AdminKpiPage.vue'), meta: { title: 'KPI', permissions: ['settings.manage'] } },
       { path: 'admin/health', name: 'admin-health', component: () => import('pages/admin/HealthcheckPage.vue'), meta: { title: 'Monitoring', permissions: ['settings.manage'] } },
       { path: 'fiscal/declarations', name: 'tax-declarations', component: () => import('pages/fiscal/TaxDeclarationsPage.vue'), meta: { title: 'Déclarations fiscales', permissions: ['treasury.read'] } },
+      { path: 'fiscal/withholding', name: 'withholding-tax', component: () => import('pages/fiscal/WithholdingTaxReportPage.vue'), meta: { title: 'Retenues à la source', permissions: ['treasury.read'] } },
     ],
   },
 

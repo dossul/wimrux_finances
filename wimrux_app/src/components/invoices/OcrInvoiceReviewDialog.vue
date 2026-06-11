@@ -273,8 +273,8 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import dayjs from 'dayjs';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { useAuthStore } from 'src/stores/auth-store';
 import { useSuppliers } from 'src/composables/useSuppliers';
 import { useReceivedInvoices } from 'src/composables/useReceivedInvoices';
 import {
@@ -283,13 +283,15 @@ import {
   type OcrExtractResult,
 } from 'src/composables/useSupplierInvoiceOcr';
 import type { FiscalComplianceStatus } from 'src/types';
+import { verifyTaxIdOnline } from 'src/utils/fiscalCompliance';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 // ── Props / Emits ─────────────────────────────────────────────────────────────
 const props = defineProps<{
   modelValue: boolean;
   extracted:  OcrExtractResult | null;
   sourceFile: File | null;      // fichier original pour le viewer
-  sourceUrl:  string | null;    // URL InsForge Storage si déjà uploadé
+  sourceUrl:  string | null;    // URL Appwrite Storage si déjà uploadé
 }>();
 
 const emit = defineEmits<{
@@ -298,6 +300,7 @@ const emit = defineEmits<{
 }>();
 
 const $q           = useQuasar();
+const authStore    = useAuthStore();
 const companyStore = useCompanyStore();
 const { suppliers, loadSuppliers } = useSuppliers();
 const { createInvoice } = useReceivedInvoices();
@@ -435,7 +438,7 @@ async function createSupplier() {
   if (!newSup.value.name) return;
   creatingSupplier.value = true;
   try {
-    const { data, error } = await insforge.database.from('suppliers').insert({
+    const { data, error } = await appwriteDb.from('suppliers').insert({
       company_id: companyStore.company!.id,
       name: newSup.value.name,
       ifu:  newSup.value.ifu  || null,
@@ -444,7 +447,7 @@ async function createSupplier() {
       email: newSup.value.email || null,
       address: newSup.value.address || null,
       is_active: true, country: 'BF',
-    }).select('id, name').single();
+    }).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (error) { $q.notify({ type: 'negative', message: error.message }); return; }
     await loadSuppliers();
     form.value.supplier_id = (data as { id: string }).id;
@@ -507,7 +510,7 @@ async function submit() {
 
   // ── Vérification doublon ────────────────────────────────────────────────────
   if (form.value.supplier_id && form.value.supplier_invoice_number) {
-    const { data: existingList } = await insforge.database
+    const { data: existingList } = await appwriteDb
       .from('invoices')
       .select('id, reference, received_at')
       .eq('supplier_id', form.value.supplier_id)
@@ -543,30 +546,33 @@ async function submit() {
       supplier_invoice_number: form.value.supplier_invoice_number,
       reference:               ref,
       status:                  'draft',
-      total_ht:                form.value.total_ht,
-      total_tva:               form.value.total_tva,
-      total_psvb:              form.value.total_psvb || 0,
-      stamp_duty:              form.value.stamp_duty || 0,
-      total_ttc:               form.value.total_ttc,
+      price_mode:              'TTC',
+      type:                    form.value.type ?? 'FT',
+      operator_name:           authStore.user?.email ?? 'OCR Import',
+      total_ht:                Number(form.value.total_ht)    || 0,
+      total_tva:               Number(form.value.total_tva)   || 0,
+      total_psvb:              Number(form.value.total_psvb)  || 0,
+      stamp_duty:              Number(form.value.stamp_duty)  || 0,
+      total_ttc:               Number(form.value.total_ttc)   || 0,
       due_date:                form.value.due_date,
       received_at:             form.value.received_at
                                  ? new Date(form.value.received_at).toISOString()
                                  : new Date().toISOString(),
-      type:                    form.value.type,
       description:             form.value.description,
       payment_status:          'unpaid',
       paid_amount:             0,
-      ifu_verified:            form.value.ifu_verified,
-      fiscal_compliance_status: form.value.fiscal_compliance_status,
+      payment_terms_days:      form.value.payment_terms_days ?? 30,
+      ifu_verified:            !!form.value.ifu_verified,
+      fiscal_compliance_status: form.value.fiscal_compliance_status ?? 'pending',
       fiscal_compliance_notes:  form.value.fiscal_compliance_notes,
       scan_url:                form.value.scan_url || props.sourceUrl,
       ocr_source_url:          props.sourceUrl,
       ocr_confidence:          ocr.value ? { global: ocr.value.confidence } : null,
     };
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('invoices')
-      .insert(payload);
+      .insert([payload]);
 
     if (error) throw new Error(error.message);
 
@@ -596,74 +602,42 @@ interface IfuResult {
 const ifuResult  = ref<IfuResult | null>(null);
 const ifuLoading = ref(false);
 
-const DIFY_IFU_WORKFLOW = import.meta.env.VITE_DIFY_IFU_WORKFLOW_URL  as string | undefined;
-const IFU_SCRAPER_URL   = import.meta.env.VITE_IFU_SCRAPER_URL        as string | undefined;
-
 async function verifierIfuDgi() {
   const ifu = effectiveIfu.value;
   if (!ifu) return;
   ifuResult.value  = null;
   ifuLoading.value = true;
 
-  // Mode 1 : scraper Browserless
-  if (IFU_SCRAPER_URL) {
-    try {
-      const res = await fetch(`${IFU_SCRAPER_URL}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ifu }),
-      });
-      if (res.ok) {
-        const json = await res.json() as {
-          statut: string;
-          resultat?: { etat?: string; nom?: string; rccm?: string; regime?: string; adresse?: string;
-            champs?: { label: string; valeur: string; actif: boolean }[] };
-          message?: string;
-        };
-        if (json.statut === 'ok' && json.resultat) {
-          const r = json.resultat;
-          ifuResult.value = { nom: r.nom ?? '', etat: r.etat ?? 'INCONNU', rccm: r.rccm ?? '',
-            regime: r.regime ?? '', adresse: r.adresse ?? '', tel: '', email: '', champs: r.champs ?? [] };
-          if (r.etat === 'ACTIF') {
-            form.value.ifu_verified = true;
-            form.value.fiscal_compliance_status = 'valid';
-            $q.notify({ type: 'positive', icon: 'verified_user',
-              message: `IFU vérifié ✓ — ${r.nom || ifu}`, timeout: 5000 });
-          } else {
-            $q.notify({ type: 'warning', message: json.message ?? 'IFU : statut ambigu' });
-          }
-        }
-      }
-    } catch (e) { console.warn('[IFU] Scraper:', e); }
-    finally { ifuLoading.value = false; }
-    if (ifuResult.value) return;
+  try {
+    const result = await verifyTaxIdOnline('BF', ifu);
+    if (result.online_check === 'valid') {
+      ifuResult.value = {
+        nom: result.online_message || ifu, etat: 'ACTIF',
+        rccm: '', regime: '', adresse: '', tel: '', email: ''
+      };
+      form.value.ifu_verified = true;
+      form.value.fiscal_compliance_status = 'valid';
+      $q.notify({ type: 'positive', icon: 'verified_user',
+        message: `IFU vérifié ✓ — ${ifu}`, timeout: 5000 });
+    } else if (result.online_check === 'invalid') {
+      ifuResult.value = {
+        nom: ifu, etat: 'INVALIDE',
+        rccm: '', regime: '', adresse: '', tel: '', email: ''
+      };
+      $q.notify({ type: 'warning', icon: 'warning',
+        message: 'IFU introuvable dans la base DGI', timeout: 5000 });
+    } else {
+      // pending / error / manual_required
+      $q.notify({ type: 'info', icon: 'help_outline',
+        message: result.online_message || 'Vérification ambiguë — page DGI ouverte', timeout: 5000 });
+      globalThis.open(`https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(ifu)}`, '_blank');
+    }
+  } catch (e) {
+    console.warn('[IFU] ai-router error:', e);
+    globalThis.open(`https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(ifu)}`, '_blank');
+  } finally {
+    ifuLoading.value = false;
   }
-
-  // Mode 2 : workflow Dify
-  if (DIFY_IFU_WORKFLOW) {
-    try {
-      const res = await fetch(DIFY_IFU_WORKFLOW, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: { ifu }, response_mode: 'blocking', user: 'wimrux' }),
-      });
-      if (res.ok) {
-        const json = await res.json() as { data?: { outputs?: { nom?: string; etat?: string; rccm?: string; regime?: string; adresse?: string } } };
-        const out = json.data?.outputs;
-        if (out) {
-          ifuResult.value = { nom: out.nom ?? '', etat: out.etat ?? 'INCONNU',
-            rccm: out.rccm ?? '', regime: out.regime ?? '', adresse: out.adresse ?? '', tel: '', email: '' };
-          if (out.etat === 'ACTIVE') { form.value.ifu_verified = true; form.value.fiscal_compliance_status = 'valid'; }
-        }
-      }
-    } catch (e) { console.warn('[IFU] Dify:', e); }
-    finally { ifuLoading.value = false; }
-    if (ifuResult.value) return;
-  }
-
-  // Mode 3 : ouverture manuelle
-  ifuLoading.value = false;
-  globalThis.open(`https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(ifu)}`, '_blank');
 }
 
 const complianceOptions = [

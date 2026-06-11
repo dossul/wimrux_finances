@@ -115,10 +115,10 @@ import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useCompanyStore } from 'src/stores/company-store';
-import { insforge } from 'src/boot/insforge';
+import { appwriteAuth } from 'src/services/appwrite-auth';
 // import { useEmailService } from 'src/composables/useEmailService'; // Désactivé - SMTP non configuré
 
-const INSFORGE_BASE_URL = import.meta.env.VITE_INSFORGE_URL as string;
+const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string;
 
 const router = useRouter();
 const route = useRoute();
@@ -170,7 +170,7 @@ async function onSubmit() {
 
 async function sendOtp(phone: string) {
   const token = authStore.accessToken as string;
-  const res = await fetch(`${INSFORGE_BASE_URL}/functions/send-otp-whatsapp`, {
+  const res = await fetch(`${APPWRITE_ENDPOINT}/functions/send-otp-whatsapp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ phone }),
@@ -185,7 +185,7 @@ async function onVerifyOtp() {
   loadingOtp.value = true;
   try {
     const token = authStore.accessToken as string;
-    const res = await fetch(`${INSFORGE_BASE_URL}/functions/verify-otp`, {
+    const res = await fetch(`${APPWRITE_ENDPOINT}/functions/verify-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ code: otpCode.value }),
@@ -228,10 +228,7 @@ async function finalizeLogin() {
 
 async function loginWithOAuth(provider: 'google' | 'github') {
   try {
-    await insforge.auth.signInWithOAuth({
-      provider,
-      redirectTo: window.location.origin + '/',
-    });
+    await appwriteAuth.signInWithOAuth(provider);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur OAuth';
     $q.notify({ type: 'negative', message });

@@ -3,9 +3,9 @@
 // Import OCR (PDF/image) ou fichiers eSyntas (CSV/PDF/Excel)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { TAX_PAYMENT_TYPES, type TaxPaymentCode } from 'src/utils/fiscalCompliance';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export type TaxPaymentSource = 'manual' | 'ocr_pdf' | 'ocr_image' | 'esyntas_csv' | 'esyntas_pdf' | 'esyntas_excel';
 export type TaxPaymentStatus = 'pending' | 'validated' | 'rejected';
@@ -63,7 +63,7 @@ export function useTaxPayments() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('tax_payments')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -92,11 +92,24 @@ export function useTaxPayments() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      // Guard doublon : même quittance + même date + même montant
+      if (payload.dgi_receipt_number) {
+        const { data: existing } = await appwriteDb
+          .from('tax_payments')
+          .select('id')
+          .eq('company_id', companyStore.company!.id)
+          .eq('dgi_receipt_number', payload.dgi_receipt_number)
+          .eq('payment_date', payload.payment_date)
+          .limit(1)
+          .single();
+        if (existing) {
+          error.value = `Doublon : un paiement avec la quittance ${payload.dgi_receipt_number} existe déjà pour cette date.`;
+          return null;
+        }
+      }
+      const { data, error: err } = await appwriteDb
         .from('tax_payments')
-        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'pending' }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'pending' }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) taxPayments.value.unshift(data);
       return data;
@@ -112,19 +125,40 @@ export function useTaxPayments() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('tax_payments')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, { ...payload, updated_at: new Date().toISOString() })
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = taxPayments.value.findIndex(t => t.id === id);
         if (idx !== -1) taxPayments.value[idx] = data;
       }
       return data;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // SUPPRIMER (uniquement si statut pending)
+  // ---------------------------------------------------------------------------
+  async function deleteTaxPayment(id: string): Promise<boolean> {
+    const target = taxPayments.value.find(t => t.id === id);
+    if (target && target.status !== 'pending') {
+      error.value = 'Seuls les paiements en attente peuvent être supprimés.';
+      return false;
+    }
+    loading.value = true;
+    error.value   = null;
+    try {
+      const { error: err } = await appwriteDb
+        .from('tax_payments')
+        .delete()
+        .eq('id', id)
+        .eq('company_id', companyStore.company!.id);
+      if (err) { error.value = err.message; return false; }
+      taxPayments.value = taxPayments.value.filter(t => t.id !== id);
+      return true;
     } finally {
       loading.value = false;
     }
@@ -198,7 +232,7 @@ export function useTaxPayments() {
     mappings: Array<{ source_field: string; target_field: string; transform_rule?: string }>
   ) {
     for (const m of mappings) {
-      await insforge.database
+      await appwriteDb
         .from('esyntas_field_mappings')
         .upsert([{
           company_id: companyStore.company!.id,
@@ -206,12 +240,12 @@ export function useTaxPayments() {
           source_field: m.source_field,
           target_field: m.target_field,
           transform_rule: m.transform_rule ?? null,
-        }], { onConflict: 'company_id,source_format,source_field' });
+        }]);
     }
   }
 
   async function loadSavedMappings(sourceFormat: 'csv' | 'excel' | 'pdf') {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('esyntas_field_mappings')
       .select('*')
       .eq('company_id', companyStore.company!.id)
@@ -257,7 +291,7 @@ export function useTaxPayments() {
     }
 
     if (records.length > 0) {
-      const { error: err } = await insforge.database
+      const { error: err } = await appwriteDb
         .from('tax_payments')
         .insert(records as TaxPayment[]);
       if (err) { errors.push(err.message); return { imported: 0, errors }; }
@@ -293,6 +327,7 @@ export function useTaxPayments() {
     updateTaxPayment,
     validateTaxPayment,
     rejectTaxPayment,
+    deleteTaxPayment,
     parseEsyntasCSV,
     saveEsyntasMapping,
     loadSavedMappings,

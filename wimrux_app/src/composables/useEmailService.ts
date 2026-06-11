@@ -1,6 +1,6 @@
 import { useAuthStore } from 'src/stores/auth-store';
 
-const INSFORGE_BASE_URL = import.meta.env.VITE_INSFORGE_URL as string;
+const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string;
 
 export type EmailTemplate =
   | 'otp'
@@ -26,7 +26,7 @@ export function useEmailService() {
 
   async function sendEmail(opts: SendEmailOptions): Promise<void> {
     const token = authStore.accessToken as string | undefined;
-    const res = await fetch(`${INSFORGE_BASE_URL}/functions/send-email`, {
+    const res = await fetch(`${APPWRITE_ENDPOINT}/functions/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import type { Permission, CompanyRolePermission, UserRoleAssignment, CompanyCustomRole } from 'src/types';
 import { DEFAULT_ROLE_PERMISSIONS, ALL_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 // ============================================================================
 // Granular RBAC + Multi-Role Fusion — WIMRUX® FINANCES
@@ -49,15 +49,15 @@ export function usePermissions() {
     loading.value = true;
     try {
       const [permRes, assignRes, rolesRes] = await Promise.all([
-        insforge.database
+        appwriteDb
           .from('company_role_permissions')
           .select('*')
           .eq('company_id', _companyId),
-        insforge.database
+        appwriteDb
           .from('user_role_assignments')
           .select('*')
           .eq('company_id', _companyId),
-        insforge.database
+        appwriteDb
           .from('company_custom_roles')
           .select('*')
           .eq('company_id', _companyId)
@@ -170,9 +170,9 @@ export function usePermissions() {
       updated_at: now,
     }));
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('company_role_permissions')
-      .upsert(rows, { onConflict: 'company_id,role,permission' });
+      .upsert(rows);
 
     if (error) return { error: error.message };
     await loadCompanyPermissions();
@@ -182,7 +182,7 @@ export function usePermissions() {
   async function resetRoleToDefaults(role: string): Promise<{ error?: string }> {
     if (!_companyId) return { error: 'Pas de company_id' };
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('company_role_permissions')
       .delete()
       .eq('company_id', _companyId)
@@ -202,7 +202,7 @@ export function usePermissions() {
   ): Promise<{ error?: string }> {
     if (!_companyId) return { error: 'Pas de company_id' };
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('user_role_assignments')
       .upsert({
         user_id: userId,
@@ -211,7 +211,7 @@ export function usePermissions() {
         is_primary: false,
         assigned_by: _fullName || _currentUserId || '',
         expires_at: expiresAt || null,
-      }, { onConflict: 'user_id,company_id,role' });
+      });
 
     if (error) return { error: error.message };
     await loadCompanyPermissions();
@@ -221,7 +221,7 @@ export function usePermissions() {
   async function revokeRole(userId: string, role: string): Promise<{ error?: string }> {
     if (!_companyId) return { error: 'Pas de company_id' };
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('user_role_assignments')
       .delete()
       .eq('user_id', userId)
@@ -258,7 +258,7 @@ export function usePermissions() {
   ): Promise<{ error?: string }> {
     if (!_companyId) return { error: 'Pas de company_id' };
 
-    const { error: roleErr } = await insforge.database
+    const { error: roleErr } = await appwriteDb
       .from('company_custom_roles')
       .insert({
         company_id: _companyId,
@@ -281,9 +281,9 @@ export function usePermissions() {
         granted_by: grantedBy,
         updated_at: now,
       }));
-      const { error: permErr } = await insforge.database
+      const { error: permErr } = await appwriteDb
         .from('company_role_permissions')
-        .upsert(rows, { onConflict: 'company_id,role,permission' });
+        .upsert(rows);
       if (permErr) return { error: permErr.message };
     }
 
@@ -298,9 +298,9 @@ export function usePermissions() {
   ): Promise<{ error?: string }> {
     if (!_companyId) return { error: 'Pas de company_id' };
 
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('company_custom_roles')
-      .update({ label, description: description || null })
+      .updateWhere({ label, description: description || null })
       .eq('company_id', _companyId)
       .eq('role_key', roleKey);
 
@@ -312,14 +312,14 @@ export function usePermissions() {
   async function deleteCustomRole(roleKey: string): Promise<{ error?: string }> {
     if (!_companyId) return { error: 'Pas de company_id' };
 
-    const { error: permErr } = await insforge.database
+    const { error: permErr } = await appwriteDb
       .from('company_role_permissions')
       .delete()
       .eq('company_id', _companyId)
       .eq('role', roleKey);
     if (permErr) return { error: permErr.message };
 
-    const { error: roleErr } = await insforge.database
+    const { error: roleErr } = await appwriteDb
       .from('company_custom_roles')
       .delete()
       .eq('company_id', _companyId)

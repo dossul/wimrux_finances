@@ -3,8 +3,8 @@
 // Gestion des wallets de paiement globaux + transactions
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface PaymentWallet {
   id: string;
@@ -89,7 +89,7 @@ export function usePaymentWallets() {
     if (!companyStore.company?.id) return;
     loading.value = true; error.value = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('payment_wallets')
         .select('*')
         .eq('company_id', companyStore.company.id)
@@ -101,21 +101,18 @@ export function usePaymentWallets() {
 
   async function createWallet(input: PaymentWalletInput): Promise<PaymentWallet | null> {
     if (!companyStore.company?.id) return null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('payment_wallets')
-      .insert([{ ...input, company_id: companyStore.company.id }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyStore.company.id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) wallets.value.unshift(data as PaymentWallet);
     return data as PaymentWallet;
   }
 
   async function updateWallet(id: string, updates: Partial<PaymentWalletInput>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('payment_wallets')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .update(id, { ...updates, updated_at: new Date().toISOString() });
     if (err) { error.value = err.message; return false; }
     const idx = wallets.value.findIndex(w => w.id === id);
     if (idx >= 0) wallets.value[idx] = { ...wallets.value[idx]!, ...updates };
@@ -123,7 +120,7 @@ export function usePaymentWallets() {
   }
 
   async function deleteWallet(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('payment_wallets')
       .delete()
       .eq('id', id);
@@ -136,7 +133,7 @@ export function usePaymentWallets() {
     if (!companyStore.company?.id) return;
     loading.value = true; error.value = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('wallet_transactions')
         .select('*')
         .eq('wallet_id', walletId)
@@ -152,11 +149,9 @@ export function usePaymentWallets() {
     if (!companyStore.company?.id) return null;
     const dedupHash = input.dedup_hash
       ?? `${input.wallet_id}-${input.transaction_date}-${input.amount}-${input.direction}-${input.label}`.replace(/\s+/g, '');
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('wallet_transactions')
-      .insert([{ ...input, company_id: companyStore.company.id, dedup_hash: dedupHash }])
-      .select()
-      .single();
+      .insert([{ ...input, company_id: companyStore.company.id, dedup_hash: dedupHash }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) transactions.value.unshift(data as WalletTransaction);
     return data as WalletTransaction;

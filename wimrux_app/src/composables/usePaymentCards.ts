@@ -4,8 +4,8 @@
 // Type   : debit | credit
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface PaymentCard {
   id:              string;
@@ -36,7 +36,7 @@ export function usePaymentCards() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('payment_cards')
         .select('*')
         .eq('company_id', companyStore.company.id)
@@ -54,11 +54,9 @@ export function usePaymentCards() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('payment_cards')
-        .insert([{ ...payload, company_id: companyStore.company.id }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company.id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       const created = data as PaymentCard;
       cards.value.unshift(created);
@@ -72,13 +70,9 @@ export function usePaymentCards() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('payment_cards')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, { ...updates, updated_at: new Date().toISOString() })
       if (err) { error.value = err.message; return null; }
       const updated = data as PaymentCard;
       const idx = cards.value.findIndex(c => c.id === id);

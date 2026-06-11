@@ -1274,8 +1274,6 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { createClient } from '@insforge/sdk';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import { usePermissions } from 'src/composables/usePermissions';
@@ -1290,6 +1288,8 @@ import { DEFAULT_INVOICE_COLORS } from 'src/composables/useInvoicePdf';
 import { useFiscalProfile, DEFAULT_BF_FISCAL_CONFIG } from 'src/composables/useFiscalProfile';
 import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
 import type { Permission as PermissionType } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
+import { appwriteAuth } from 'src/services/appwrite-auth';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
@@ -1321,9 +1321,9 @@ function initProfileForm() {
 async function saveUserProfile() {
   profileSaving.value = true;
   try {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('user_profiles')
-      .update({ full_name: profileForm.full_name, phone: profileForm.phone, two_fa_enabled: profileForm.two_fa_enabled })
+      .updateWhere({ full_name: profileForm.full_name, phone: profileForm.phone, two_fa_enabled: profileForm.two_fa_enabled })
       .eq('user_id', authStore.user?.id ?? '');
     if (error) throw new Error(error.message);
     $q.notify({ type: 'positive', message: 'Profil mis à jour avec succès' });
@@ -1698,8 +1698,8 @@ const permDialog = ref(false);
 const editingKey = ref<ChatbotApiKey | null>(null);
 const editingPerms = ref<{ action: ChatbotAction; enabled: boolean; valid_from: string | null; valid_until: string | null; rate_limit_per_hour: number | null }[]>([]);
 
-const insforgeUrl = import.meta.env.VITE_INSFORGE_URL as string || '';
-const gatewayUrl = `${insforgeUrl}/functions/chatbot-gateway`;
+const appwriteEndpoint = import.meta.env.VITE_APPWRITE_ENDPOINT as string || '';
+const gatewayUrl = `${appwriteEndpoint}/functions/chatbot-gateway`;
 const channelOptions = CHATBOT_CHANNELS;
 
 const newKeyForm = ref({
@@ -2030,9 +2030,9 @@ async function onEditUserRole() {
   if (!editUserRoleTarget.value?.user_id || !editUserRoleValue.value) return;
   rbacSaving.value = true;
   try {
-    const { error } = await insforge.database
+    const { error } = await appwriteDb
       .from('user_profiles')
-      .update({ role: editUserRoleValue.value })
+      .updateWhere({ role: editUserRoleValue.value })
       .eq('user_id', editUserRoleTarget.value.user_id);
     if (error) {
       $q.notify({ type: 'negative', message: error.message });
@@ -2050,7 +2050,7 @@ async function onEditUserRole() {
 async function loadRbacUsers() {
   rbacUsersLoading.value = true;
   try {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('user_profiles')
       .select('*')
       .order('full_name', { ascending: true });
@@ -2140,42 +2140,35 @@ function generateRbacPwd(): string {
 async function onCreateRbacUser() {
   rbacSaving.value = true;
   try {
-    const baseUrl = import.meta.env.VITE_INSFORGE_URL as string;
-    const anonKey = import.meta.env.VITE_INSFORGE_ANON_KEY as string;
-    const freshClient = createClient({ baseUrl, anonKey });
-
+    const baseUrl = import.meta.env.VITE_APPWRITE_ENDPOINT as string;
+    const anonKey = import.meta.env.VITE_APPWRITE_ANON_KEY as string;
+    
     let newUserId: string | undefined;
 
     // Step 1: Try signUp directly — handle "already exists" by signing in to get the ID
-    const { data: signUpData, error: signUpErr } = await freshClient.auth.signUp({
-      email: rbacUserForm.value.email,
-      password: rbacUserForm.value.password,
-      name: rbacUserForm.value.full_name,
-    });
+    const { user: signUpUser, error: signUpErr } = await appwriteAuth.signUp(rbacUserForm.value.email, rbacUserForm.value.password, rbacUserForm.value.full_name);
+    const signUpData = signUpUser ? { user: signUpUser } : null;
 
     if (signUpErr) {
       const msg = (signUpErr.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('exist') || (signUpErr as { statusCode?: number }).statusCode === 409) {
         // Auth account exists — sign in to retrieve the user ID
-        const { data: loginData, error: loginErr } = await freshClient.auth.signInWithPassword({
-          email: rbacUserForm.value.email,
-          password: rbacUserForm.value.password,
-        });
-        if (loginErr || !loginData?.user?.id) {
+        const { user: loginUser, error: loginErr } = await appwriteAuth.signIn(rbacUserForm.value.email, rbacUserForm.value.password);
+        if (loginErr || !loginUser) {
           throw new Error('Cet email est déjà utilisé. Vérifiez le mot de passe ou utilisez un autre email.');
         }
-        newUserId = loginData.user.id;
-        await freshClient.auth.signOut();
+        newUserId = (loginUser as any).$id ?? (loginUser as any).id;
+        await appwriteAuth.signOut();
       } else {
         throw new Error(signUpErr.message);
       }
     } else {
-      newUserId = signUpData?.user?.id;
+      newUserId = (signUpData?.user as any)?.$id ?? (signUpData?.user as any)?.id;
     }
 
     if (!newUserId) {
       // Email confirmation enabled — retrieve ID via secure RPC
-      const { data: rpcId } = await insforge.database
+      const { data: rpcId } = await appwriteDb
         .rpc('get_user_id_by_email', { p_email: rbacUserForm.value.email });
       newUserId = rpcId as string | undefined;
     }
@@ -2185,7 +2178,7 @@ async function onCreateRbacUser() {
     }
 
     // Step 2: Check if profile already exists for this company
-    const { data: existingProfile } = await insforge.database
+    const { data: existingProfile } = await appwriteDb
       .from('user_profiles')
       .select('id')
       .eq('user_id', newUserId)
@@ -2197,7 +2190,7 @@ async function onCreateRbacUser() {
     }
 
     // Step 3: Create user_profile
-    const { error: profileErr } = await insforge.database
+    const { error: profileErr } = await appwriteDb
       .from('user_profiles')
       .insert({
         user_id: newUserId,

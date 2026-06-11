@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 // ============================================================================
 // A-Rapport — Rapprochement fiscal par période
@@ -36,7 +36,7 @@ export function useAReport() {
     loading.value = true;
     try {
       // Aggregate certified invoices for the period
-      const { data: invoices } = await insforge.database
+      const { data: invoices } = await appwriteDb
         .from('invoices')
         .select('type, total_ht, total_tva, total_psvb, total_ttc, stamp_duty')
         .eq('company_id', companyId)
@@ -67,14 +67,12 @@ export function useAReport() {
       };
 
       // Save to DB
-      const { data: saved } = await insforge.database
+      const { data: saved } = await appwriteDb
         .from('fiscal_a_reports')
         .upsert({
           ...result,
           generated_at: new Date().toISOString(),
-        }, { onConflict: 'company_id,period_start,period_end' })
-        .select()
-        .single();
+        });
 
       report.value = (saved as AReportData) || result;
       return report.value;
@@ -86,7 +84,7 @@ export function useAReport() {
   async function loadHistory(companyId: string) {
     loading.value = true;
     try {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('fiscal_a_reports')
         .select('*')
         .eq('company_id', companyId)

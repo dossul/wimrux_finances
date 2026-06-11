@@ -16,8 +16,8 @@
     "postinstall": "quasar prepare"
   },
   "dependencies": {
-    "@insforge/sdk": "^1.3.0",
     "@quasar/extras": "^1.16.4",
+    "appwrite": "^26.0.0",
     "axios": "^1.2.1",
     "dayjs": "^1.11.21",
     "jspdf": "^4.1.0",

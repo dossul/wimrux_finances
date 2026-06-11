@@ -84,6 +84,8 @@
                 title="Valider" @click="validate(props.row)" />
               <q-btn flat round dense size="sm" icon="cancel" color="negative"
                 title="Rejeter" @click="reject(props.row)" />
+              <q-btn flat round dense size="sm" icon="delete_forever" color="negative"
+                title="Supprimer" @click="confirmDelete(props.row)" />
             </template>
             <q-btn flat round dense size="sm" icon="edit" color="grey-7"
               title="Modifier" @click="openEdit(props.row)" />
@@ -243,7 +245,8 @@ const authStore = useAuthStore();
 const {
   taxPayments, loading, error, stats, taxPaymentTypes,
   loadTaxPayments, createTaxPayment, updateTaxPayment,
-  validateTaxPayment, rejectTaxPayment, parseEsyntasCSV, bulkImportFromEsyntas,
+  validateTaxPayment, rejectTaxPayment, deleteTaxPayment,
+  parseEsyntasCSV, bulkImportFromEsyntas,
 } = useTaxPayments();
 
 // Filtres
@@ -306,17 +309,32 @@ function resetFilters() {
   void applyFilters();
 }
 
-// Valider / Rejeter
+// Valider / Rejeter / Supprimer
 async function validate(t: TaxPayment) {
-  await validateTaxPayment(t.id, authStore.user?.email ?? 'admin');
-  $q.notify({ type: 'positive', message: 'Validé' });
+  const ok = await validateTaxPayment(t.id, authStore.user?.email ?? 'admin');
+  if (ok) { $q.notify({ type: 'positive', message: 'Validé' }); }
+  else     { $q.notify({ type: 'negative', message: error.value || 'Erreur lors de la validation' }); }
 }
 function reject(t: TaxPayment) {
   $q.dialog({ title: 'Rejeter', prompt: { model: '', label: 'Motif' }, cancel: true, ok: { color: 'negative' } })
     .onOk(async (motif: string) => {
-      await rejectTaxPayment(t.id, motif);
-      $q.notify({ type: 'warning', message: 'Rejeté' });
+      const ok = await rejectTaxPayment(t.id, motif);
+      if (ok) { $q.notify({ type: 'warning', message: 'Rejeté' }); }
+      else     { $q.notify({ type: 'negative', message: error.value || 'Erreur lors du rejet' }); }
     });
+}
+function confirmDelete(t: TaxPayment) {
+  $q.dialog({
+    title: 'Supprimer ce paiement ?',
+    message: `Supprimer le paiement de ${fmtAmount(t.amount)} XOF du ${t.payment_date} ?<br>⚠️ Cette action est irréversible.`,
+    html: true,
+    cancel: true,
+    ok: { color: 'negative', label: 'Supprimer' },
+  }).onOk(async () => {
+    const ok = await deleteTaxPayment(t.id);
+    if (ok) { $q.notify({ type: 'positive', message: 'Paiement supprimé' }); }
+    else     { $q.notify({ type: 'negative', message: error.value || 'Erreur lors de la suppression' }); }
+  });
 }
 
 // Form manuel
@@ -347,16 +365,17 @@ async function submitForm() {
   if (!form.value.payment_date || form.value.amount <= 0) {
     $q.notify({ type: 'negative', message: 'Date et montant requis' }); return;
   }
+  let ok;
   if (editingPayment.value) {
-    await updateTaxPayment(editingPayment.value.id, form.value);
+    ok = await updateTaxPayment(editingPayment.value.id, form.value);
   } else {
-    await createTaxPayment(form.value as Parameters<typeof createTaxPayment>[0]);
+    ok = await createTaxPayment(form.value as Parameters<typeof createTaxPayment>[0]);
   }
-  if (!error.value) {
+  if (ok && !error.value) {
     showForm.value = false;
     $q.notify({ type: 'positive', message: editingPayment.value ? 'Modifié' : 'Créé' });
   } else {
-    $q.notify({ type: 'negative', message: error.value });
+    $q.notify({ type: 'negative', message: error.value || 'Erreur inconnue' });
   }
 }
 

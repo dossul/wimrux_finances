@@ -3,8 +3,8 @@
 // Retenues à la source + déclarations fiscales DGI BF
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface WithholdingTax {
   id: string;
@@ -79,7 +79,7 @@ export function useTaxDeclarations() {
   async function loadWithholdings(periodMonth?: string) {
     loading.value = true;
     try {
-      let q = insforge.database.from('withholding_taxes').select('*').eq('company_id', companyId.value);
+      let q = appwriteDb.from('withholding_taxes').select('*').eq('company_id', companyId.value);
       if (periodMonth) q = q.eq('period_month', periodMonth);
       const { data, error: err } = await q.order('created_at', { ascending: false });
       if (err) { error.value = err.message; return; }
@@ -88,28 +88,24 @@ export function useTaxDeclarations() {
   }
 
   async function createWithholding(payload: Omit<WithholdingTax, 'id' | 'company_id' | 'created_at' | 'status' | 'declared_at' | 'paid_at' | 'receipt_number'>) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('withholding_taxes')
-      .insert([{ company_id: companyId.value, ...payload }])
-      .select()
-      .single();
+      .insert([{ company_id: companyId.value, ...payload }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) withholdings.value.unshift(data);
     return data as WithholdingTax;
   }
 
   async function markWithholdingDeclared(id: string) {
-    await insforge.database.from('withholding_taxes')
-      .update({ status: 'declared', declared_at: new Date().toISOString() })
-      .eq('id', id);
+    await appwriteDb.from('withholding_taxes')
+      .update(id, { status: 'declared', declared_at: new Date().toISOString() });
     const idx = withholdings.value.findIndex(w => w.id === id);
     if (idx !== -1) withholdings.value[idx] = { ...withholdings.value[idx]!, status: 'declared' };
   }
 
   async function markWithholdingPaid(id: string, receiptNumber: string) {
-    await insforge.database.from('withholding_taxes')
-      .update({ status: 'paid', paid_at: new Date().toISOString(), receipt_number: receiptNumber })
-      .eq('id', id);
+    await appwriteDb.from('withholding_taxes')
+      .update(id, { status: 'paid', paid_at: new Date().toISOString(), receipt_number: receiptNumber });
     const idx = withholdings.value.findIndex(w => w.id === id);
     if (idx !== -1) withholdings.value[idx] = { ...withholdings.value[idx]!, status: 'paid' };
   }
@@ -118,7 +114,7 @@ export function useTaxDeclarations() {
   // DÉCLARATIONS
   // ---------------------------------------------------------------------------
   async function loadDeclarations() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('tax_declarations')
       .select('*')
       .eq('company_id', companyId.value)
@@ -127,20 +123,17 @@ export function useTaxDeclarations() {
   }
 
   async function createDeclaration(payload: { declaration_type: string; period: string; total_base?: number; total_tax?: number; notes?: string }) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('tax_declarations')
-      .insert([{ company_id: companyId.value, ...payload }])
-      .select()
-      .single();
+      .insert([{ company_id: companyId.value, ...payload }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) declarations.value.unshift(data);
     return data as TaxDeclaration;
   }
 
   async function submitDeclaration(id: string) {
-    await insforge.database.from('tax_declarations')
-      .update({ status: 'submitted', submitted_at: new Date().toISOString() })
-      .eq('id', id);
+    await appwriteDb.from('tax_declarations')
+      .update(id, { status: 'submitted', submitted_at: new Date().toISOString() });
     const idx = declarations.value.findIndex(d => d.id === id);
     if (idx !== -1) declarations.value[idx] = { ...declarations.value[idx]!, status: 'submitted' };
   }
@@ -149,7 +142,7 @@ export function useTaxDeclarations() {
   // TVA MENSUELLE
   // ---------------------------------------------------------------------------
   async function loadTvaMonthly() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('v_tva_monthly')
       .select('*')
       .eq('company_id', companyId.value)

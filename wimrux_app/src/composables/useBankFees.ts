@@ -3,9 +3,9 @@
 // Réutilise bank_transactions filtrées sur transaction_categories.type = 'bank_fee'
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { BankTransaction } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface FeeRow extends BankTransaction {
   category_name?: string | undefined;
@@ -43,7 +43,7 @@ export function useBankFees() {
     error.value   = null;
     try {
       // On joint transaction_categories pour filtrer type = 'bank_fee'
-      let q = insforge.database
+      let q = appwriteDb
         .from('bank_transactions')
         .select(`
           *,

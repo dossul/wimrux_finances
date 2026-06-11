@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import type { AiUsageLog, AiUsageByModel, AiUsageByCompany } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useAiUsage() {
   const logs = ref<AiUsageLog[]>([]);
@@ -14,7 +14,7 @@ export function useAiUsage() {
   async function fetchCompanyUsage(from?: string, to?: string) {
     loading.value = true;
     try {
-      let query = insforge.database
+      let query = appwriteDb
         .from('ai_usage_logs')
         .select('*')
         .order('created_at', { ascending: false });
@@ -34,7 +34,7 @@ export function useAiUsage() {
   async function fetchAllUsage(from?: string, to?: string) {
     loading.value = true;
     try {
-      let query = insforge.database
+      let query = appwriteDb
         .from('ai_usage_logs')
         .select('*')
         .order('created_at', { ascending: false })
@@ -118,7 +118,7 @@ export function useAiUsage() {
     // Resolve company names
     const ids = Array.from(companyMap.keys());
     if (ids.length) {
-      const { data: companies } = await insforge.database
+      const { data: companies } = await appwriteDb
         .from('companies')
         .select('id, name')
         .in('id', ids);

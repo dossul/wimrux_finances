@@ -2,9 +2,9 @@
 // WIMRUX® FINANCES — Composable Notifications (T16.x)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface Notification {
   id: string;
@@ -63,7 +63,7 @@ export function useNotifications() {
   async function loadNotifications(limit = 50) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('notifications')
         .select('*')
         .eq('company_id', companyId.value)
@@ -77,7 +77,7 @@ export function useNotifications() {
   }
 
   async function loadPreferences() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('notification_preferences')
       .select('*')
       .eq('company_id', companyId.value)
@@ -89,10 +89,9 @@ export function useNotifications() {
   // ACTIONS
   // ---------------------------------------------------------------------------
   async function markAsRead(id: string) {
-    await insforge.database
+    await appwriteDb
       .from('notifications')
-      .update({ is_read: true, read_at: new Date().toISOString() })
-      .eq('id', id);
+      .update(id, { is_read: true, read_at: new Date().toISOString() });
     const idx = notifications.value.findIndex(n => n.id === id);
     if (idx !== -1) {
       notifications.value[idx] = { ...notifications.value[idx]!, is_read: true, read_at: new Date().toISOString() };
@@ -100,9 +99,9 @@ export function useNotifications() {
   }
 
   async function markAllAsRead() {
-    await insforge.database
+    await appwriteDb
       .from('notifications')
-      .update({ is_read: true, read_at: new Date().toISOString() })
+      .updateWhere({ is_read: true, read_at: new Date().toISOString() })
       .eq('company_id', companyId.value)
       .eq('user_id', userId.value)
       .eq('is_read', false);
@@ -110,17 +109,16 @@ export function useNotifications() {
   }
 
   async function archiveNotification(id: string) {
-    await insforge.database
+    await appwriteDb
       .from('notifications')
-      .update({ is_archived: true })
-      .eq('id', id);
+      .update(id, { is_archived: true });
     notifications.value = notifications.value.filter(n => n.id !== id);
   }
 
   async function archiveAll() {
-    await insforge.database
+    await appwriteDb
       .from('notifications')
-      .update({ is_archived: true })
+      .updateWhere({ is_archived: true })
       .eq('company_id', companyId.value)
       .eq('user_id', userId.value)
       .eq('is_archived', false);
@@ -133,14 +131,13 @@ export function useNotifications() {
   async function updatePreference(notificationType: string, updates: Partial<NotificationPreference>) {
     const existing = preferences.value.find(p => p.notification_type === notificationType);
     if (existing) {
-      await insforge.database
+      await appwriteDb
         .from('notification_preferences')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
+        .update(existing.id, { ...updates, updated_at: new Date().toISOString() });
       const idx = preferences.value.findIndex(p => p.id === existing.id);
       if (idx !== -1) preferences.value[idx] = { ...preferences.value[idx]!, ...updates };
     } else {
-      const { data } = await insforge.database
+      const { data } = await appwriteDb
         .from('notification_preferences')
         .insert([{
           company_id: companyId.value,
@@ -151,9 +148,7 @@ export function useNotifications() {
           channel_sms: false,
           is_enabled: true,
           ...updates,
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (data) preferences.value.push(data);
     }
   }

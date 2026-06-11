@@ -61,12 +61,12 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useInvoiceStore } from 'src/stores/invoice-store';
 import { useExportCsv } from 'src/composables/useExportCsv';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
 import type { Invoice, InvoiceStatus } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const router = useRouter();
 const route = useRoute();
@@ -142,7 +142,7 @@ function formatDate(d: string) {
 async function loadInvoices() {
   loading.value = true;
   try {
-    const { data, error } = await insforge.database
+    const { data, error } = await appwriteDb
       .from('invoices')
       .select('id, type, reference, status, total_ttc, created_at, client_id, client:clients(name)')
       .order('created_at', { ascending: false });
@@ -159,7 +159,7 @@ async function createInvoice(type: string) {
   const now = new Date();
   const year = now.getFullYear();
 
-  const { data: refData, error: refError } = await insforge.database
+  const { data: refData, error: refError } = await appwriteDb
     .rpc('next_invoice_reference', { p_company_id: authStore.companyId, p_type: type, p_year: year });
 
   if (refError) {
@@ -167,7 +167,7 @@ async function createInvoice(type: string) {
     return;
   }
 
-  const { data, error } = await insforge.database
+  const { data, error } = await appwriteDb
     .from('invoices')
     .insert({
       company_id: authStore.companyId,
@@ -176,9 +176,7 @@ async function createInvoice(type: string) {
       status: 'draft',
       price_mode: 'TTC',
       operator_name: authStore.fullName,
-    })
-    .select()
-    .single();
+    }).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
 
   if (!error && data) {
     await router.push(`/app/invoices/${(data as Invoice).id}`);

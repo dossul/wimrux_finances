@@ -2,9 +2,9 @@
 // WIMRUX® FINANCES — Gestion des fournisseurs
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Supplier } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useSuppliers() {
   const suppliers    = ref<Supplier[]>([]);
@@ -16,7 +16,7 @@ export function useSuppliers() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('suppliers')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -37,11 +37,9 @@ export function useSuppliers() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('suppliers')
-        .insert([{ ...payload, company_id: companyStore.company!.id, is_active: true }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company!.id, is_active: true }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) suppliers.value.push(data);
       return data;
@@ -54,13 +52,9 @@ export function useSuppliers() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('suppliers')
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, { ...payload, updated_at: new Date().toISOString() });
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = suppliers.value.findIndex(s => s.id === id);
@@ -76,7 +70,7 @@ export function useSuppliers() {
     loading.value = true;
     error.value   = null;
     try {
-      const { error: err } = await insforge.database
+      const { error: err } = await appwriteDb
         .from('suppliers')
         .delete()
         .eq('id', id)

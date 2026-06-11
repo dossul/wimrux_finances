@@ -76,8 +76,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import type { AuditLog } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const logs = ref<AuditLog[]>([]);
 const loading = ref(false);
@@ -138,7 +138,7 @@ function showDetail(log: AuditLog) {
 async function loadLogs() {
   loading.value = true;
   try {
-    let query = insforge.database
+    let query = appwriteDb
       .from('audit_log')
       .select('*')
       .order('timestamp', { ascending: false })

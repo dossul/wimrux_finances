@@ -3,9 +3,9 @@
 // Fonctionne pour factures émises (encaissements) et reçues (décaissements)
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { InvoicePayment, InvoicePaymentMethod } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useInvoicePayments() {
   const payments     = ref<InvoicePayment[]>([]);
@@ -20,7 +20,7 @@ export function useInvoicePayments() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('invoice_payments')
         .select('*')
         .eq('invoice_id', invoiceId)
@@ -51,11 +51,9 @@ export function useInvoicePayments() {
     error.value   = null;
     try {
       const record = { ...payload, company_id: companyStore.company!.id };
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('invoice_payments')
-        .insert(record)
-        .select()
-        .single();
+        .insert(record).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) payments.value.unshift(data);
       return data;
@@ -71,7 +69,7 @@ export function useInvoicePayments() {
     loading.value = true;
     error.value   = null;
     try {
-      const { error: err } = await insforge.database
+      const { error: err } = await appwriteDb
         .from('invoice_payments')
         .delete()
         .eq('id', id)
@@ -91,7 +89,7 @@ export function useInvoicePayments() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('invoice_payments')
         .select('*, invoices!invoice_payments_invoice_id_fkey(reference, direction, supplier_id, client_id)')
         .eq('company_id', companyStore.company!.id)

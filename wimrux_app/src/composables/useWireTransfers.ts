@@ -3,9 +3,9 @@
 // CRUD + workflow de statut : draft → approved → sent → executed/failed/cancelled
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type { WireTransfer, WireTransferStatus } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useWireTransfers() {
   const transfers   = ref<WireTransfer[]>([]);
@@ -25,7 +25,7 @@ export function useWireTransfers() {
     loading.value = true;
     error.value   = null;
     try {
-      let q = insforge.database
+      let q = appwriteDb
         .from('wire_transfers')
         .select('*')
         .eq('company_id', companyStore.company!.id)
@@ -56,11 +56,9 @@ export function useWireTransfers() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('wire_transfers')
-        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'draft' }])
-        .select()
-        .single();
+        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'draft' }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) transfers.value.unshift(data);
       return data;
@@ -76,13 +74,9 @@ export function useWireTransfers() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('wire_transfers')
-        .update(payload)
-        .eq('id', id)
-        .eq('company_id', companyStore.company!.id)
-        .select()
-        .single();
+        .update(id, payload);
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = transfers.value.findIndex(t => t.id === id);
@@ -131,7 +125,7 @@ export function useWireTransfers() {
     loading.value = true;
     error.value   = null;
     try {
-      const { error: err } = await insforge.database
+      const { error: err } = await appwriteDb
         .from('wire_transfers')
         .delete()
         .eq('id', id)

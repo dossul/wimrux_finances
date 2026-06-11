@@ -3,10 +3,10 @@
 // Tickets, messages, feedback
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useEmailService } from 'src/composables/useEmailService';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface SupportTicket {
   id: string;
@@ -61,7 +61,7 @@ export function useSupport() {
   async function loadTickets() {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('support_tickets')
         .select('*')
         .eq('company_id', companyId.value)
@@ -75,15 +75,13 @@ export function useSupport() {
   async function createTicket(payload: { subject: string; description: string; category?: string; priority?: string }) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('support_tickets')
         .insert([{
           company_id: companyId.value,
           user_id: userId.value,
           ...payload,
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) {
         tickets.value.unshift(data);
@@ -108,10 +106,9 @@ export function useSupport() {
   }
 
   async function closeTicket(id: string) {
-    await insforge.database
+    await appwriteDb
       .from('support_tickets')
-      .update({ status: 'closed', resolved_at: new Date().toISOString() })
-      .eq('id', id);
+      .update(id, { status: 'closed', resolved_at: new Date().toISOString() });
     const idx = tickets.value.findIndex(t => t.id === id);
     if (idx !== -1) tickets.value[idx] = { ...tickets.value[idx]!, status: 'closed' };
   }
@@ -120,7 +117,7 @@ export function useSupport() {
   // MESSAGES
   // ---------------------------------------------------------------------------
   async function loadMessages(ticketId: string) {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('support_ticket_messages')
       .select('*')
       .eq('ticket_id', ticketId)
@@ -129,16 +126,14 @@ export function useSupport() {
   }
 
   async function sendMessage(ticketId: string, message: string) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('support_ticket_messages')
       .insert([{
         ticket_id: ticketId,
         sender_type: 'user',
         sender_id: userId.value,
         message,
-      }])
-      .select()
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     if (data) messages.value.push(data);
     return data;
@@ -148,15 +143,13 @@ export function useSupport() {
   // FEEDBACK
   // ---------------------------------------------------------------------------
   async function submitFeedback(payload: { type: string; message: string; page_url?: string; rating?: number }) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('user_feedback')
       .insert([{
         company_id: companyId.value,
         user_id: userId.value,
         ...payload,
-      }])
-      .select()
-      .single();
+      }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     return data as UserFeedback;
   }

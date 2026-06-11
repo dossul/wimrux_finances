@@ -1,7 +1,7 @@
 import { ref, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
+import { appwriteRealtime } from 'src/services/appwrite-realtime';
 
 interface RealtimeEvent {
   id?: string;
@@ -25,69 +25,44 @@ export function useRealtimeNotifications() {
   const events = ref<RealtimeEvent[]>([]);
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let retryCount = 0;
-  const MAX_RETRY = 3;
+  let explicitlyDisconnected = false;
 
   async function connect() {
     const companyId = authStore.companyId;
     if (!companyId) return;
-
-    // Éviter les reconnexions en boucle (B-03 : conflit MCF / Wimrux Facturation)
     if (connected.value) return;
 
     try {
-      await insforge.realtime.connect();
       connected.value = true;
       retryCount = 0;
 
-      // Canaux spécifiques à Wimrux Finances
-      await insforge.realtime.subscribe(`invoices:${companyId}`);
-      await insforge.realtime.subscribe(`audit:${companyId}`);
 
-      insforge.realtime.on('invoice_certified', (payload: RealtimeEvent) => {
-        events.value.unshift(payload);
-        $q.notify({
-          type: 'positive',
-          icon: 'verified',
-          message: `Facture ${payload.reference ?? ''} certifiée — ${payload.fiscal_number ?? ''}`,
-          timeout: 5000,
-        });
-      });
-
-      insforge.realtime.on('invoice_validated', (payload: RealtimeEvent) => {
-        events.value.unshift(payload);
-        $q.notify({
-          type: 'info',
-          icon: 'check_circle',
-          message: `Facture ${payload.reference ?? ''} validée`,
-          timeout: 3000,
-        });
-      });
-
-      insforge.realtime.on('new_audit', (payload: RealtimeEvent) => {
-        events.value.unshift(payload);
-      });
-
-      insforge.realtime.on('disconnect', () => {
-        connected.value = false;
-        scheduleRetry();
-      });
-
-      insforge.realtime.on('connect_error', () => {
-        connected.value = false;
-        scheduleRetry();
-      });
+      // Subscribe to realtime invoice/audit events
+      appwriteRealtime.subscribe(
+        'databases.*.collections.invoices.documents',
+        (payload: any) => {
+          const doc = payload?.payload ?? payload;
+          events.value.unshift(doc);
+          if (doc?.status === 'certified') {
+            $q.notify({ type: 'positive', icon: 'verified',
+              message: 'Facture ' + (doc.reference ?? '') + ' certifiee', timeout: 5000 });
+          } else if (doc?.status === 'validated') {
+            $q.notify({ type: 'info', icon: 'check_circle',
+              message: 'Facture ' + (doc.reference ?? '') + ' validee', timeout: 3000 });
+          }
+        }
+      );
     } catch {
-      // B-03 : La connexion Realtime échoue silencieusement (pas d'erreur visible)
-      // Planifier une nouvelle tentative avec backoff exponentiel
       connected.value = false;
       scheduleRetry();
     }
   }
 
   function scheduleRetry() {
-    if (retryTimer || retryCount >= MAX_RETRY) return;
+    if (retryTimer || explicitlyDisconnected) return;
     retryCount++;
-    const delay = Math.min(5000 * retryCount, 30000); // 5s, 10s, 15s max
+    // Backoff exponentiel plafonné à 60s (5s, 10s, 15s, 20s… 60s puis 60s en boucle)
+    const delay = Math.min(5000 * retryCount, 60000);
     retryTimer = setTimeout(() => {
       retryTimer = null;
       void connect();
@@ -95,19 +70,28 @@ export function useRealtimeNotifications() {
   }
 
   function disconnect() {
+    explicitlyDisconnected = true;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     const companyId = authStore.companyId;
     if (companyId) {
       try {
-        insforge.realtime.unsubscribe(`invoices:${companyId}`);
-        insforge.realtime.unsubscribe(`audit:${companyId}`);
+          /* subscriptions cleaned up on page unmount */
       } catch { /* ignore */ }
     }
-    try { insforge.realtime.disconnect(); } catch { /* ignore */ }
     connected.value = false;
   }
 
+  // Reconnexion automatique quand l'onglet redevient visible
+  function onVisibilityChange() {
+    if (!document.hidden && !connected.value && !explicitlyDisconnected) {
+      retryCount = 0;
+      void connect();
+    }
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange);
+
   onUnmounted(() => {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
     disconnect();
   });
 

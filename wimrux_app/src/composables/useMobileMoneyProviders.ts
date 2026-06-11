@@ -3,8 +3,8 @@
 // payment_providers (global) + mobile_wallets (par company)
 // =============================================================================
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface MobileMoneyProvider {
   id:           string;
@@ -72,7 +72,7 @@ export function useMobileMoneyProviders() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('payment_providers')
         .select('*')
         .eq('type', 'mobile_money')
@@ -91,7 +91,7 @@ export function useMobileMoneyProviders() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('mobile_wallets')
         .select('*')
         .eq('company_id', companyStore.company.id)
@@ -107,11 +107,9 @@ export function useMobileMoneyProviders() {
   // Créer un wallet (numéro Mobile Money de la company)
   async function createWallet(payload: Omit<MobileWallet, 'id' | 'company_id' | 'current_balance' | 'created_at'>): Promise<MobileWallet> {
     if (!companyStore.company?.id) throw new Error('Entreprise non chargée');
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('mobile_wallets')
-      .insert([{ ...payload, company_id: companyStore.company.id, current_balance: 0 }])
-      .select()
-      .single();
+      .insert([{ ...payload, company_id: companyStore.company.id, current_balance: 0 }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) throw new Error(err.message);
     const created = data as MobileWallet;
     wallets.value.unshift(created);

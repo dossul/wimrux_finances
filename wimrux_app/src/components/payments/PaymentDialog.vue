@@ -202,12 +202,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useInvoicePayments } from 'src/composables/useInvoicePayments';
 import { useBankAccounts } from 'src/composables/useBankAccounts';
 import { usePaymentCards } from 'src/composables/usePaymentCards';
 import { useMobileMoneyProviders } from 'src/composables/useMobileMoneyProviders';
 import type { ReceivedInvoice } from 'src/composables/useReceivedInvoices';
+import { appwriteStorage } from 'src/services/appwrite-storage';
+import { functions } from 'src/boot/appwrite';
 
 // ── Props / Emits ─────────────────────────────────────────────────────────────
 const props = defineProps<{ modelValue: boolean; invoice: ReceivedInvoice | null }>();
@@ -355,7 +356,7 @@ async function uploadProof(file: File) {
   try {
     const safeName = file.name.normalize('NFKD').replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_');
     const key = `payments/${Date.now()}-${safeName}`;
-    const { data, error: err } = await insforge.storage.from('invoices-scans').upload(key, file);
+    const { data, error: err } = await appwriteStorage.upload('invoices-scans', file, key);
     if (err) { $q.notify({ type: 'negative', message: `Upload échoué : ${err.message}` }); return; }
     proofUrl.value  = (data as { url: string }).url;
     proofName.value = file.name;
@@ -535,9 +536,41 @@ async function submit() {
     $q.notify({
       type:    'positive',
       icon:    'check_circle',
-      message: isPartial ? 'Paiement partiel enregistré' : 'Paiement total enregistré',
+      message: isPartial ? 'Paiement partiel enregistré' : 'Facture soldée — paiement enregistré',
       timeout: 3000,
     });
+
+    // D3 : si paiement total ET fournisseur a un email → proposer envoi reçu
+    if (!isPartial) {
+      const supplierEmail = props.invoice.suppliers?.email ?? null;
+      if (supplierEmail) {
+        $q.dialog({
+          title: 'Envoyer un accusé de paiement ?',
+          message: `Envoyer un reçu de paiement à <strong>${props.invoice.suppliers?.name ?? supplierEmail}</strong> (${supplierEmail}) ?`,
+          html: true,
+          cancel: { label: 'Non', flat: true },
+          ok: { label: 'Envoyer', color: 'positive', icon: 'email' },
+        }).onOk(async () => {
+          try {
+            await functions.createExecution('send-email', JSON.stringify({
+              to: supplierEmail,
+              template: 'payment_confirmed',
+              vars: {
+                client_name:    props.invoice!.suppliers?.name ?? '',
+                invoice_ref:    props.invoice!.reference,
+                amount:         fmtAmt(form.value.amount),
+                currency:       'FCFA',
+                payment_date:   form.value.payment_date,
+                payment_method: methodOptions.find(m => m.value === form.value.payment_method)?.label ?? form.value.payment_method,
+              },
+            }));
+            $q.notify({ type: 'positive', icon: 'email', message: `Reçu envoyé à ${supplierEmail}` });
+          } catch {
+            $q.notify({ type: 'warning', message: 'Paiement enregistré mais envoi email échoué.' });
+          }
+        });
+      }
+    }
   } finally { saving.value = false; }
 }
 

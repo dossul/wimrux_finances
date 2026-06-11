@@ -286,7 +286,6 @@
 import { ref, computed, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useBankAccounts } from 'src/composables/useBankAccounts';
 import { useBankStatementOcr } from 'src/composables/useBankStatementOcr';
@@ -295,6 +294,7 @@ import {
 } from 'src/utils/bankStatementParsers';
 import type { ParsedTransaction, CsvColumnMapping } from 'src/utils/bankStatementParsers';
 import type { BankAccountFull } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 
 const route = useRoute();
@@ -485,7 +485,7 @@ async function doImport() {
 
   for (const tx of previewRows.value) {
     try {
-      const { error } = await insforge.database.from('bank_transactions').insert([{
+      const { error } = await appwriteDb.from('bank_transactions').insert([{
         bank_account_id: selectedAccountId.value,
         company_id: companyId,
         transaction_date: tx.transaction_date,
@@ -500,7 +500,7 @@ async function doImport() {
       }]);
 
       if (error) {
-        if (error.message?.includes('unique') || error.code === '23505') {
+        if (error.message?.includes('unique') || error.message?.includes('23505')) {
           importResult.duplicates++;
         } else {
           importResult.errors++;
@@ -514,7 +514,7 @@ async function doImport() {
   }
 
   // Enregistrer l'import batch dans bank_statement_imports
-  await insforge.database.from('bank_statement_imports').insert([{
+  await appwriteDb.from('bank_statement_imports').insert([{
     company_id: companyId,
     bank_account_id: selectedAccountId.value,
     file_name: selectedFile.value?.name ?? null,
@@ -525,7 +525,7 @@ async function doImport() {
     errors_count: importResult.errors,
     status: 'completed',
     imported_by: companyStore.company?.name ?? null,
-  }]).select();
+  }]);
 
   importing.value = false;
   step.value = 4;

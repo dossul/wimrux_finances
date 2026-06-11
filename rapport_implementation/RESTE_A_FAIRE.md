@@ -1,10 +1,28 @@
 # 🔲 CE QUI RESTE À FAIRE — WIMRUX FINANCES
 > Fichier maître — Source unique de vérité sur le backlog réel
-> Mis à jour le 2026-05-26 — Nouvelle tâche : Envoi email transactionnel
+> Mis à jour le 2026-06-11 — Post-migration Appwrite
 
 ---
 
-## ÉTAT GLOBAL : 53/53 tâches historiques ✅ TERMINÉES + 1 nouvelle tâche
+## ÉTAT GLOBAL : 53/53 tâches historiques ✅ + MIG-01 ✅ MIGRATION APPWRITE TERMINÉE
+
+---
+
+## 🔴 PRIORITÉ 1 — Vérification post-migration
+
+| ID | Tâche | Statut |
+|---|---|---|
+| PM-01 | **Build de production** `npm run build` sans erreur | ✅ 2026-06-11 |
+| PM-02 | **Test de connexion** login/logout avec Appwrite réel | ⏳ À faire |
+| PM-03 | **Test CRUD** factures : créer, modifier, supprimer | ⏳ À faire |
+| PM-04 | **Test storage** upload PDF/image via `appwriteStorage.upload()` | ⏳ À faire |
+| PM-05 | **Supprimer `@insforge/sdk`** de `package.json` + `npm install` | ✅ 2026-06-11 |
+| PM-06 | **Scan final insforge** 1 fichier résiduel : `boot/insforge.ts` (non importé, nom legacy) | ✅ 2026-06-11 |
+| PM-07 | **Déploiement Vercel** `vercel deploy --prod --yes` depuis `wimrux_app/` | ⏳ À faire |
+
+---
+
+## 🟡 PRIORITÉ 2 — Prochaines fonctionnalités
 
 ---
 

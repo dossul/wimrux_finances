@@ -120,9 +120,9 @@
       <q-card-section>
         <div class="text-subtitle1 text-weight-medium q-mb-md">Usage par canal</div>
         <div class="row q-gutter-md">
-          <q-card v-for="(count, ch) in stats.by_channel" :key="ch" flat bordered class="col-auto" style="min-width:120px">
+          <q-card v-for="(cnt, ch) in stats.by_channel" :key="ch" flat bordered class="col-auto" style="min-width:120px">
             <q-card-section class="text-center q-pa-sm">
-              <div class="text-h5 text-weight-bold">{{ count }}</div>
+              <div class="text-h5 text-weight-bold">{{ cnt }}</div>
               <q-badge :label="String(ch)" color="blue-grey" />
             </q-card-section>
           </q-card>
@@ -166,9 +166,9 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import type { ChatbotApiKey, ChatbotConversation, ChatbotUsageStats } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const $q = useQuasar();
 const chatbot = useChatbotConfig();
@@ -209,7 +209,7 @@ async function loadAll() {
     const from = getDateFrom(period.value);
 
     // Load companies
-    const { data: compData } = await insforge.database.from('companies').select('id, name, chatbot_enabled');
+    const { data: compData } = await appwriteDb.from('companies').select('id, name, chatbot_enabled');
     const companies = (compData || []) as { id: string; name: string; chatbot_enabled: boolean }[];
     const cMap: Record<string, string> = {};
     for (const c of companies) cMap[c.id] = c.name;
@@ -236,10 +236,9 @@ async function loadAll() {
 
 async function adminToggleChatbot(c: CompanyRow) {
   const newVal = !c.chatbot_enabled;
-  const { error } = await insforge.database
+  const { error } = await appwriteDb
     .from('companies')
-    .update({ chatbot_enabled: newVal })
-    .eq('id', c.id);
+    .update(c.id, { chatbot_enabled: newVal });
   if (error) {
     $q.notify({ type: 'negative', message: error.message });
   } else {

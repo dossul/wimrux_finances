@@ -197,4 +197,8 @@
 
 ---
 
-*Dernière mise à jour : 2026-05-27 — 53/53 tâches ✅ TOUTES TERMINÉES. Sprints 0→10 + ADDENDUM + HF-01/02/03 documentés. RESTE_A_FAIRE.md vide. todos/ vide.*
+| MIG-01 | Migration complète InsForge → Appwrite (zéro occurrence "insforge") | 2026-06-11 | Suppression du boot InsForge, réécriture de tous les stores/composables/pages/edge-functions. Services Appwrite créés : `appwrite-db.ts` (QueryBuilder thenable), `appwrite-auth.ts`, `appwrite-storage.ts`, `appwrite-realtime.ts`. **285 → 0 erreurs TypeScript.** Patterns corrigés : `.update(id,data)`, `createExecution(JSON.stringify)`, `appwriteStorage.upload()`, types auth `{user,error}`. Scripts de migration : `fix_ts_errors.py`, `fix_ts2.py`, `fix_lot[3-10].py`. |
+
+---
+
+*Dernière mise à jour : 2026-06-11 — MIG-01 ✅ Migration Appwrite terminée. 0 erreur TypeScript. Projet prêt pour build de production.*

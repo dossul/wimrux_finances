@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import type { BankTransaction, ReconciliationStatus } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface TransactionFilter {
   accountId?: string | undefined;
@@ -23,7 +23,7 @@ export function useBankTransactions() {
     loading.value = true;
     error.value = null;
     try {
-      let query = insforge.database
+      let query = appwriteDb
         .from('bank_transactions')
         .select('*, category:transaction_categories(id, name, color, type)')
         .order('transaction_date', { ascending: false })
@@ -53,11 +53,9 @@ export function useBankTransactions() {
   }
 
   async function addTransaction(payload: Omit<BankTransaction, 'id' | 'created_at'>) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_transactions')
-      .insert([payload])
-      .select('*, category:transaction_categories(id, name, color, type)')
-      .single();
+      .insert([payload]);
     if (err) throw new Error(err.message);
     const created = data as BankTransaction;
     transactions.value.unshift(created);
@@ -70,9 +68,9 @@ export function useBankTransactions() {
     matchedInvoiceId?: string | null,
     matchedMovementId?: string | null
   ) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_transactions')
-      .update({
+      .updateWhere({
         reconciliation_status: status,
         ...(matchedInvoiceId !== undefined ? { matched_invoice_id: matchedInvoiceId } : {}),
         ...(matchedMovementId !== undefined ? { matched_movement_id: matchedMovementId } : {}),
@@ -88,12 +86,9 @@ export function useBankTransactions() {
   }
 
   async function assignCategory(id: string, categoryId: string | null) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('bank_transactions')
-      .update({ category_id: categoryId })
-      .eq('id', id)
-      .select('*, category:transaction_categories(id, name, color, type)')
-      .single();
+      .update(id, { category_id: categoryId });
     if (err) throw new Error(err.message);
     const updated = data as BankTransaction;
     const idx = transactions.value.findIndex(t => t.id === id);
@@ -102,7 +97,7 @@ export function useBankTransactions() {
   }
 
   async function deleteTransaction(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('bank_transactions')
       .delete()
       .eq('id', id);
@@ -111,7 +106,7 @@ export function useBankTransactions() {
   }
 
   async function runAutoReconcile(bankAccountId: string) {
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .rpc('auto_reconcile', { p_bank_account_id: bankAccountId });
     if (err) throw new Error(err.message);
     return data as { transaction_id: string; match_type: string; match_id: string; score: number; match_label: string }[];

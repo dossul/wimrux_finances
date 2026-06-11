@@ -280,7 +280,6 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { insforge } from 'src/boot/insforge';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useInvoicePdf } from 'src/composables/useInvoicePdf';
 import type { PdfCompanyInfo } from 'src/composables/useInvoicePdf';
@@ -289,6 +288,7 @@ import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWor
 import { useCompanyStore } from 'src/stores/company-store';
 import type { Invoice, InvoiceItem, InvoiceType, Client, TaxGroup, ArticleType, Article } from 'src/types';
 import type { WorkflowAction } from 'src/composables/useInvoiceWorkflow';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 const route = useRoute();
 const router = useRouter();
@@ -488,7 +488,7 @@ watch(() => invoice.value.price_mode, () => {
 async function loadInvoice() {
   if (!invoiceId.value) return;
 
-  const { data, error } = await insforge.database
+  const { data, error } = await appwriteDb
     .from('invoices')
     .select('*')
     .eq('id', invoiceId.value)
@@ -501,7 +501,7 @@ async function loadInvoice() {
     }
   }
 
-  const { data: itemsData } = await insforge.database
+  const { data: itemsData } = await appwriteDb
     .from('invoice_items')
     .select('*')
     .eq('invoice_id', invoiceId.value)
@@ -513,7 +513,7 @@ async function loadInvoice() {
 }
 
 async function loadClients() {
-  const { data } = await insforge.database
+  const { data } = await appwriteDb
     .from('clients')
     .select('id, name, type, ifu, rccm, address, phone')
     .order('name', { ascending: true });
@@ -531,8 +531,8 @@ function confirmDeleteDraft() {
   }).onOk(() => {
     void (async () => {
       // Supprimer les lignes d'abord (FK)
-      await insforge.database.from('invoice_items').delete().eq('invoice_id', invoiceId.value);
-      const { error } = await insforge.database.from('invoices').delete().eq('id', invoiceId.value);
+      await appwriteDb.from('invoice_items').delete().eq('invoice_id', invoiceId.value);
+      const { error } = await appwriteDb.from('invoices').delete().eq('id', invoiceId.value);
       if (error) {
         $q.notify({ type: 'negative', message: error.message || 'Erreur lors de la suppression' });
       } else {
@@ -546,24 +546,35 @@ function confirmDeleteDraft() {
 async function saveDraft(silent = false): Promise<boolean> {
   saving.value = true;
   try {
+    // Force-recalc all items before reading totals (évite montants à 0 au submit)
+    items.value.forEach((_, idx) => recalcItem(idx));
     const t = totals.value;
 
+    // Guard: si aucun article et totaux déjà enregistrés, conserver les montants existants
+    const hasItems = items.value.length > 0;
+    const existingHT  = Number(invoice.value.total_ht)  || 0;
+    const existingTTC = Number(invoice.value.total_ttc) || 0;
+    const finalHT  = hasItems ? t.grandTotalHT  : existingHT;
+    const finalTVA = hasItems ? t.grandTotalTVA : Number(invoice.value.total_tva)  || 0;
+    const finalPSVB= hasItems ? t.grandTotalPSVB: Number(invoice.value.total_psvb) || 0;
+    const finalTTC = hasItems ? t.totalTTC       : existingTTC;
+    const finalStamp= hasItems ? t.stampDuty     : Number(invoice.value.stamp_duty) || 0;
+
     // 1. Update invoice header
-    const { error: invError } = await insforge.database
+    const { error: invError } = await appwriteDb
       .from('invoices')
-      .update({
+      .update(invoiceId.value, {
         client_id: invoice.value.client_id,
         price_mode: invoice.value.price_mode,
         description: invoice.value.description,
         comments: invoice.value.comments,
-        total_ht: t.grandTotalHT,
-        total_tva: t.grandTotalTVA,
-        total_psvb: t.grandTotalPSVB,
-        total_ttc: t.totalTTC,
-        stamp_duty: t.stampDuty,
-        tax_calculation: t,
-      })
-      .eq('id', invoiceId.value);
+        total_ht:   finalHT,
+        total_tva:  finalTVA,
+        total_psvb: finalPSVB,
+        total_ttc:  finalTTC,
+        stamp_duty: finalStamp,
+        tax_calculation: hasItems ? t : invoice.value.tax_calculation,
+      });
 
     if (invError) {
       $q.notify({ type: 'negative', message: invError.message || 'Erreur lors de la mise Ã  jour de la facture' });
@@ -571,7 +582,7 @@ async function saveDraft(silent = false): Promise<boolean> {
     }
 
     // 2. Delete old items
-    const { error: delError } = await insforge.database.from('invoice_items').delete().eq('invoice_id', invoiceId.value);
+    const { error: delError } = await appwriteDb.from('invoice_items').delete().eq('invoice_id', invoiceId.value);
     if (delError) {
       $q.notify({ type: 'negative', message: delError.message || 'Erreur lors de la suppression des lignes' });
       return false;
@@ -579,7 +590,7 @@ async function saveDraft(silent = false): Promise<boolean> {
 
     // 3. Re-insert items
     if (items.value.length > 0) {
-      const { error: itemsError } = await insforge.database.from('invoice_items').insert(
+      const { error: itemsError } = await appwriteDb.from('invoice_items').insert(
         items.value.map((item, idx) => ({
           invoice_id: invoiceId.value,
           code: item.code || `ART${String(idx + 1).padStart(3, '0')}`,
@@ -753,7 +764,7 @@ function doConvertProforma() {
 }
 
 async function loadCatalogArticles() {
-  const { data } = await insforge.database
+  const { data } = await appwriteDb
     .from('articles')
     .select('*')
     .eq('is_active', true)
@@ -762,7 +773,7 @@ async function loadCatalogArticles() {
 }
 
 async function loadCertifiedInvoices() {
-  const { data } = await insforge.database
+  const { data } = await appwriteDb
     .from('invoices')
     .select('id, reference, total_ttc, type, status')
     .eq('status', 'certified')

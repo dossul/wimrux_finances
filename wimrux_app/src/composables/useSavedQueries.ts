@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import type {
   SavedQuery, SavedQueryInput, QueryAggregation,
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 // Whitelist of tables that can be queried via the visual builder.
 // Keep this conservative for security.
@@ -117,7 +117,7 @@ export function useSavedQueries() {
   async function loadQueries(): Promise<void> {
     loading.value = true;
     error.value = null;
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('saved_queries')
       .select('*')
       .eq('company_id', companyId.value)
@@ -138,29 +138,25 @@ export function useSavedQueries() {
       order_by: input.order_by ?? [],
       aggregations: input.aggregations ?? [],
     };
-    const { data, error: err } = await insforge.database
+    const { data, error: err } = await appwriteDb
       .from('saved_queries')
-      .insert([payload])
-      .select()
-      .single();
+      .insert([payload]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
     if (err) { error.value = err.message; return null; }
     await loadQueries();
     return data as SavedQuery;
   }
 
   async function updateQuery(id: string, input: Partial<SavedQueryInput>): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('saved_queries')
-      .update(input)
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, input);
     if (err) { error.value = err.message; return false; }
     await loadQueries();
     return true;
   }
 
   async function deleteQuery(id: string): Promise<boolean> {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('saved_queries')
       .delete()
       .eq('id', id)
@@ -175,7 +171,7 @@ export function useSavedQueries() {
   }
 
   /**
-   * Execute a saved query (or an ad-hoc one) against InsForge DB.
+   * Execute a saved query (or an ad-hoc one) against Appwrite DB.
    * Note: client-side aggregation/group-by are applied after the SELECT.
    */
   async function runQuery(q: Pick<SavedQuery,
@@ -209,7 +205,7 @@ export function useSavedQueries() {
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let query: any = insforge.database
+      let query: any = appwriteDb
         .from(q.source_table)
         .select(selectClause);
 

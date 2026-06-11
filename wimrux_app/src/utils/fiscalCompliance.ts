@@ -1,9 +1,10 @@
 // =============================================================================
+import { appwriteDb } from 'src/services/appwrite-db';
+import { functions } from 'src/boot/appwrite';
 // WIMRUX® FINANCES — Contrôle conformité fiscale universelle (T2.6)
 // Validation locale (regex) + vérification en ligne via Edge Function verify-tax-id
 // Architecture : config par pays dans country_fiscal_configs (DB)
 // =============================================================================
-import { insforge } from 'src/boot/insforge';
 
 // ---------------------------------------------------------------------------
 // Config pays (issue de country_fiscal_configs)
@@ -46,7 +47,7 @@ export async function getCountryFiscalConfig(
   const code = countryCode.toUpperCase();
   if (configCache.has(code)) return configCache.get(code)!;
 
-  const { data, error } = await insforge.database
+  const { data, error } = await appwriteDb
     .from('country_fiscal_configs')
     .select('*')
     .eq('country_code', code)
@@ -70,13 +71,11 @@ export async function verifyTaxIdOnline(
 
   // Pays avec workflow Dify dédié (ex: BF → verify-ifu-bf)
   if (config?.verification_type === 'dify_workflow' && config.dify_workflow_id) {
-    const { data, error } = await insforge.functions.invoke('ai-router', {
-      body: {
+    const { data, error } = await (async () => { try { const r = await functions.createExecution('ai-router', JSON.stringify({
         task_code: 'verify_ifu_bf',
         input: { text: taxId, country_code: countryCode },
         options: { workflow_id: config.dify_workflow_id },
-      },
-    });
+      })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
     if (error || !data?.success) {
       return {
         format_valid: true,
@@ -104,9 +103,7 @@ export async function verifyTaxIdOnline(
   }
 
   // Fallback : Edge Function verify-tax-id (scraping direct)
-  const { data, error } = await insforge.functions.invoke('verify-tax-id', {
-    body: { country_code: countryCode, tax_id: taxId },
-  });
+  const { data, error } = await (async () => { try { const r = await functions.createExecution('verify-tax-id', JSON.stringify({ country_code: countryCode, tax_id: taxId })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
 
   if (error || !data?.data) {
     return {

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { createClient } = require('@insforge/sdk');
+const { Client, Databases, Functions, ID, Query } = require('node-appwrite');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -51,18 +51,39 @@ module.exports = async function(request) {
     }
 
     // Create admin client for DB operations
-    const client = createClient({
-      baseUrl: process.env.INSFORGE_BASE_URL || process.env.BASE_URL,
-      anonKey: process.env.ANON_KEY,
-    });
+    const appwriteClient = new Client()
+      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT || process.env.APPWRITE_ENDPOINT || 'https://appwrite.benga.live/v1')
+      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID || '6a29285200015cd421c7')
+      .setKey(process.env.APPWRITE_API_KEY || '');
+    const db = new Databases(appwriteClient);
+    const fnClient = new Functions(appwriteClient);
+    const DB_ID = process.env.APPWRITE_DATABASE_ID || 'wimrux_finances';
+
+    // Helper: list documents with queries
+    async function dbList(collection, queries = []) {
+      const res = await db.listDocuments(DB_ID, collection, queries);
+      return { data: res.documents, error: null };
+    }
+    async function dbGet(collection, id) {
+      try { return { data: await db.getDocument(DB_ID, collection, id), error: null }; }
+      catch (e) { return { data: null, error: e }; }
+    }
+    async function dbInsert(collection, doc) {
+      try { return { data: await db.createDocument(DB_ID, collection, doc.id || ID.unique(), doc), error: null }; }
+      catch (e) { return { data: null, error: e }; }
+    }
+    async function dbUpdate(collection, id, updates) {
+      try { return { data: await db.updateDocument(DB_ID, collection, id, updates), error: null }; }
+      catch (e) { return { data: null, error: e }; }
+    }
 
     // 1. Authenticate API key
-    const { data: keyData, error: keyErr } = await client.database
-      .from('chatbot_api_keys')
-      .select('*')
-      .eq('api_key_hash', apiKeyRaw)
-      .eq('is_active', true)
-      .single();
+    const { data: keyDocs, error: keyErr } = await dbList('chatbot_api_keys', [
+      Query.equal('api_key_hash', apiKeyRaw),
+      Query.equal('is_active', true),
+      Query.limit(1),
+    ]);
+    const keyData = keyDocs?.[0] ?? null;
 
     if (keyErr || !keyData) {
       return new Response(JSON.stringify({ error: 'Invalid or inactive API key' }), { status: 401, headers: CORS_HEADERS });
@@ -79,24 +100,19 @@ module.exports = async function(request) {
     }
 
     // Check company chatbot enabled
-    const { data: companyData } = await client.database
-      .from('companies')
-      .select('id, name, chatbot_enabled, openrouter_api_key, ai_model')
-      .eq('id', keyData.company_id)
-      .single();
+    const { data: companyData } = await dbGet('companies', keyData.company_id);
 
     if (!companyData || !companyData.chatbot_enabled) {
       return new Response(JSON.stringify({ error: 'Chatbot is disabled for this company' }), { status: 403, headers: CORS_HEADERS });
     }
 
     // Update last_used_at
-    await client.database.from('chatbot_api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', keyData.id);
+    await dbUpdate('chatbot_api_keys', keyData.$id, { last_used_at: new Date().toISOString() });
 
     // 2. Load permissions
-    const { data: permsData } = await client.database
-      .from('chatbot_permissions')
-      .select('*')
-      .eq('api_key_id', keyData.id);
+    const { data: permsData } = await dbList('chatbot_permissions', [
+      Query.equal('api_key_id', keyData.$id),
+    ]);
 
     const permissions = (permsData || []).filter(p => {
       if (!p.enabled) return false;
@@ -118,33 +134,26 @@ module.exports = async function(request) {
     // 3. Get or create conversation
     let convId = conversationId;
     if (!convId) {
-      const { data: convData } = await client.database
-        .from('chatbot_conversations')
-        .insert([{
-          company_id: keyData.company_id,
-          api_key_id: keyData.id,
-          channel: channel,
-          external_id: externalId,
-          external_user: externalUser,
-          status: 'active',
-        }])
-        .select()
-        .single();
-      if (convData) convId = convData.id;
+      const { data: convData } = await dbInsert('chatbot_conversations', {
+        company_id: keyData.company_id,
+        api_key_id: keyData.$id,
+        channel,
+        external_id: externalId,
+        external_user: externalUser,
+        status: 'active',
+      });
+      if (convData) convId = convData.$id;
     } else {
-      // Update last_message_at
-      await client.database.from('chatbot_conversations')
-        .update({ last_message_at: new Date().toISOString() })
-        .eq('id', convId);
+      await dbUpdate('chatbot_conversations', convId, { last_message_at: new Date().toISOString() });
     }
 
     // 4. Log user message
-    await client.database.from('chatbot_messages').insert([{
+    await dbInsert('chatbot_messages', {
       conversation_id: convId,
       company_id: keyData.company_id,
       role: 'user',
       content: message,
-    }]);
+    });
 
     // 5. Use AI to interpret intent and execute
     const allowedDesc = allowedActions.map(a => `- ${a}: ${ACTION_DESCRIPTIONS[a] || a}`).join('\n');
@@ -171,10 +180,9 @@ Réponds TOUJOURS en JSON valide.`;
     let orApiKey = companyData.openrouter_api_key || '';
     if (orApiKey.includes(':')) {
       try {
-        const { data: decData } = await client.functions.invoke('crypto-aes256', {
-          body: { action: 'decrypt', data: orApiKey },
-        });
-        if (decData && decData.plaintext) orApiKey = decData.plaintext;
+        const decResp = await fnClient.createExecution('crypto-aes256', JSON.stringify({ action: 'decrypt', data: orApiKey }));
+        const decData = JSON.parse(decResp.responseBody || '{}');
+        if (decData.plaintext) orApiKey = decData.plaintext;
       } catch { /* use as-is */ }
     }
 
@@ -183,17 +191,13 @@ Réponds TOUJOURS en JSON valide.`;
     // Get conversation history for context
     let conversationHistory = [];
     if (convId) {
-      const { data: histData } = await client.database
-        .from('chatbot_messages')
-        .select('role, content')
-        .eq('conversation_id', convId)
-        .order('created_at', { ascending: true })
-        .limit(10);
+      const { data: histData } = await dbList('chatbot_messages', [
+        Query.equal('conversation_id', convId),
+        Query.orderAsc('$createdAt'),
+        Query.limit(10),
+      ]);
       if (histData) {
-        conversationHistory = histData.filter(m => m.role !== 'system').map(m => ({
-          role: m.role,
-          content: m.content,
-        }));
+        conversationHistory = histData.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       }
     }
 
@@ -241,7 +245,7 @@ Réponds TOUJOURS en JSON valide.`;
         reply = `L'action "${detectedAction}" n'est pas autorisée pour votre clé API.`;
       } else {
         try {
-          actionResult = await executeAction(client, keyData.company_id, detectedAction, parsed.params || {});
+          actionResult = await executeAction(dbList, dbInsert, keyData.company_id, detectedAction, parsed.params || {});
           actionStatus = 'success';
           // Enrich reply with data if needed
           if (actionResult && actionResult.summary) {
@@ -257,7 +261,7 @@ Réponds TOUJOURS en JSON valide.`;
 
     // 7. Log assistant message
     const tokensUsed = aiResult.usage?.total_tokens || 0;
-    await client.database.from('chatbot_messages').insert([{
+    await dbInsert('chatbot_messages', {
       conversation_id: convId,
       company_id: keyData.company_id,
       role: 'assistant',
@@ -267,10 +271,10 @@ Réponds TOUJOURS en JSON valide.`;
       action_result: actionResult,
       action_status: actionStatus,
       tokens_used: tokensUsed,
-    }]);
+    });
 
     // Log to ai_usage_logs
-    await client.database.from('ai_usage_logs').insert([{
+    await dbInsert('ai_usage_logs', {
       company_id: keyData.company_id,
       user_id: 'chatbot',
       model: aiModel,
@@ -282,7 +286,7 @@ Réponds TOUJOURS en JSON valide.`;
       status: 'success',
       is_fallback: false,
       moderation_flagged: false,
-    }]);
+    });
 
     return new Response(JSON.stringify({
       conversation_id: convId,
@@ -299,60 +303,53 @@ Réponds TOUJOURS en JSON valide.`;
 };
 
 // ── Action Executor ──
-async function executeAction(client, companyId, action, params) {
+async function executeAction(dbList, dbInsert, companyId, action, params) {
   switch (action) {
     case 'view_invoices': {
-      let query = client.database.from('invoices').select('id, reference, type, status, total_ttc, created_at').eq('company_id', companyId).order('created_at', { ascending: false }).limit(params.limit || 10);
-      if (params.status) query = query.eq('status', params.status);
-      if (params.type) query = query.eq('type', params.type);
-      const { data } = await query;
+      const queries = [Query.equal('company_id', companyId), Query.orderDesc('$createdAt'), Query.limit(params.limit || 10)];
+      if (params.status) queries.push(Query.equal('status', params.status));
+      if (params.type) queries.push(Query.equal('type', params.type));
+      const { data } = await dbList('invoices', queries);
       return { data, summary: `${(data || []).length} facture(s) trouvée(s).` };
     }
 
     case 'view_clients': {
-      let query = client.database.from('clients').select('id, name, type, ifu, phone, email').eq('company_id', companyId).order('name', { ascending: true }).limit(params.limit || 20);
-      if (params.search) query = query.ilike('name', `%${params.search}%`);
-      const { data } = await query;
+      const queries = [Query.equal('company_id', companyId), Query.orderAsc('name'), Query.limit(params.limit || 20)];
+      if (params.search) queries.push(Query.search('name', params.search));
+      const { data } = await dbList('clients', queries);
       return { data, summary: `${(data || []).length} client(s) trouvé(s).` };
     }
 
     case 'create_client': {
       if (!params.name || !params.type) return { error: 'name et type requis' };
-      const { data, error } = await client.database.from('clients').insert([{
-        company_id: companyId,
-        name: params.name,
-        type: params.type,
-        ifu: params.ifu || null,
-        phone: params.phone || null,
-        email: params.email || null,
-        address: params.address || null,
-      }]).select().single();
+      const { data, error } = await dbInsert('clients', {
+        company_id: companyId, name: params.name, type: params.type,
+        ifu: params.ifu || null, phone: params.phone || null,
+        email: params.email || null, address: params.address || null,
+      });
       if (error) throw new Error(error.message);
       return { data, summary: `Client "${params.name}" créé avec succès.` };
     }
 
     case 'view_treasury': {
-      const { data: accounts } = await client.database.from('treasury_accounts').select('*').eq('company_id', companyId);
+      const { data: accounts } = await dbList('treasury_accounts', [Query.equal('company_id', companyId)]);
       const totalBalance = (accounts || []).reduce((s, a) => s + (a.balance || 0), 0);
       return { data: accounts, summary: `${(accounts || []).length} compte(s), solde total : ${totalBalance.toLocaleString('fr-FR')} FCFA.` };
     }
 
     case 'create_treasury_movement': {
       if (!params.account_id || !params.amount || !params.type) return { error: 'account_id, amount et type requis' };
-      const { data, error } = await client.database.from('treasury_movements').insert([{
-        company_id: companyId,
-        account_id: params.account_id,
-        amount: params.amount,
-        type: params.type,
-        description: params.description || '',
-        payment_type: params.payment_type || 'AUTRE',
-      }]).select().single();
+      const { data, error } = await dbInsert('treasury_movements', {
+        company_id: companyId, account_id: params.account_id,
+        amount: params.amount, type: params.type,
+        description: params.description || '', payment_type: params.payment_type || 'AUTRE',
+      });
       if (error) throw new Error(error.message);
       return { data, summary: `Mouvement de ${params.amount} FCFA enregistré.` };
     }
 
     case 'view_reports': {
-      const { data: invoices } = await client.database.from('invoices').select('total_ttc, status, type').eq('company_id', companyId);
+      const { data: invoices } = await dbList('invoices', [Query.equal('company_id', companyId)]);
       const total = (invoices || []).reduce((s, i) => s + (i.total_ttc || 0), 0);
       const certified = (invoices || []).filter(i => i.status === 'certified').length;
       return {
@@ -362,32 +359,26 @@ async function executeAction(client, companyId, action, params) {
     }
 
     case 'view_audit_log': {
-      const { data } = await client.database.from('audit_log').select('*').eq('company_id', companyId).order('timestamp', { ascending: false }).limit(params.limit || 10);
+      const { data } = await dbList('audit_log', [Query.equal('company_id', companyId), Query.orderDesc('$createdAt'), Query.limit(params.limit || 10)]);
       return { data, summary: `${(data || []).length} entrée(s) d'audit.` };
     }
 
     case 'view_dashboard': {
-      const { data: invoices } = await client.database.from('invoices').select('total_ttc, status').eq('company_id', companyId);
-      const { data: clients } = await client.database.from('clients').select('id').eq('company_id', companyId);
-      const { data: accounts } = await client.database.from('treasury_accounts').select('balance').eq('company_id', companyId);
-
+      const [{ data: invoices }, { data: clients }, { data: accounts }] = await Promise.all([
+        dbList('invoices', [Query.equal('company_id', companyId)]),
+        dbList('clients', [Query.equal('company_id', companyId)]),
+        dbList('treasury_accounts', [Query.equal('company_id', companyId)]),
+      ]);
       const totalRevenue = (invoices || []).reduce((s, i) => s + (i.total_ttc || 0), 0);
       const totalBalance = (accounts || []).reduce((s, a) => s + (a.balance || 0), 0);
-
       return {
-        data: {
-          invoices_count: (invoices || []).length,
-          clients_count: (clients || []).length,
-          total_revenue: totalRevenue,
-          total_balance: totalBalance,
-        },
+        data: { invoices_count: (invoices || []).length, clients_count: (clients || []).length, total_revenue: totalRevenue, total_balance: totalBalance },
         summary: `Tableau de bord : ${(invoices || []).length} factures, ${(clients || []).length} clients, CA : ${totalRevenue.toLocaleString('fr-FR')} FCFA, Trésorerie : ${totalBalance.toLocaleString('fr-FR')} FCFA.`,
       };
     }
 
-    case 'ai_assistant': {
+    case 'ai_assistant':
       return { data: null, summary: 'Question traitée par l\'assistant IA.' };
-    }
 
     default:
       return { data: null, summary: `Action "${action}" non implémentée.` };

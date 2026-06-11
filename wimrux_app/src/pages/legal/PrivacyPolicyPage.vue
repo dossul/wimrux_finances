@@ -50,7 +50,7 @@
 
     <section class="q-mt-md">
       <h6 class="text-weight-bold q-mb-sm">7. Sous-traitants</h6>
-      <p>InsForge (hébergement base de données), Vercel (hébergement frontend), LiteLLM (proxy IA). Tous situés dans des juridictions offrant un niveau de protection adéquat.</p>
+      <p>Appwrite (hébergement base de données), Vercel (hébergement frontend), LiteLLM (proxy IA). Tous situés dans des juridictions offrant un niveau de protection adéquat.</p>
     </section>
 
     <section class="q-mt-md">

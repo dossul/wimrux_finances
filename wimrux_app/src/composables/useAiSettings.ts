@@ -3,12 +3,12 @@
 // Gestion providers BYOK + routing tâches × modèles par tenant
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useCompanyStore } from 'src/stores/company-store';
 import type {
   AiProvider, AiModel, AiTask, CompanyAiCredential,
   CompanyAiTaskRouting, AiCreditPack, CompanyAiQuotaUsage
 } from 'src/types';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export function useAiSettings() {
   const companyStore = useCompanyStore();
@@ -28,7 +28,7 @@ export function useAiSettings() {
   // GLOBAL DATA (read-only for tenants)
   // ---------------------------------------------------------------------------
   async function loadProviders() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('ai_providers')
       .select('*')
       .order('name');
@@ -36,7 +36,7 @@ export function useAiSettings() {
   }
 
   async function loadModels() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('ai_models')
       .select('*')
       .order('display_name');
@@ -44,7 +44,7 @@ export function useAiSettings() {
   }
 
   async function loadTasks() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('ai_tasks')
       .select('*')
       .order('category, name');
@@ -52,7 +52,7 @@ export function useAiSettings() {
   }
 
   async function loadCreditPacks() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('ai_credit_packs')
       .select('*')
       .eq('is_active', true)
@@ -64,7 +64,7 @@ export function useAiSettings() {
   // COMPANY-SPECIFIC : credentials BYOK
   // ---------------------------------------------------------------------------
   async function loadCredentials() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('company_ai_credentials')
       .select('*')
       .eq('company_id', companyId.value)
@@ -80,14 +80,12 @@ export function useAiSettings() {
   }) {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('company_ai_credentials')
         .insert([{
           ...payload,
           company_id: companyId.value,
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) credentials.value.unshift(data);
       return data;
@@ -95,7 +93,7 @@ export function useAiSettings() {
   }
 
   async function deleteCredential(id: string) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('company_ai_credentials')
       .delete()
       .eq('id', id)
@@ -106,11 +104,9 @@ export function useAiSettings() {
   }
 
   async function toggleCredential(id: string, isActive: boolean) {
-    const { error: err } = await insforge.database
+    const { error: err } = await appwriteDb
       .from('company_ai_credentials')
-      .update({ is_active: isActive })
-      .eq('id', id)
-      .eq('company_id', companyId.value);
+      .update(id, { is_active: isActive });
     if (err) { error.value = err.message; return; }
     const idx = credentials.value.findIndex(c => c.id === id);
     if (idx !== -1) credentials.value[idx] = { ...credentials.value[idx]!, is_active: isActive };
@@ -120,7 +116,7 @@ export function useAiSettings() {
   // COMPANY-SPECIFIC : routing personnalisé (tâche → modèle)
   // ---------------------------------------------------------------------------
   async function loadRoutings() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('company_ai_task_routing')
       .select('*')
       .eq('company_id', companyId.value)
@@ -132,13 +128,13 @@ export function useAiSettings() {
     loading.value = true;
     try {
       // Upsert : supprimer l'ancien routing pour cette tâche, insérer le nouveau
-      await insforge.database
+      await appwriteDb
         .from('company_ai_task_routing')
         .delete()
         .eq('company_id', companyId.value)
         .eq('task_id', taskId);
 
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('company_ai_task_routing')
         .insert([{
           company_id: companyId.value,
@@ -146,9 +142,7 @@ export function useAiSettings() {
           model_id: modelId,
           provider_id: providerId ?? null,
           is_active: true,
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       // Mettre à jour local
       routings.value = routings.value.filter(r => r.task_id !== taskId);
@@ -158,7 +152,7 @@ export function useAiSettings() {
   }
 
   async function removeRouting(taskId: string) {
-    await insforge.database
+    await appwriteDb
       .from('company_ai_task_routing')
       .delete()
       .eq('company_id', companyId.value)
@@ -170,7 +164,7 @@ export function useAiSettings() {
   // QUOTA & CREDITS
   // ---------------------------------------------------------------------------
   async function loadQuotaUsage() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('company_ai_quota_usage')
       .select('*')
       .eq('company_id', companyId.value)

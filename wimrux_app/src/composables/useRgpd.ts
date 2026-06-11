@@ -3,9 +3,9 @@
 // Consentements, export/suppression données
 // =============================================================================
 import { ref, computed } from 'vue';
-import { insforge } from 'src/boot/insforge';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useCompanyStore } from 'src/stores/company-store';
+import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface UserConsent {
   id: string;
@@ -53,7 +53,7 @@ export function useRgpd() {
   // CONSENTEMENTS
   // ---------------------------------------------------------------------------
   async function loadConsents() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('user_consents')
       .select('*')
       .eq('user_id', userId.value)
@@ -72,7 +72,7 @@ export function useRgpd() {
   async function giveConsent(type: string, version = '1.0') {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('user_consents')
         .insert([{
           user_id: userId.value,
@@ -80,9 +80,7 @@ export function useRgpd() {
           consent_type: type,
           version,
           consented: true,
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) consents.value.unshift(data);
       return data;
@@ -92,10 +90,9 @@ export function useRgpd() {
   async function revokeConsent(type: string) {
     const existing = getConsent(type);
     if (!existing) return;
-    await insforge.database
+    await appwriteDb
       .from('user_consents')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('id', existing.id);
+      .update(existing.id, { revoked_at: new Date().toISOString() });
     const idx = consents.value.findIndex(c => c.id === existing.id);
     if (idx !== -1) consents.value[idx] = { ...consents.value[idx]!, revoked_at: new Date().toISOString() };
   }
@@ -104,7 +101,7 @@ export function useRgpd() {
   // EXPORT / SUPPRESSION
   // ---------------------------------------------------------------------------
   async function loadExportRequests() {
-    const { data } = await insforge.database
+    const { data } = await appwriteDb
       .from('data_export_requests')
       .select('*')
       .eq('user_id', userId.value)
@@ -115,15 +112,13 @@ export function useRgpd() {
   async function requestDataExport() {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('data_export_requests')
         .insert([{
           user_id: userId.value,
           company_id: companyId.value || null,
           request_type: 'export',
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) exportRequests.value.unshift(data);
       return data;
@@ -133,15 +128,13 @@ export function useRgpd() {
   async function requestDataDeletion() {
     loading.value = true;
     try {
-      const { data, error: err } = await insforge.database
+      const { data, error: err } = await appwriteDb
         .from('data_export_requests')
         .insert([{
           user_id: userId.value,
           company_id: companyId.value || null,
           request_type: 'deletion',
-        }])
-        .select()
-        .single();
+        }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) exportRequests.value.unshift(data);
       return data;
