@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@quasar/extras": "^1.16.4",
-    "appwrite": "^26.0.0",
+    "appwrite": "^16.1.0",
     "axios": "^1.2.1",
     "dayjs": "^1.11.21",
     "jspdf": "^4.1.0",

@@ -108,11 +108,7 @@ export const appwriteStorage = {
         queries.push(`search("name", "${options.search}")`);
       }
 
-      const response = await storage.listFiles({
-        bucketId,
-        queries,
-        search: options?.search || '',
-      });
+      const response = await storage.listFiles(bucketId, queries);
 
       const files: StorageFile[] = response.files.map(file => ({
         id: file.$id,
