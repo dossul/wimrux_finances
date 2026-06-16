@@ -40,7 +40,9 @@ export const NAV = {
 export const INVOICE = {
   newBtn: '[data-testid="invoice-new-btn"]',
   typeSelect: '[data-testid="invoice-type-select"]',
+  typeOption: (type: string) => `[data-testid="invoice-type-${type}"]`,
   clientSelect: '[data-testid="invoice-client-select"]',
+  description: '[data-testid="invoice-description"]',
   priceModeHt: '[data-testid="price-mode-ht"]',
   priceModeTtc: '[data-testid="price-mode-ttc"]',
   itemDesignation: (i: number) => `[data-testid="item-designation-${i}"]`,
@@ -49,7 +51,9 @@ export const INVOICE = {
   itemTax: (i: number) => `[data-testid="item-tax-${i}"]`,
   addItemBtn: '[data-testid="add-item-btn"]',
   saveBtn: '[data-testid="invoice-save-btn"]',
+  approveBtn: '[data-testid="invoice-approve-btn"]',
   validateBtn: '[data-testid="invoice-validate-btn"]',
+  rejectBtn: '[data-testid="invoice-reject-btn"]',
   certifyBtn: '[data-testid="invoice-certify-btn"]',
   pdfBtn: '[data-testid="invoice-pdf-btn"]',
   submitBtn: '[data-testid="invoice-submit-btn"]',
@@ -59,7 +63,9 @@ export const INVOICE = {
   mcfQrcode: 'canvas[data-testid="mcf-qrcode"]',
   search: '[data-testid="invoice-search"]',
   exportCsvBtn: '[data-testid="export-csv-btn"]',
-  row: '[data-testid="invoice-row"]',
+  row: '[data-testid^="invoice-row"]',
+  ocrImportBtn: '[data-testid="invoice-ocr-import-btn"]',
+  ocrFileInput: '[data-testid="invoice-ocr-file-input"]',
 } as const;
 
 // ===================== CLIENTS =====================
@@ -85,7 +91,7 @@ export const TREASURY = {
   movementMode: '[data-testid="movement-mode"]',
   movementReference: '[data-testid="movement-reference"]',
   movementSaveBtn: '[data-testid="movement-save-btn"]',
-  bankAccountNewBtn: '[data-testid="bank-account-new-btn"]',
+  bankAccountNewBtn: '[data-testid="treasury-new-account-btn"]',
   bankAccountName: '[data-testid="bank-account-name"]',
   bankAccountType: '[data-testid="bank-account-type"]',
   bankAccountBalance: '[data-testid="bank-account-balance"]',
@@ -99,6 +105,8 @@ export const REPORT = {
   kpiRevenueHt: '[data-testid="kpi-revenue-ht"]',
   kpiTvaCollected: '[data-testid="kpi-tva-collected"]',
   kpiTotalTtc: '[data-testid="kpi-total-ttc"]',
+  chartRevenue: '[data-testid="chart-revenue"]',
+  topClients: '[data-testid="top-clients"]',
   exportCsvBtn: '[data-testid="report-export-csv-btn"]',
 } as const;
 

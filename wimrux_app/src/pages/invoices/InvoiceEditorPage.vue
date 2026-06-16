@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-md">
@@ -49,6 +49,7 @@
             dense
             class="col"
             :disable="!canEdit"
+            data-testid="invoice-description"
             placeholder="Ex: Vente de marchandises, Prestation de services..."
           />
         </div>
@@ -285,7 +286,7 @@ import { useInvoicePdf } from 'src/composables/useInvoicePdf';
 import type { PdfCompanyInfo } from 'src/composables/useInvoicePdf';
 import { usePdfStorage } from 'src/composables/usePdfStorage';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { Invoice, InvoiceItem, InvoiceType, Client, TaxGroup, ArticleType, Article } from 'src/types';
 import type { WorkflowAction } from 'src/composables/useInvoiceWorkflow';
 import { appwriteDb } from 'src/services/appwrite-db';
@@ -496,8 +497,26 @@ async function loadInvoice() {
 
   if (!error && data) {
     invoice.value = data as Invoice;
+    // Appwrite stores JSON objects as strings, but the UI uses objects
+    const rawComments = invoice.value.comments;
+    if (typeof rawComments === 'string' && rawComments) {
+      try {
+        invoice.value.comments = JSON.parse(rawComments) as unknown as Array<{ label: string; content: string }>;
+      } catch {
+        invoice.value.comments = [{ label: '', content: rawComments }];
+      }
+    }
     if (!invoice.value.comments || !Array.isArray(invoice.value.comments) || invoice.value.comments.length === 0) {
       invoice.value.comments = [{ label: '', content: '' }];
+    }
+
+    const rawTax = (invoice.value as unknown as Record<string, unknown>).tax_calculation;
+    if (typeof rawTax === 'string' && rawTax) {
+      try {
+        (invoice.value as unknown as Record<string, unknown>).tax_calculation = JSON.parse(rawTax);
+      } catch {
+        (invoice.value as unknown as Record<string, unknown>).tax_calculation = null;
+      }
     }
   }
 
@@ -567,13 +586,19 @@ async function saveDraft(silent = false): Promise<boolean> {
         client_id: invoice.value.client_id,
         price_mode: invoice.value.price_mode,
         description: invoice.value.description,
-        comments: invoice.value.comments,
+        comments: Array.isArray(invoice.value.comments)
+          ? JSON.stringify(invoice.value.comments)
+          : (invoice.value.comments as unknown as string | undefined) || null,
         total_ht:   finalHT,
         total_tva:  finalTVA,
         total_psvb: finalPSVB,
         total_ttc:  finalTTC,
         stamp_duty: finalStamp,
-        tax_calculation: hasItems ? t : invoice.value.tax_calculation,
+        tax_calculation: hasItems
+          ? JSON.stringify(t)
+          : (invoice.value.tax_calculation
+            ? JSON.stringify(invoice.value.tax_calculation)
+            : invoice.value.tax_calculation as unknown as string | null),
       });
 
     if (invError) {
@@ -593,6 +618,7 @@ async function saveDraft(silent = false): Promise<boolean> {
       const { error: itemsError } = await appwriteDb.from('invoice_items').insert(
         items.value.map((item, idx) => ({
           invoice_id: invoiceId.value,
+          company_id: invoice.value.company_id,
           code: item.code || `ART${String(idx + 1).padStart(3, '0')}`,
           name: item.name,
           type: item.type,
@@ -778,7 +804,7 @@ async function loadCertifiedInvoices() {
     .select('id, reference, total_ttc, type, status')
     .eq('status', 'certified')
     .in('type', ['FV', 'FT', 'EV', 'ET'])
-    .order('created_at', { ascending: false })
+    .order('$createdAt', { ascending: false })
     .limit(200);
   if (data) certifiedInvoices.value = data as typeof certifiedInvoices.value;
 }

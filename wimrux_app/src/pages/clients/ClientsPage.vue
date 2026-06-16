@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- PROJECT ADMIN VIEW: Companies on the SaaS platform -->
     <template v-if="isProjectAdmin">
@@ -207,7 +207,7 @@
         :pagination="{ rowsPerPage: 15 }"
       >
         <template v-slot:body="props">
-          <q-tr :props="props" data-testid="client-row">
+          <q-tr :props="props" data-testid="client-row" :data-client-id="props.row.id">
             <q-td key="type" :props="props">
               <q-badge :color="typeColor(props.row.type)" :label="typeLabel(props.row.type)" />
             </q-td>
@@ -248,7 +248,7 @@
               emit-value
               map-options
               filled
-              data-testid="client-type-select"
+              data-testid="client-type-pm"
               :rules="[val => !!val || 'Type requis']"
             />
 
@@ -299,7 +299,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar, copyToClipboard as qCopy } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type { Client, ClientType, Company, UserRole } from 'src/types';
 import { isValidCadastralAddress, isValidIFU, isValidExportIFU } from 'src/utils/validators';
 import { appwriteDb } from 'src/services/appwrite-db';

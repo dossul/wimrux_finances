@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = !!process.env.CI;
-const BASE_URL = process.env.BASE_URL || 'https://wimruxapp.vercel.app';
+const BASE_URL = process.env.BASE_URL || 'https://www.wimrux.app';
 
 /**
  * Configuration Playwright unifiée — WIMRUX® Finances

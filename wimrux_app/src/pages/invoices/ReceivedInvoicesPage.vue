@@ -8,7 +8,7 @@
       </div>
       <q-space />
       <q-btn outline color="primary" icon="people" label="Fournisseurs" no-caps :to="'/app/suppliers'" class="q-mr-sm" />
-      <q-btn outline color="secondary" icon="document_scanner" label="Import OCR" no-caps class="q-mr-sm" @click="showOcrDialog = true" />
+      <q-btn outline color="secondary" icon="document_scanner" label="Import OCR" no-caps class="q-mr-sm" data-testid="invoice-ocr-import-btn" @click="showOcrDialog = true" />
       <q-btn color="primary" icon="add" label="Nouvelle facture" no-caps @click="openCreate" />
     </div>
 
@@ -223,7 +223,7 @@
             <div class="text-subtitle2 text-grey-6 q-mt-sm">Glissez ou cliquez pour sélectionner</div>
             <div class="text-caption text-grey-5 q-mt-xs">PDF scanné, JPG, PNG, TIFF — max 15 Mo</div>
           </div>
-          <input ref="ocrFileInput" type="file" accept=".pdf,.jpg,.jpeg,.png,.tiff,image/*" class="hidden" @change="onOcrFilePicked" />
+          <input ref="ocrFileInput" data-testid="invoice-ocr-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.tiff,image/*" class="hidden" @change="onOcrFilePicked" />
         </q-card-section>
 
         <!-- PROCESSING -->

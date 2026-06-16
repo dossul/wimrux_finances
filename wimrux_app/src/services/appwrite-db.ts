@@ -3,8 +3,28 @@
  * Mirrors the Appwrite SDK API pattern for easier migration
  */
 
-import { databases, DATABASE_ID } from 'src/boot/appwrite';
-import { ID, Query } from 'appwrite';
+import { databases, functions, DATABASE_ID } from 'src/boot/appwrite';
+import { Query } from 'appwrite';
+
+// queryOr: SDK 13.0.2 n'a pas Query.or(). On construit la string manuellement
+// Format Appwrite: or([equal("field", ["val1"]), equal("field", ["val2"])])
+function queryOr(queries: string[]): string | null {
+  if (queries.length === 0) return null;
+  if (queries.length === 1) return queries[0]!;
+  // Chaque query a le format: method("key", ["val"]) — on les enveloppe dans or([...])
+  return `or([${queries.join(',')}])`;
+}
+
+// Appwrite retourne $createdAt / $updatedAt / $id (système).
+// L'application legacy s'attend à created_at / updated_at / id.
+function normalizeAppwriteDoc(doc: any): any {
+  if (!doc || typeof doc !== 'object') return doc;
+  const normalized = { ...doc };
+  if (doc.$id !== undefined && !normalized.id) normalized.id = doc.$id;
+  if (doc.$createdAt !== undefined && !normalized.created_at) normalized.created_at = doc.$createdAt;
+  if (doc.$updatedAt !== undefined && !normalized.updated_at) normalized.updated_at = doc.$updatedAt;
+  return normalized;
+}
 
 export type DbResult<T = any> = { data: T | null; error: Error | null };
 
@@ -123,9 +143,13 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
   }
 
   in(column: string, values: any[]): DbQueryBuilder {
-    // Use multiple equal queries combined with OR
-    const orQueries = values.map(v => Query.equal(column, v));
-    this.queries.push(Query.or(orQueries));
+    if (values.length === 0) {
+      // empty IN list should match nothing
+      this.queries.push(Query.equal(column, '__empty_in_list__'));
+      return this;
+    }
+    // Appwrite .equal() accepts an array for IN semantics
+    this.queries.push(Query.equal(column, values));
     return this;
   }
 
@@ -184,7 +208,10 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
   }
 
   or(filters: string[]): DbQueryBuilder {
-    this.queries.push(Query.or(filters));
+    const validFilters = filters.filter((f): f is string => !!f);
+    if (validFilters.length === 0) return this;
+    const orQuery = queryOr(validFilters);
+    if (orQuery) this.queries.push(orQuery);
     return this;
   }
 
@@ -260,7 +287,7 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
 
       const queries = this._buildQueries();
       const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
-      let data: any = response.documents;
+      let data: any = response.documents.map(normalizeAppwriteDoc);
 
       if (this.singleMode || this.maybeSingleMode) {
         data = data.length > 0 ? data[0] : null;
@@ -289,23 +316,27 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
         // Appwrite doesn't support bulk insert, insert one by one
         const results = [];
         for (const item of data) {
+          const documentId = item.id && item.id !== 'unique()' ? item.id : crypto.randomUUID();
+          const payload = { ...item, id: documentId };
           const response = await databases.createDocument(
             DATABASE_ID,
             this.collectionId,
-            item.id || ID.unique(),
-            item
+            documentId,
+            payload
           );
-          results.push(response);
+          results.push(normalizeAppwriteDoc(response));
         }
         return { data: results, error: null };
       } else {
+        const documentId = data.id && data.id !== 'unique()' ? data.id : crypto.randomUUID();
+        const payload = { ...data, id: documentId };
         const response = await databases.createDocument(
           DATABASE_ID,
           this.collectionId,
-          data.id || ID.unique(),
-          data
+          documentId,
+          payload
         );
-        return { data: response, error: null };
+        return { data: normalizeAppwriteDoc(response), error: null };
       }
     } catch (error) {
       console.error(`[Appwrite DB] Error inserting into ${this.collectionId}:`, error);
@@ -315,7 +346,7 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
 
   update(id: string, data: Record<string, any>): Promise<DbResult> {
     return databases.updateDocument(DATABASE_ID, this.collectionId, id, data)
-      .then((r) => ({ data: r, error: null }))
+      .then((r) => ({ data: normalizeAppwriteDoc(r), error: null }))
       .catch((e: Error) => { console.error(`[Appwrite DB] update ${this.collectionId}:`, e); return { data: null, error: e as Error }; });
   }
 
@@ -374,7 +405,7 @@ export const appwriteDb = {
   async getById(collectionId: string, id: string): Promise<{ data: any | null; error: Error | null }> {
     try {
       const response = await databases.getDocument(DATABASE_ID, collectionId, id);
-      return { data: response, error: null };
+      return { data: normalizeAppwriteDoc(response), error: null };
     } catch (error) {
       return { data: null, error: error as Error };
     }
@@ -389,15 +420,36 @@ export const appwriteDb = {
     }
   },
 
+  /**
+   * rpc() — Invoque une Appwrite Function par son nom.
+   * Mapping : nom_fonction_sql -> nom-fonction-appwrite
+   * Ex: 'next_invoice_reference' -> fonction 'generate-invoice-ref'
+   */
   async rpc(functionName: string, params?: Record<string, any>): Promise<{ data: any | null; error: Error | null }> {
+    // Map SQL function names to Appwrite Function IDs
+    const FUNCTION_MAP: Record<string, string> = {
+      'next_invoice_reference': 'generate-invoice-ref',
+      'generate_invoice_reference': 'generate-invoice-ref',
+    };
+    const appwriteFunctionId = FUNCTION_MAP[functionName] ?? functionName.replace(/_/g, '-');
     try {
-      // For Appwrite, we'll use Functions or execute direct SQL via custom function
-      // This needs to be implemented based on your setup
-      throw new Error('RPC not directly supported in Appwrite. Use Functions instead.');
+      const execution = await functions.createExecution(
+        appwriteFunctionId,
+        params ? JSON.stringify(params) : undefined,
+        false, // synchrone
+      );
+      let data: any = execution.responseBody;
+      try { data = JSON.parse(execution.responseBody); } catch { /* garde raw */ }
+      if (execution.responseStatusCode >= 400) {
+        throw new Error(`Function ${appwriteFunctionId} returned ${execution.responseStatusCode}: ${execution.responseBody}`);
+      }
+      return { data, error: null };
     } catch (error) {
+      console.error(`[Appwrite DB] rpc(${functionName}) error:`, error);
       return { data: null, error: error as Error };
     }
   }
+
 };
 
 export default appwriteDb;

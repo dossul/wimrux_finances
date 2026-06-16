@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md">
       <div class="text-h5">Factures</div>
@@ -6,7 +6,7 @@
       <q-btn outline color="primary" icon="download" label="Export CSV" no-caps class="q-mr-sm" data-testid="export-csv-btn" @click="exportCsv" />
       <q-btn-dropdown v-if="!isReadOnly" color="primary" icon="add" label="Nouvelle facture" no-caps data-testid="invoice-new-btn">
         <q-list>
-          <q-item clickable v-close-popup v-for="t in invoiceTypeOptions" :key="t.value" @click="createInvoice(t.value)">
+          <q-item clickable v-close-popup v-for="t in invoiceTypeOptions" :key="t.value" :data-testid="'invoice-type-' + t.value" @click="createInvoice(t.value)">
             <q-item-section avatar><q-icon name="receipt_long" /></q-item-section>
             <q-item-section>
               <q-item-label>{{ t.value }}</q-item-label>
@@ -34,8 +34,8 @@
       bordered
       :pagination="{ rowsPerPage: 20, sortBy: 'created_at', descending: true }"
     >
-      <template v-slot:body="props">
-        <q-tr :props="props" :data-testid="'invoice-row-' + props.row.status">
+        <template v-slot:body="props">
+          <q-tr :props="props" :data-testid="'invoice-row-' + props.row.status">
           <q-td key="type" :props="props">
             <q-badge :color="typeColor(props.row.type)" :label="props.row.type" />
           </q-td>
@@ -61,8 +61,9 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
-import { useInvoiceStore } from 'src/stores/invoice-store';
+import { ID } from 'appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
+import { useInvoiceStore } from 'src/stores/invoice-store-appwrite';
 import { useExportCsv } from 'src/composables/useExportCsv';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
 import type { Invoice, InvoiceStatus } from 'src/types';
@@ -144,8 +145,8 @@ async function loadInvoices() {
   try {
     const { data, error } = await appwriteDb
       .from('invoices')
-      .select('id, type, reference, status, total_ttc, created_at, client_id, client:clients(name)')
-      .order('created_at', { ascending: false });
+      .select('id, type, reference, status, total_ttc, client_id, client:clients(name)')
+      .order('$createdAt', { ascending: false });
 
     if (!error && data) {
       invoices.value = data as unknown as Invoice[];
@@ -155,14 +156,55 @@ async function loadInvoices() {
   }
 }
 
+async function generateInvoiceReference(type: string, year: number): Promise<string | null> {
+  try {
+    const { data, error } = await appwriteDb
+      .rpc('next_invoice_reference', { p_company_id: authStore.companyId, p_type: type, p_year: year });
+    if (!error && data) {
+      return data as string;
+    }
+  } catch {
+    // fallback ci-dessous
+  }
+
+  // Fallback : génération séquentielle locale basée sur la dernière référence existante
+  const prefixMap: Record<string, string> = {
+    FV: 'F',
+    FT: 'A',
+    FA: 'AV',
+    EV: 'E',
+    ET: 'EA',
+    EA: 'EAV',
+    PF: 'P',
+  };
+  const prefix = prefixMap[type] ?? type;
+
+  const { data } = await appwriteDb
+    .from('invoices')
+    .select('reference')
+    .eq('company_id', authStore.companyId)
+    .eq('type', type)
+    .order('reference', { ascending: false })
+    .limit(1);
+
+  let num = 1;
+  const lastRef = Array.isArray(data) && data.length > 0 ? data[0].reference : null;
+  if (lastRef) {
+    const m = String(lastRef).match(/-(\d+)$/);
+    if (m && m[1]) {
+      num = parseInt(m[1], 10) + 1;
+    }
+  }
+
+  return `${prefix}-${year}-${String(num).padStart(4, '0')}`;
+}
+
 async function createInvoice(type: string) {
   const now = new Date();
   const year = now.getFullYear();
 
-  const { data: refData, error: refError } = await appwriteDb
-    .rpc('next_invoice_reference', { p_company_id: authStore.companyId, p_type: type, p_year: year });
-
-  if (refError) {
+  const reference = await generateInvoiceReference(type, year);
+  if (!reference) {
     $q.notify({ type: 'negative', message: 'Erreur lors de la génération de la référence' });
     return;
   }
@@ -170,16 +212,19 @@ async function createInvoice(type: string) {
   const { data, error } = await appwriteDb
     .from('invoices')
     .insert({
+      id: ID.unique(),
       company_id: authStore.companyId,
       type,
-      reference: refData as string,
+      reference,
       status: 'draft',
       price_mode: 'TTC',
       operator_name: authStore.fullName,
-    }).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
+    }).then(r => ({ data: Array.isArray(r.data) ? r.data[0] : r.data, error: r.error }));
 
   if (!error && data) {
     await router.push(`/app/invoices/${(data as Invoice).id}`);
+  } else {
+    $q.notify({ type: 'negative', message: error?.message || 'Erreur lors de la création de la facture' });
   }
 }
 
