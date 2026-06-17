@@ -32,6 +32,7 @@ const IGNORED_NETWORK_PATTERNS = [
   'chrome-extension://',
   'hot-update',                   // HMR dev
   '/api/auth/refresh',            // Refresh token vide au chargement initial (normal)
+  '/v1/account',                  // 401 sur page publique = session vide (normal)
 ];
 
 export function createErrorCollector(page: Page): PageErrors {
@@ -83,6 +84,19 @@ export function getRealErrors(errors: PageErrors): string[] {
     ...errors.networkErrors,
     ...errors.jsErrors,
   ];
+}
+
+/**
+ * Erreurs critiques réseau (401/403/404/5xx) sans filtrage console.
+ * Utile pour détecter les bugs API masqués par les faux positifs console.
+ */
+export function getCriticalErrors(errors: PageErrors, urlFilter?: string | string[]): string[] {
+  const filters = Array.isArray(urlFilter) ? urlFilter : urlFilter ? [urlFilter] : [];
+  const network = errors.networkErrors.filter((e) => {
+    if (filters.length === 0) return true;
+    return filters.some((f) => e.includes(f));
+  });
+  return [...network, ...errors.jsErrors];
 }
 
 /**

@@ -70,7 +70,7 @@ export interface DbQueryBuilder extends PromiseLike<DbResult<any[]>> {
 class AppwriteQueryBuilder implements DbQueryBuilder {
   private collectionId: string;
   private queries: string[] = [];
-  private orderBy?: { column: string; direction: string };
+  private orderBy: { column: string; direction: string }[] = [];
   private limitCount?: number;
   private singleMode = false;
   private maybeSingleMode = false;
@@ -238,7 +238,10 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
 
   order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }): DbQueryBuilder {
     const direction = options?.ascending !== false ? 'ASC' : 'DESC';
-    this.orderBy = { column, direction };
+    const columns = column.split(',').map((c) => c.trim()).filter(Boolean);
+    for (const col of columns) {
+      this.orderBy.push({ column: col, direction });
+    }
     return this;
   }
 
@@ -303,9 +306,11 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
   private _buildQueries(): string[] {
     const queries = [...this.queries];
     if (this.limitCount) queries.push(Query.limit(this.limitCount));
-    if (this.orderBy) {
-      if (this.orderBy.direction === 'DESC') queries.push(Query.orderDesc(this.orderBy.column));
-      else queries.push(Query.orderAsc(this.orderBy.column));
+    if (this.orderBy.length) {
+      for (const o of this.orderBy) {
+        if (o.direction === 'DESC') queries.push(Query.orderDesc(o.column));
+        else queries.push(Query.orderAsc(o.column));
+      }
     }
     return queries;
   }

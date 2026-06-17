@@ -1,11 +1,11 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX FINANCES - Factures recues (fournisseurs)
 // Schéma BD réel exploré via Appwrite SDK CLI (58 colonnes)
 // direction = 'received', type = 'FT' OBLIGATOIRE (CHECK constraint: FV,FT,FA,EV,ET,EA,PF)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type { InvoicePaymentStatus, FiscalComplianceStatus } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -108,7 +108,7 @@ export function useReceivedInvoices() {
         .from('invoices')
         .eq('company_id', companyStore.company!.id)
         .eq('direction', 'received')
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
 
 
       if (filters?.payment_status)            q = q.eq('payment_status', filters.payment_status);
@@ -163,8 +163,10 @@ export function useReceivedInvoices() {
           fiscal_compliance_status: payload.fiscal_compliance_status ?? 'pending',
           // Dates
           received_at:              payload.received_at ?? new Date().toISOString(),
-          // Notes (tableau JSONB)
-          comments:                 payload.comments ?? [],
+          // Notes (tableau JSONB) — Appwrite stocke la chaîne JSON
+          comments:                 Array.isArray(payload.comments)
+            ? JSON.stringify(payload.comments)
+            : (payload.comments as unknown as string | undefined) || null,
         }]);
       if (err) { error.value = err.message; return null; }
       const inserted = Array.isArray(data) ? data[0] : data;
@@ -182,9 +184,13 @@ export function useReceivedInvoices() {
     loading.value = true;
     error.value   = null;
     try {
+      const updatePayload = { ...payload };
+      if (Array.isArray(updatePayload.comments)) {
+        updatePayload.comments = JSON.stringify(updatePayload.comments) as unknown as any[];
+      }
       const { data, error: err } = await appwriteDb
         .from('invoices')
-        .update(id, payload);
+        .update(id, updatePayload);
       if (err) { error.value = err.message; return null; }
       if (data) {
         const idx = invoices.value.findIndex(i => i.id === id);

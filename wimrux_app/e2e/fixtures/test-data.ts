@@ -2,7 +2,7 @@
  * Données de test centralisées — WIMRUX® Finances
  * Source de vérité unique pour tous les tests E2E.
  *
- * Comptes validés en base InsForge (27/05/2026) :
+ * Comptes validés en base Appwrite (27/05/2026) :
  * - Mot de passe UNIFIÉ : WimruxAdmin2026!
  * - 2FA : DÉSACTIVÉ sur tous les comptes
  */
@@ -12,6 +12,7 @@ export const TEST_ACCOUNTS = {
   superAdmin: {
     email: 'admin@wimrux.app',
     password: 'WimruxAdmin2026!',
+    phone: '+226 65 59 91 95',
     role: 'project_admin' as const,
     fullName: 'Admin WIMRUX SaaS',
   },
@@ -19,6 +20,7 @@ export const TEST_ACCOUNTS = {
   adminIltic: {
     email: 'test1@wimrux.app',
     password: 'WimruxAdmin2026!',
+    phone: '+226 65 75 10 89',
     role: 'admin' as const,
     fullName: 'Admin ILTIC',
   },
@@ -26,6 +28,7 @@ export const TEST_ACCOUNTS = {
   adminWestago: {
     email: 'test2@wimrux.app',
     password: 'WimruxAdmin2026!',
+    phone: '+226 75 53 25 39',
     role: 'admin' as const,
     fullName: 'Admin WESTAGO',
   },
@@ -45,7 +48,7 @@ export const TEST_CLIENTS = {
   pm: {
     type: 'PM' as const,
     name: 'TECHNO SOLUTIONS SARL (E2E-TEST)',
-    ifu: '00123456A',
+    ifu: '12345678',
     address: 'Zone Industrielle, Ouagadougou',
     phone: '+22670000001',
   },

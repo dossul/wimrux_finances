@@ -18,6 +18,11 @@ const COLLECTIONS = {
   INVOICE_ITEMS: 'invoice_items',
   TREASURY_ACCOUNTS: 'treasury_accounts',
   TREASURY_MOVEMENTS: 'treasury_movements',
+  SUPPLIERS: 'suppliers',
+  BANK_ACCOUNTS: 'bank_accounts',
+  WIRE_TRANSFERS: 'wire_transfers',
+  ARTICLES: 'articles',
+  AI_CREDIT_TRANSACTIONS: 'ai_credit_transactions',
 } as const;
 
 interface AppwriteDocument {
@@ -150,6 +155,22 @@ export async function cleanupTestData(): Promise<void> {
 
       for (const id of e2eAccountIds) {
         await deleteDocument(COLLECTIONS.TREASURY_ACCOUNTS, id);
+      }
+    }
+
+    // 4. Supprimer les fournisseurs, comptes bancaires, virements, articles et transactions IA marqués
+    for (const collection of [
+      COLLECTIONS.SUPPLIERS,
+      COLLECTIONS.BANK_ACCOUNTS,
+      COLLECTIONS.WIRE_TRANSFERS,
+      COLLECTIONS.ARTICLES,
+      COLLECTIONS.AI_CREDIT_TRANSACTIONS,
+    ]) {
+      const docs = await listAllDocuments(collection);
+      for (const doc of docs) {
+        if (documentContainsMarker(doc)) {
+          await deleteDocument(collection, doc.$id);
+        }
       }
     }
 

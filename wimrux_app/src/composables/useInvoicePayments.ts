@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Paiements de factures (T3.1)
 // Fonctionne pour factures émises (encaissements) et reçues (décaissements)
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { InvoicePayment, InvoicePaymentMethod } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -56,6 +56,32 @@ export function useInvoicePayments() {
         .insert(record).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) payments.value.unshift(data);
+
+      // Mise à jour du statut de paiement de la facture
+      try {
+        const { data: invoice } = await appwriteDb
+          .from('invoices')
+          .select('*')
+          .eq('id', payload.invoice_id)
+          .single();
+        if (invoice) {
+          const totalTtc = Number(invoice.total_ttc) || 0;
+          const currentPaid = Number(invoice.paid_amount) || 0;
+          const newPaid = currentPaid + Number(payload.amount);
+          let paymentStatus: 'unpaid' | 'partial' | 'paid' | 'overpaid' = 'unpaid';
+          if (newPaid >= totalTtc) paymentStatus = 'paid';
+          else if (newPaid > 0) paymentStatus = 'partial';
+          await appwriteDb
+            .from('invoices')
+            .update(invoice.id, {
+              paid_amount: newPaid,
+              payment_status: paymentStatus,
+            });
+        }
+      } catch (updateErr) {
+        console.error('[useInvoicePayments] Failed to update invoice status:', updateErr);
+      }
+
       return data;
     } finally {
       loading.value = false;

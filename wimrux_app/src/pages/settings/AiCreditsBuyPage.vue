@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-lg">
       <div>
@@ -18,7 +18,7 @@
           </div>
           <div class="col">
             <div class="text-caption text-grey-7">Solde crédits actuel</div>
-            <div class="text-h4 text-weight-bold text-primary">
+            <div class="text-h4 text-weight-bold text-primary" data-testid="ai-credit-balance">
               {{ formatCurrency(creditBalance) }}
             </div>
           </div>
@@ -42,6 +42,7 @@
           class="cursor-pointer pack-card"
           :class="{ 'selected-pack': selectedPack?.id === pack.id }"
           @click="selectPack(pack)"
+          data-testid="ai-credit-pack"
         >
           <q-card-section class="text-center">
             <div class="text-overline text-uppercase text-grey-7">{{ pack.code }}</div>
@@ -105,6 +106,7 @@
                     { label: 'Carte bancaire', value: 'card' },
                   ]"
                   class="q-mb-md"
+                  data-testid="ai-credit-payment-method"
                 />
                 <div class="text-caption text-grey-7">
                   <q-icon name="info" size="16px" class="q-mr-xs" />
@@ -123,6 +125,7 @@
               no-caps 
               :loading="processing"
               @click="initiatePayment"
+              data-testid="ai-credit-pay-btn"
             />
           </q-card-actions>
         </q-card>
@@ -143,6 +146,7 @@
         :loading="loading"
         :pagination="{ rowsPerPage: 5 }"
         no-data-label="Aucun achat effectué"
+        data-testid="ai-credit-history-table"
       >
         <template #body-cell-type="props">
           <q-td :props="props">
@@ -196,7 +200,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { AiCreditPack, CompanyAiCredits } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -298,7 +302,7 @@ async function loadData() {
       .from('ai_credit_transactions')
       .select('*')
       .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
+      .order('$createdAt', { ascending: false })
       .limit(10);
     transactions.value = txs || [];
   } finally {
@@ -328,39 +332,39 @@ async function initiatePayment() {
         description: `Achat pack ${selectedPack.value.code}`,
         status: 'completed',
         payment_method: paymentMethod.value,
-        metadata: {
+        metadata: JSON.stringify({
           pack_id: selectedPack.value.id,
           pack_code: selectedPack.value.code,
-        },
+        }),
       }]);
 
     if (txError) throw txError;
 
-    // Update credit balance
-    const { error: creditError } = await appwriteDb
-      .rpc('increment_ai_credits', {
-        p_company_id: companyId,
-        p_amount_usd: selectedPack.value.credits_usd,
-      });
+    // Update credit balance (manual fallback — RPC increment_ai_credits n'existe pas encore)
+    const { data: current } = await appwriteDb
+      .from('company_ai_credits')
+      .select('*')
+      .eq('company_id', companyId)
+      .single();
 
-    if (creditError) {
-      // Fallback: manual update if RPC doesn't exist
-      const { data: current } = await appwriteDb
+    if (current) {
+      await appwriteDb
         .from('company_ai_credits')
-        .select('*')
-        .eq('company_id', companyId)
-        .single();
-      
-      if (current) {
-        await appwriteDb
-          .from('company_ai_credits')
-          .updateWhere({
-            balance_usd: current.balance_usd + selectedPack.value.credits_usd,
-            total_purchased_usd: current.total_purchased_usd + selectedPack.value.credits_usd,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('company_id', companyId);
-      }
+        .updateWhere({
+          balance_usd: current.balance_usd + selectedPack.value.credits_usd,
+          total_purchased_usd: (current.total_purchased_usd || 0) + selectedPack.value.credits_usd,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('company_id', companyId);
+    } else {
+      await appwriteDb
+        .from('company_ai_credits')
+        .insert([{
+          company_id: companyId,
+          balance_usd: selectedPack.value.credits_usd,
+          total_purchased_usd: selectedPack.value.credits_usd,
+          updated_at: new Date().toISOString(),
+        }]);
     }
 
     showConfirm.value = true;

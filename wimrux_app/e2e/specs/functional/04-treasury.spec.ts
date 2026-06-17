@@ -65,7 +65,7 @@ test.describe('Treasury', () => {
     await page.fill(TREASURY.bankAccountBalance, String(TEST_BANK_ACCOUNT.initialBalance));
     await saveAccountAndWait(page);
 
-    const accountCard = page.locator('.q-card').filter({ hasText: TEST_BANK_ACCOUNT.name });
+    const accountCard = page.locator('.q-card').filter({ hasText: TEST_BANK_ACCOUNT.name }).first();
     await expect(accountCard).toBeVisible();
 
     // Crédit

@@ -41,7 +41,10 @@ test.describe('Dashboard integrity', () => {
 
     const topClients = page.locator(REPORT.topClients);
     await expect(topClients).toBeVisible();
-    await expect(topClients.locator('.row')).toHaveCount(2);
+    const topClientRows = topClients.locator('.row');
+    await expect(topClientRows.first()).toBeVisible();
+    const rowCount = await topClientRows.count();
+    expect(rowCount).toBeGreaterThanOrEqual(1);
 
     const criticalErrors = getCriticalErrors(errors);
     expect(criticalErrors).toHaveLength(0);

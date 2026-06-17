@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-dialog :model-value="modelValue" persistent @update:model-value="$emit('update:modelValue', $event)">
     <q-card :style="step === 4 ? 'width:92vw;max-width:1380px;min-width:900px' : 'min-width:660px;max-width:760px'">
 
@@ -39,10 +39,11 @@
           emit-value map-options outlined use-input input-debounce="0"
           :rules="[v => !!v || 'Requis']"
           @filter="filterSuppliers"
+          data-testid="wizard-supplier-select"
         >
           <template #no-option><q-item><q-item-section class="text-grey">Aucun fournisseur</q-item-section></q-item></template>
           <template #append>
-            <q-btn flat round dense icon="person_add" color="primary" title="Creer fournisseur" @click="showNewSupplier = true" />
+            <q-btn flat round dense icon="person_add" color="primary" title="Creer fournisseur" @click="showNewSupplier = true" data-testid="wizard-new-supplier-btn" />
           </template>
         </q-select>
 
@@ -68,13 +69,13 @@
         </q-banner>
 
         <q-input v-model="form.supplier_invoice_number" label="N° facture fournisseur" outlined dense
-          hint="Tel qu'il apparait sur la facture originale" />
+          hint="Tel qu'il apparait sur la facture originale" data-testid="wizard-supplier-invoice-number" />
         <div class="row q-gutter-sm">
           <q-input v-model="form.received_at" label="Date reception *" type="datetime-local" outlined dense
-            :rules="[v => !!v || 'Requis']" class="col" />
+            :rules="[v => !!v || 'Requis']" class="col" data-testid="wizard-received-at" />
           <q-select v-model="form.type" :options="typeOptions" emit-value map-options
             label="Type *" outlined dense class="col-4"
-            :rules="[v => !!v || 'Requis']" />
+            :rules="[v => !!v || 'Requis']" data-testid="wizard-type" />
         </div>
       </q-card-section>
 
@@ -83,7 +84,7 @@
         <div class="text-subtitle2 text-grey-7 q-mb-sm">Details de la facture</div>
         <div class="row q-gutter-sm">
           <q-input v-model="form.reference" label="Reference interne *" outlined dense class="col"
-            :rules="[v => !!v || 'Requis']" hint="Generee auto si vide" />
+            :rules="[v => !!v || 'Requis']" hint="Generee auto si vide" data-testid="wizard-reference" />
           <q-select v-model="form.price_mode" :options="['TTC','HT']" label="Mode prix" outlined dense class="col-3" />
         </div>
         <div class="row q-gutter-sm">
@@ -137,16 +138,16 @@
         <div class="text-subtitle2 text-grey-7 q-mb-sm">Montants et taxes</div>
         <div class="row q-gutter-sm">
           <q-input v-model.number="form.total_ht" label="Total HT *" type="number" outlined dense class="col"
-            :rules="[v => v >= 0 || 'Requis']" @update:model-value="autoCalcTva" />
+            :rules="[v => v >= 0 || 'Requis']" @update:model-value="autoCalcTva" data-testid="wizard-total-ht" />
           <q-input v-model.number="form.total_tva" label="TVA (18%)" type="number" outlined dense class="col"
             :disable="tvaBlocked" :hint="tvaBlocked ? 'TVA bloquée (régime ' + selectedSupplier?.regime_fiscal + ')' : ''"
-            @update:model-value="autoCalcTtc" />
+            @update:model-value="autoCalcTtc" data-testid="wizard-total-tva" />
         </div>
         <div class="row q-gutter-sm">
           <q-input v-model.number="form.total_psvb" label="PSVB" type="number" outlined dense class="col"
-            hint="Prelevement special vehicules/biens" @update:model-value="autoCalcTtc" />
+            hint="Prelevement special vehicules/biens" @update:model-value="autoCalcTtc" data-testid="wizard-total-psvb" />
           <q-input v-model.number="form.stamp_duty" label="Droit de timbre" type="number" outlined dense class="col"
-            @update:model-value="autoCalcTtc" />
+            @update:model-value="autoCalcTtc" data-testid="wizard-stamp-duty" />
         </div>
         <!-- Retenue à la source -->
         <q-separator class="q-my-xs" />
@@ -163,7 +164,7 @@
         <div class="row q-gutter-sm items-center">
           <q-input v-model.number="form.total_ttc" label="Total TTC *" type="number" outlined dense class="col"
             :rules="[v => v > 0 || 'Montant > 0']"
-            bg-color="blue-1" />
+            bg-color="blue-1" data-testid="wizard-total-ttc" />
           <div class="col-auto text-caption text-grey-6">
             <q-btn flat dense size="sm" icon="calculate" label="Recalculer" @click="recalcAll" />
           </div>
@@ -368,43 +369,43 @@
       <q-card-actions class="q-px-md q-py-sm">
         <q-btn flat no-caps label="Annuler" @click="$emit('update:modelValue', false)" />
         <q-space />
-        <q-btn v-if="step > 1" flat no-caps icon="arrow_back" label="Precedent" @click="step--" />
+        <q-btn v-if="step > 1" flat no-caps icon="arrow_back" label="Precedent" @click="step--" data-testid="wizard-prev-btn" />
         <q-btn v-if="step < 4" color="primary" no-caps icon-right="arrow_forward" label="Suivant"
-          :disable="!stepValid" @click="nextStep" />
+          :disable="!stepValid" @click="nextStep" data-testid="wizard-next-btn" />
         <q-btn v-if="step === 4 && !isReadOnly" color="positive" no-caps icon="save" label="Enregistrer"
-          :loading="loading" @click="submit" />
+          :loading="loading" @click="submit" data-testid="wizard-save-btn" />
       </q-card-actions>
     </q-card>
   </q-dialog>
 
   <!-- Mini-dialog nouveau fournisseur -->
-  <q-dialog v-model="showNewSupplier" persistent>
+  <q-dialog v-model="showNewSupplier" persistent data-testid="wizard-supplier-dialog">
     <q-card style="min-width:480px">
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">Nouveau fournisseur</div>
         <q-space /><q-btn flat round dense icon="close" v-close-popup />
       </q-card-section>
       <q-card-section class="q-gutter-sm">
-        <q-input v-model="newSup.name" label="Nom *" outlined dense :rules="[v => !!v || 'Requis']" />
+        <q-input v-model="newSup.name" label="Nom *" outlined dense :rules="[v => !!v || 'Requis']" data-testid="wizard-supplier-name" />
         <div class="row q-gutter-sm">
-          <q-input v-model="newSup.ifu" label="IFU" outlined dense class="col" />
-          <q-input v-model="newSup.rccm" label="RCCM" outlined dense class="col" />
+          <q-input v-model="newSup.ifu" label="IFU" outlined dense class="col" data-testid="wizard-supplier-ifu" />
+          <q-input v-model="newSup.rccm" label="RCCM" outlined dense class="col" data-testid="wizard-supplier-rccm" />
         </div>
         <div class="row q-gutter-sm">
-          <q-input v-model="newSup.phone" label="Telephone" outlined dense class="col" />
-          <q-input v-model="newSup.email" label="Email" outlined dense class="col" type="email" />
+          <q-input v-model="newSup.phone" label="Telephone" outlined dense class="col" data-testid="wizard-supplier-phone" />
+          <q-input v-model="newSup.email" label="Email" outlined dense class="col" type="email" data-testid="wizard-supplier-email" />
         </div>
-        <q-input v-model="newSup.address" label="Adresse" outlined dense type="textarea" rows="2" />
+        <q-input v-model="newSup.address" label="Adresse" outlined dense type="textarea" rows="2" data-testid="wizard-supplier-address" />
         <div class="row q-gutter-sm">
-          <q-input v-model="newSup.bank_name" label="Banque" outlined dense class="col" />
-          <q-input v-model="newSup.bank_iban" label="IBAN / N° compte" outlined dense class="col" />
-          <q-input v-model="newSup.bank_bic" label="BIC/SWIFT" outlined dense class="col-3" />
+          <q-input v-model="newSup.bank_name" label="Banque" outlined dense class="col" data-testid="wizard-supplier-bank-name" />
+          <q-input v-model="newSup.bank_iban" label="IBAN / N° compte" outlined dense class="col" data-testid="wizard-supplier-bank-iban" />
+          <q-input v-model="newSup.bank_bic" label="BIC/SWIFT" outlined dense class="col-3" data-testid="wizard-supplier-bank-bic" />
         </div>
-        <q-input v-model="newSup.notes" label="Notes internes" outlined dense type="textarea" rows="2" />
+        <q-input v-model="newSup.notes" label="Notes internes" outlined dense type="textarea" rows="2" data-testid="wizard-supplier-notes" />
       </q-card-section>
       <q-card-actions align="right" class="q-px-md q-pb-md">
         <q-btn flat label="Annuler" v-close-popup />
-        <q-btn color="primary" no-caps label="Creer" :loading="creatingSupplier" @click="createSupplier" />
+        <q-btn color="primary" no-caps label="Creer" :loading="creatingSupplier" @click="createSupplier" data-testid="wizard-supplier-create-btn" />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -414,7 +415,7 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import dayjs from 'dayjs';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useSuppliers } from 'src/composables/useSuppliers';
 import { useReceivedInvoices, type ReceivedInvoice } from 'src/composables/useReceivedInvoices';
 import type { FiscalComplianceStatus } from 'src/types';

@@ -23,10 +23,10 @@
         <div class="text-caption text-grey-6">Reste à devoir</div>
         <div class="text-h6 text-weight-bold text-orange">{{ fmt(stats.totalOutstanding) }}</div>
       </q-card-section></q-card>
-      <q-card v-if="debtRatio" flat bordered class="col-auto kpi"><q-card-section class="q-pa-md text-center">
+      <q-card v-if="debtRatio && debtRatio.debt_to_revenue_pct != null" flat bordered class="col-auto kpi"><q-card-section class="q-pa-md text-center">
         <div class="text-caption text-grey-6">Ratio dette / CA 12m</div>
         <div class="text-h6 text-weight-bold" :class="ratioColor(debtRatio.debt_to_revenue_pct)">
-          {{ debtRatio.debt_to_revenue_pct.toFixed(1) }}%
+          {{ debtRatio.debt_to_revenue_pct?.toFixed(1) }}%
         </div>
       </q-card-section></q-card>
     </div>
