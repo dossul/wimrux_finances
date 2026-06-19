@@ -55,7 +55,7 @@
               <span v-if="selectedSupplier.rccm"><q-icon name="business" /> RCCM: {{ selectedSupplier.rccm }}</span>
               <span v-if="selectedSupplier.phone"><q-icon name="phone" /> {{ selectedSupplier.phone }}</span>
               <span v-if="selectedSupplier.email"><q-icon name="email" /> {{ selectedSupplier.email }}</span>
-              <q-badge v-if="selectedSupplier.regime_fiscal" :color="regimeColor(selectedSupplier.regime_fiscal)" :label="selectedSupplier.regime_fiscal" />
+              <q-badge v-if="selectedSupplier.tax_regime" :color="regimeColor(selectedSupplier.tax_regime)" :label="selectedSupplier.tax_regime" />
             </div>
             <div v-if="selectedSupplier.address" class="text-caption q-mt-xs">
               <q-icon name="location_on" /> {{ selectedSupplier.address }}
@@ -65,7 +65,7 @@
         <!-- Blocage TVA si régime sans TVA -->
         <q-banner v-if="tvaBlocked" dense rounded class="bg-orange-1 text-orange-9 text-caption q-mt-sm">
           <template #avatar><q-icon name="info" color="orange" /></template>
-          Fournisseur en régime {{ selectedSupplier?.regime_fiscal }} — <strong>TVA non applicable</strong> sur cette facture.
+          Fournisseur en régime {{ selectedSupplier?.tax_regime }} — <strong>TVA non applicable</strong> sur cette facture.
         </q-banner>
 
         <q-input v-model="form.supplier_invoice_number" label="N° facture fournisseur" outlined dense
@@ -140,7 +140,7 @@
           <q-input v-model.number="form.total_ht" label="Total HT *" type="number" outlined dense class="col"
             :rules="[v => v >= 0 || 'Requis']" @update:model-value="autoCalcTva" data-testid="wizard-total-ht" />
           <q-input v-model.number="form.total_tva" label="TVA (18%)" type="number" outlined dense class="col"
-            :disable="tvaBlocked" :hint="tvaBlocked ? 'TVA bloquée (régime ' + selectedSupplier?.regime_fiscal + ')' : ''"
+            :disable="tvaBlocked" :hint="tvaBlocked ? 'TVA bloquée (régime ' + selectedSupplier?.tax_regime + ')' : ''"
             @update:model-value="autoCalcTtc" data-testid="wizard-total-tva" />
         </div>
         <div class="row q-gutter-sm">
@@ -380,7 +380,7 @@
 
   <!-- Mini-dialog nouveau fournisseur -->
   <q-dialog v-model="showNewSupplier" persistent data-testid="wizard-supplier-dialog">
-    <q-card style="min-width:480px">
+    <q-card style="min-width:720px;max-width:860px">
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">Nouveau fournisseur</div>
         <q-space /><q-btn flat round dense icon="close" v-close-popup />
@@ -388,19 +388,86 @@
       <q-card-section class="q-gutter-sm">
         <q-input v-model="newSup.name" label="Nom *" outlined dense :rules="[v => !!v || 'Requis']" data-testid="wizard-supplier-name" />
         <div class="row q-gutter-sm">
+          <q-select v-model="newSup.legal_form" :options="newSupLegalFormOptions" label="Forme juridique" emit-value map-options outlined dense class="col" clearable />
+          <q-input v-if="newSup.legal_form === 'AUTRE'" v-model="newSup.legal_form_other" label="Préciser" outlined dense class="col" />
+        </div>
+        <div class="row q-gutter-sm">
           <q-input v-model="newSup.ifu" label="IFU" outlined dense class="col" data-testid="wizard-supplier-ifu" />
           <q-input v-model="newSup.rccm" label="RCCM" outlined dense class="col" data-testid="wizard-supplier-rccm" />
         </div>
         <div class="row q-gutter-sm">
-          <q-input v-model="newSup.phone" label="Telephone" outlined dense class="col" data-testid="wizard-supplier-phone" />
-          <q-input v-model="newSup.email" label="Email" outlined dense class="col" type="email" data-testid="wizard-supplier-email" />
+          <q-file v-model="newSupFileIfu" label="Scan IFU" outlined dense clearable accept=".pdf,.jpg,.jpeg,.png" class="col">
+            <template v-slot:append><q-icon v-if="newSup.ifu_scan_file_id" name="check_circle" color="positive" /></template>
+          </q-file>
+          <q-file v-model="newSupFileRccm" label="Scan RCCM" outlined dense clearable accept=".pdf,.jpg,.jpeg,.png" class="col">
+            <template v-slot:append><q-icon v-if="newSup.rccm_scan_file_id" name="check_circle" color="positive" /></template>
+          </q-file>
         </div>
-        <q-input v-model="newSup.address" label="Adresse" outlined dense type="textarea" rows="2" data-testid="wizard-supplier-address" />
         <div class="row q-gutter-sm">
-          <q-input v-model="newSup.bank_name" label="Banque" outlined dense class="col" data-testid="wizard-supplier-bank-name" />
-          <q-input v-model="newSup.bank_iban" label="IBAN / N° compte" outlined dense class="col" data-testid="wizard-supplier-bank-iban" />
-          <q-input v-model="newSup.bank_bic" label="BIC/SWIFT" outlined dense class="col-3" data-testid="wizard-supplier-bank-bic" />
+          <q-select v-model="newSup.tax_regime" :options="newSupTaxRegimeOptions" label="Régime fiscal *" emit-value map-options outlined dense class="col" :rules="[v => !!v || 'Requis']" />
+          <q-select
+            :model-value="newSupTaxDivisionValue(newSup.tax_division)"
+            @update:model-value="onNewSupTaxDivisionSelected"
+            :options="newSupTaxDivisionOptions"
+            label="Division fiscale *" emit-value map-options outlined dense class="col"
+            :rules="[v => !!v || 'Requis']"
+          />
         </div>
+        <q-input v-if="newSup.tax_division?.type === 'DPI'" v-model="newSup.tax_division.province" label="Province" outlined dense :rules="[v => !!v || 'Requis']" />
+
+        <div class="row q-gutter-sm items-center q-mt-xs">
+          <q-toggle v-model="newSup.charges_vat" label="Charge la TVA" color="primary" />
+          <q-radio v-model="newSup.vat_rate" :val="0.18" label="18 %" :disable="!newSup.charges_vat" />
+          <q-radio v-model="newSup.vat_rate" :val="0.10" label="10 %" :disable="!newSup.charges_vat" />
+        </div>
+
+        <div class="text-subtitle2 text-grey-8 q-mt-sm">Adresse physique</div>
+        <div class="row q-gutter-sm">
+          <q-input v-model="newSup.physical_address.city" label="Ville" outlined dense class="col" />
+          <q-input v-model="newSup.physical_address.district" label="Quartier" outlined dense class="col" />
+          <q-input v-model="newSup.physical_address.sector" label="Secteur" outlined dense class="col" />
+        </div>
+        <div class="text-subtitle2 text-grey-8 q-mt-sm">Adresse postale</div>
+        <div class="row q-gutter-sm">
+          <q-input v-model="newSup.postal_address.post_office" label="Bureau postal" outlined dense class="col" />
+          <q-input v-model="newSup.postal_address.po_box" label="Boîte postale" outlined dense class="col" />
+          <q-input v-model="newSup.postal_address.postal_code" label="Code postal" outlined dense class="col" />
+        </div>
+
+        <div class="row q-gutter-sm q-mt-xs">
+          <q-input v-model="newSup.phone_country_code" label="Indicatif" outlined dense class="col-3" />
+          <q-input v-model="newSup.phone" label="Téléphone" outlined dense class="col" data-testid="wizard-supplier-phone" />
+        </div>
+        <div class="row q-gutter-sm">
+          <q-input v-model="newSup.email" label="E-mail" outlined dense class="col" type="email" data-testid="wizard-supplier-email" />
+          <q-input v-model="newSup.billing_email" label="E-mail de facturation" outlined dense class="col" type="email" />
+        </div>
+
+        <div class="text-subtitle2 text-grey-8 q-mt-sm row items-center">
+          Contacts
+          <q-btn flat round dense icon="add" size="sm" color="primary" class="q-ml-sm" @click="newSup.contacts.push({ role: 'sales', name: '', function: '', phone: '', email: '' })" />
+        </div>
+        <div v-for="(contact, idx) in newSup.contacts" :key="idx" class="row q-gutter-sm items-start">
+          <q-select v-model="contact.role" :options="[{ label: 'Contact vente', value: 'sales' }, { label: 'Contact comptabilité', value: 'accounting' }]" label="Rôle" emit-value map-options outlined dense class="col-3" />
+          <q-input v-model="contact.name" label="Nom" outlined dense class="col" />
+          <q-input v-model="contact.function" label="Fonction" outlined dense class="col" />
+          <q-input v-model="contact.phone" label="Téléphone" outlined dense class="col" />
+          <q-input v-model="contact.email" label="E-mail" outlined dense type="email" class="col" />
+          <q-btn flat round dense icon="delete" color="negative" size="sm" class="q-mt-sm" @click="newSup.contacts.splice(idx, 1)" />
+        </div>
+
+        <div class="text-subtitle2 text-grey-8 q-mt-sm row items-center">
+          Comptes bancaires (max. 5)
+          <q-btn flat round dense icon="add" size="sm" color="primary" class="q-ml-sm" @click="newSup.bank_accounts.length < 5 && newSup.bank_accounts.push({ bank_name: '', account_number: '', iban: '', bic: '', is_default: false })" />
+        </div>
+        <div v-for="(account, idx) in newSup.bank_accounts" :key="`bank-${idx}`" class="row q-gutter-sm items-start">
+          <q-input v-model="account.bank_name" label="Banque" outlined dense class="col" />
+          <q-input v-model="account.account_number" label="N° compte" outlined dense class="col" />
+          <q-input v-model="account.iban" label="IBAN / RIB" outlined dense class="col" />
+          <q-input v-model="account.bic" label="BIC" outlined dense class="col-2" />
+          <q-btn flat round dense icon="delete" color="negative" size="sm" class="q-mt-sm" @click="newSup.bank_accounts.splice(idx, 1)" />
+        </div>
+
         <q-input v-model="newSup.notes" label="Notes internes" outlined dense type="textarea" rows="2" data-testid="wizard-supplier-notes" />
       </q-card-section>
       <q-card-actions align="right" class="q-px-md q-pb-md">
@@ -418,8 +485,10 @@ import dayjs from 'dayjs';
 import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useSuppliers } from 'src/composables/useSuppliers';
 import { useReceivedInvoices, type ReceivedInvoice } from 'src/composables/useReceivedInvoices';
-import type { FiscalComplianceStatus } from 'src/types';
+import type { FiscalComplianceStatus, TaxRegimeBF, TaxDivision, LegalForm, PartnerContact, PartnerBankAccount } from 'src/types';
+import { TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS, LEGAL_FORM_LABELS } from 'src/types';
 import { verifyTaxIdOnline } from 'src/utils/fiscalCompliance';
+import { isValidTaxDivision } from 'src/utils/validators';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { appwriteStorage } from 'src/services/appwrite-storage';
 
@@ -556,10 +625,10 @@ function filterSuppliers(val: string, update: (fn: () => void) => void) {
 }
 
 // ── Régime fiscal & blocage TVA ──────────────────────────────────────────────
-const tvaBlocked = computed(() => {
-  const rf = selectedSupplier.value?.regime_fiscal;
-  return rf === 'RSI' || rf === 'CME' || rf === 'CSE' || rf === 'RND';
-});
+  const tvaBlocked = computed(() => {
+    const rf = selectedSupplier.value?.tax_regime;
+    return rf === 'RSI' || rf === 'CME' || rf === 'CME_DECLARATIF' || rf === 'CSE' || rf === 'RND';
+  });
 function regimeColor(r: string) {
   const colors: Record<string, string> = {
     RNI: 'blue-7', RSI: 'orange-7', CME: 'grey-6', CSE: 'green-7', RND: 'purple-6'
@@ -592,7 +661,7 @@ async function uploadFile(file: File) {
   try {
     // Cle sanitisee (upload officiel Appwrite SDK)
     const safeName = file.name
-      .normalize('NFKD').replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_');
+      .normalize('NFKD').replace(/[^\w.-]+/g, '_').replace(/_+/g, '_');
     const key = `${Date.now()}-${safeName}`;
 
     // Blob URL pour le viewer immediat
@@ -629,36 +698,165 @@ async function onFileDrop(e: DragEvent) {
     await uploadFile(file);
   }
 }
-const showNewSupplier  = ref(false);
-const creatingSupplier = ref(false);
-const newSup = ref({ name: '', ifu: '', rccm: '', phone: '', email: '', address: '', bank_name: '', bank_iban: '', bank_bic: '', notes: '' });
+  const showNewSupplier  = ref(false);
+  const creatingSupplier = ref(false);
+  const newSupFileIfu = ref<File | null>(null);
+  const newSupFileRccm = ref<File | null>(null);
+  const newSup = ref({
+    name: '',
+    legal_form: null as LegalForm | null,
+    legal_form_other: '',
+    physical_address: { city: '', district: '', sector: '' },
+    cadastral_address: { parcel: '', lot: '', section: '' },
+    postal_address: { post_office: '', po_box: '', postal_code: '' },
+    phone_country_code: '+226',
+    phone: '',
+    email: '',
+    billing_email: '',
+    ifu: '',
+    ifu_scan_file_id: null as string | null,
+    rccm: '',
+    rccm_scan_file_id: null as string | null,
+    tax_regime: null as TaxRegimeBF | null,
+    tax_division: null as TaxDivision | null,
+    contacts: [
+      { role: 'sales' as const, name: '', function: '', phone: '', email: '' },
+      { role: 'accounting' as const, name: '', function: '', phone: '', email: '' },
+    ] as PartnerContact[],
+    bank_accounts: [] as PartnerBankAccount[],
+    charges_vat: false,
+    vat_rate: null as 0.18 | 0.10 | null,
+    address: '',
+    bank_name: '',
+    bank_iban: '',
+    bank_bic: '',
+    notes: '',
+  });
 
-async function createSupplier() {
-  if (!newSup.value.name) return;
-  creatingSupplier.value = true;
-  try {
-    const { data, error } = await appwriteDb.from('suppliers').insert([{
-      company_id: companyStore.company!.id,
-      name: newSup.value.name,
-      ifu: newSup.value.ifu || null,
-      rccm: newSup.value.rccm || null,
-      phone: newSup.value.phone || null,
-      email: newSup.value.email || null,
-      address: newSup.value.address || null,
-      bank_name: newSup.value.bank_name || null,
-      bank_iban: newSup.value.bank_iban || null,
-      bank_bic: newSup.value.bank_bic || null,
-      notes: newSup.value.notes || null,
-      is_active: true, country: 'BF',
-    }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
-    if (error) { $q.notify({ type: 'negative', message: error.message }); return; }
-    await loadSuppliers();
-    form.value.supplier_id = (data as { id: string }).id;
-    showNewSupplier.value = false;
-    newSup.value = { name: '', ifu: '', rccm: '', phone: '', email: '', address: '', bank_name: '', bank_iban: '', bank_bic: '', notes: '' };
-    $q.notify({ type: 'positive', message: 'Fournisseur cree' });
-  } finally { creatingSupplier.value = false; }
-}
+  const newSupLegalFormOptions = Object.entries(LEGAL_FORM_LABELS).map(([value, label]) => ({ label, value }));
+  const newSupTaxRegimeOptions = Object.entries(TAX_REGIME_LABELS).map(([value, label]) => ({ label, value: value as TaxRegimeBF }));
+  const newSupTaxDivisionOptions = TAX_DIVISION_OPTIONS.map(o => ({
+    label: o.label,
+    value: `${o.type}:${o.sub || ''}:${o.type === 'DPI' ? '__PROVINCE__' : ''}`,
+  }));
+
+  function onNewSupTaxDivisionSelected(value: string) {
+    const [type, sub, province] = value.split(':');
+    newSup.value.tax_division = { type: type as TaxDivision['type'], sub_division: sub || undefined, province: province || undefined };
+  }
+
+  function newSupTaxDivisionValue(division?: TaxDivision | null): string {
+    if (!division) return '';
+    return `${division.type}:${division.sub_division || ''}:${division.type === 'DPI' ? division.province || '' : ''}`;
+  }
+
+  async function uploadNewSupScan(field: 'ifu_scan_file_id' | 'rccm_scan_file_id', file: File) {
+    try {
+      const safeName = file.name.normalize('NFKD').replace(/[^\w.-]+/g, '_').replace(/_+/g, '_');
+      const key = `suppliers/${Date.now()}-${safeName}`;
+      const { data, error } = await appwriteStorage.upload('partner-documents', file, key);
+      if (error) throw new Error(error.message);
+      newSup.value[field] = ((data as unknown) as { $id: string }).$id;
+      $q.notify({ type: 'positive', message: 'Document joint' });
+    } catch (e: unknown) {
+      $q.notify({ type: 'negative', message: e instanceof Error ? e.message : 'Erreur upload' });
+    }
+  }
+
+  watch(newSupFileIfu, async (file) => { if (file) await uploadNewSupScan('ifu_scan_file_id', file); });
+  watch(newSupFileRccm, async (file) => { if (file) await uploadNewSupScan('rccm_scan_file_id', file); });
+
+  async function createSupplier() {
+    if (!newSup.value.name) return;
+    if (newSup.value.tax_division && !isValidTaxDivision(newSup.value.tax_division)) {
+      $q.notify({ type: 'warning', message: 'Division fiscale invalide' });
+      return;
+    }
+    if (newSup.value.tax_regime === 'RNI' && !newSup.value.charges_vat) {
+      $q.notify({ type: 'warning', message: 'Un fournisseur en RNI doit charger la TVA' });
+      return;
+    }
+    if (newSup.value.charges_vat && !newSup.value.vat_rate) {
+      $q.notify({ type: 'warning', message: 'Précisez le taux de TVA' });
+      return;
+    }
+    creatingSupplier.value = true;
+    try {
+      const payload = {
+        company_id: companyStore.company!.id,
+        name: newSup.value.name,
+        legal_form: newSup.value.legal_form || null,
+        legal_form_other: newSup.value.legal_form === 'AUTRE' ? (newSup.value.legal_form_other || null) : null,
+        physical_address: newSup.value.physical_address.city || newSup.value.physical_address.district || newSup.value.physical_address.sector
+          ? newSup.value.physical_address
+          : null,
+        cadastral_address: newSup.value.cadastral_address.parcel || newSup.value.cadastral_address.lot || newSup.value.cadastral_address.section
+          ? newSup.value.cadastral_address
+          : null,
+        postal_address: newSup.value.postal_address.post_office || newSup.value.postal_address.po_box || newSup.value.postal_address.postal_code
+          ? newSup.value.postal_address
+          : null,
+        phone_country_code: newSup.value.phone_country_code || null,
+        phone: newSup.value.phone || null,
+        email: newSup.value.email || null,
+        billing_email: newSup.value.billing_email || null,
+        ifu: newSup.value.ifu || null,
+        ifu_scan_file_id: newSup.value.ifu_scan_file_id,
+        rccm: newSup.value.rccm || null,
+        rccm_scan_file_id: newSup.value.rccm_scan_file_id,
+        tax_regime: newSup.value.tax_regime || null,
+        tax_division: newSup.value.tax_division,
+        contacts: newSup.value.contacts.filter(c => c.name.trim() || c.email.trim()).length > 0
+          ? newSup.value.contacts.filter(c => c.name.trim() || c.email.trim())
+          : null,
+        bank_accounts: newSup.value.bank_accounts.length > 0 ? newSup.value.bank_accounts : null,
+        charges_vat: newSup.value.charges_vat,
+        vat_rate: newSup.value.charges_vat ? newSup.value.vat_rate : null,
+        country: 'BF',
+        is_active: true,
+        payment_terms_days: 30,
+        supplier_type: 'local' as const,
+        notes: newSup.value.notes || null,
+      };
+      const { data, error } = await appwriteDb.from('suppliers').insert([payload])
+        .then(r => ({ data: Array.isArray(r.data) ? r.data[0] : r.data, error: r.error }));
+      if (error) { $q.notify({ type: 'negative', message: error.message }); return; }
+      await loadSuppliers();
+      form.value.supplier_id = (data as { id: string }).id;
+      showNewSupplier.value = false;
+      newSup.value = {
+        name: '',
+        legal_form: null,
+        legal_form_other: '',
+        physical_address: { city: '', district: '', sector: '' },
+        cadastral_address: { parcel: '', lot: '', section: '' },
+        postal_address: { post_office: '', po_box: '', postal_code: '' },
+        phone_country_code: '+226',
+        phone: '',
+        email: '',
+        billing_email: '',
+        ifu: '',
+        ifu_scan_file_id: null,
+        rccm: '',
+        rccm_scan_file_id: null,
+        tax_regime: null,
+        tax_division: null,
+        contacts: [
+          { role: 'sales', name: '', function: '', phone: '', email: '' },
+          { role: 'accounting', name: '', function: '', phone: '', email: '' },
+        ],
+        bank_accounts: [],
+        charges_vat: false,
+        vat_rate: null,
+        address: '',
+        bank_name: '',
+        bank_iban: '',
+        bank_bic: '',
+        notes: '',
+      };
+      $q.notify({ type: 'positive', message: 'Fournisseur créé' });
+    } finally { creatingSupplier.value = false; }
+  }
 
 // ── Options RAS ─────────────────────────────────────────────────────────────
 const rasRates = [
