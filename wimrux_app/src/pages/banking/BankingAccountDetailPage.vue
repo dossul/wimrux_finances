@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-md">
@@ -204,7 +204,7 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useBankTransactions } from 'src/composables/useBankTransactions';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { BankAccountFull, BankTransaction, ReconciliationStatus } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 

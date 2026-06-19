@@ -1,6 +1,6 @@
-import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+﻿import { ref, computed } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type {
   SavedQuery, SavedQueryInput, QueryAggregation,
 } from 'src/types';

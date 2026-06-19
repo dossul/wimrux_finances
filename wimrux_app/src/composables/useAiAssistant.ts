@@ -1,6 +1,6 @@
-import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+﻿import { ref } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type { AiTaskType, AiTaskRoute, AiRouting } from 'src/types';
 import { useCrypto } from 'src/composables/useCrypto';
 import { appwriteDb } from 'src/services/appwrite-db';

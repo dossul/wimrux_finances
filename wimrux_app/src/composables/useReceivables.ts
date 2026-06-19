@@ -2,7 +2,7 @@
 // WIMRUX® FINANCES — Balance âgée des créances (T3.2) + Relances (T3.3)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useEmailService } from 'src/composables/useEmailService';
 import type { ClientReceivable, ReminderTemplate, ReminderLog, ReminderChannel } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
@@ -17,20 +17,69 @@ export function useReceivables() {
   const emailService      = useEmailService();
 
   // ---------------------------------------------------------------------------
-  // BALANCE ÂGÉE (vue v_client_receivables)
+  // BALANCE ÂGÉE — Calcul JS (remplace la vue SQL v_client_receivables)
   // ---------------------------------------------------------------------------
   async function loadReceivables() {
     loading.value = true;
     error.value   = null;
     try {
-      const { data, error: err } = await appwriteDb
-        .from('v_client_receivables')
+      // Charger les factures émises impayées avec client
+      const { data: invoices, error: err } = await appwriteDb
+        .from('invoices')
         .select('*')
         .eq('company_id', companyStore.company!.id)
-        .gt('outstanding_amount', 0)
-        .order('outstanding_amount', { ascending: false });
+        .eq('direction', 'issued')
+        .neq('payment_status', 'paid');
       if (err) { error.value = err.message; return; }
-      receivables.value = data || [];
+
+      // Charger les clients pour les noms
+      const { data: clients } = await appwriteDb
+        .from('clients')
+        .select('*')
+        .eq('company_id', companyStore.company!.id);
+      const clientMap = new Map((clients || []).map((c: any) => [c.$id ?? c.id, c]));
+
+      const now = new Date();
+      // Agréger par client
+      const byClient = new Map<string, any>();
+      for (const inv of (invoices || [])) {
+        const cid = inv.client_id;
+        if (!cid) continue;
+        const outstanding = Number(inv.total_ttc) - Number(inv.paid_amount ?? 0);
+        if (outstanding <= 0) continue;
+
+        const dueDate = inv.due_date ? new Date(inv.due_date) : null;
+        const daysOverdue = dueDate ? Math.max(0, Math.floor((now.getTime() - dueDate.getTime()) / 86400000)) : 0;
+
+        if (!byClient.has(cid)) {
+          const cl = clientMap.get(cid);
+          byClient.set(cid, {
+            client_id: cid,
+            company_id: companyStore.company!.id,
+            client_name: cl?.name ?? cid,
+            client_email: cl?.email ?? null,
+            outstanding_amount: 0,
+            bucket_0_30: 0,
+            bucket_31_60: 0,
+            bucket_61_90: 0,
+            bucket_over_90: 0,
+            oldest_unpaid_due: inv.due_date,
+          });
+        }
+        const entry = byClient.get(cid)!;
+        entry.outstanding_amount += outstanding;
+        if (daysOverdue <= 30) entry.bucket_0_30 += outstanding;
+        else if (daysOverdue <= 60) entry.bucket_31_60 += outstanding;
+        else if (daysOverdue <= 90) entry.bucket_61_90 += outstanding;
+        else entry.bucket_over_90 += outstanding;
+        if (!entry.oldest_unpaid_due || (inv.due_date && inv.due_date < entry.oldest_unpaid_due)) {
+          entry.oldest_unpaid_due = inv.due_date;
+        }
+      }
+
+      receivables.value = Array.from(byClient.values())
+        .filter(r => r.outstanding_amount > 0)
+        .sort((a, b) => b.outstanding_amount - a.outstanding_amount);
     } finally {
       loading.value = false;
     }

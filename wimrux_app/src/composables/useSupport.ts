@@ -1,10 +1,10 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable Support (T17.x)
 // Tickets, messages, feedback
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { useEmailService } from 'src/composables/useEmailService';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -66,7 +66,7 @@ export function useSupport() {
         .select('*')
         .eq('company_id', companyId.value)
         .eq('user_id', userId.value)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (err) { error.value = err.message; return; }
       tickets.value = data || [];
     } finally { loading.value = false; }
@@ -121,7 +121,7 @@ export function useSupport() {
       .from('support_ticket_messages')
       .select('*')
       .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true });
+      .order('$createdAt', { ascending: true });
     messages.value = data || [];
   }
 

@@ -25,26 +25,26 @@
 
           <!-- Date + Montant -->
           <div class="row q-gutter-sm">
-            <q-input v-model="form.payment_date" label="Date *" type="date" outlined dense class="col" />
-            <q-input v-model.number="form.amount" label="Montant * (FCFA)" type="number" outlined dense class="col" min="1" />
+            <q-input v-model="form.payment_date" label="Date *" type="date" outlined dense class="col" data-testid="payment-date" />
+            <q-input v-model.number="form.amount" label="Montant * (FCFA)" type="number" outlined dense class="col" min="1" data-testid="payment-amount" />
           </div>
 
           <!-- Moyen de paiement -->
           <q-select v-model="form.payment_method" :options="methodOptions" label="Moyen de paiement *"
-            emit-value map-options outlined dense @update:model-value="onMethodChange">
+            emit-value map-options outlined dense @update:model-value="onMethodChange" data-testid="payment-method">
             <template #prepend><q-icon :name="methodIcon" color="grey-7" /></template>
           </q-select>
 
           <!-- ── VIREMENT / CHEQUE ── -->
           <template v-if="isBank">
-            <q-input v-model="form.reference" :label="refLabel" outlined dense :hint="refHint" />
+            <q-input v-model="form.reference" :label="refLabel" outlined dense :hint="refHint" data-testid="payment-reference" />
             <!-- Sélect compte + bouton ajout inline -->
             <div class="row items-center q-gutter-xs">
               <q-select v-model="form.bank_account_id" :options="bankAccountOptions"
                 :label="form.payment_method === 'check' ? 'Banque tirée' : 'Compte bancaire'"
-                emit-value map-options clearable outlined dense class="col" />
+                emit-value map-options clearable outlined dense class="col" data-testid="payment-bank-account" />
               <q-btn flat round dense icon="add_circle" color="primary" size="sm" title="Ajouter un compte"
-                @click="showAddBank = true" />
+                @click="showAddBank = true" data-testid="payment-add-bank-btn" />
             </div>
           </template>
 
@@ -108,29 +108,29 @@
 
       <q-card-actions align="right" class="q-px-md q-pb-md">
         <q-btn flat label="Annuler" @click="$emit('update:modelValue', false)" />
-        <q-btn color="positive" icon="check" label="Enregistrer" :loading="saving || uploading" @click="submit" />
+        <q-btn color="positive" icon="check" label="Enregistrer" :loading="saving || uploading" @click="submit" data-testid="payment-save-btn" />
       </q-card-actions>
     </q-card>
 
     <!-- ── Mini-dialog : Nouveau compte bancaire ── -->
-    <q-dialog v-model="showAddBank" persistent>
+    <q-dialog v-model="showAddBank" persistent data-testid="payment-bank-dialog">
       <q-card style="min-width:380px">
         <q-card-section class="row items-center q-pb-none">
           <div class="text-subtitle1 text-weight-bold">Nouveau compte bancaire</div>
           <q-space /><q-btn flat round dense icon="close" v-close-popup />
         </q-card-section>
         <q-card-section class="q-gutter-sm">
-          <q-input v-model="bankForm.bank_name" label="Nom de la banque *" outlined dense />
-          <q-input v-model="bankForm.account_number" label="N° de compte *" outlined dense />
-          <q-input v-model="bankForm.account_holder" label="Titulaire" outlined dense />
-          <q-input v-model="bankForm.iban" label="IBAN" outlined dense />
-          <q-input v-model="bankForm.bic" label="BIC / SWIFT" outlined dense />
+          <q-input v-model="bankForm.bank_name" label="Nom de la banque *" outlined dense data-testid="payment-bank-name" />
+          <q-input v-model="bankForm.account_number" label="N° de compte *" outlined dense data-testid="payment-bank-number" />
+          <q-input v-model="bankForm.account_holder" label="Titulaire" outlined dense data-testid="payment-bank-holder" />
+          <q-input v-model="bankForm.iban" label="IBAN" outlined dense data-testid="payment-bank-iban" />
+          <q-input v-model="bankForm.bic" label="BIC / SWIFT" outlined dense data-testid="payment-bank-bic" />
           <q-select v-model="bankForm.currency" :options="['XOF','EUR','USD','GBP']"
-            label="Devise" outlined dense />
+            label="Devise" outlined dense data-testid="payment-bank-currency" />
         </q-card-section>
         <q-card-actions align="right" class="q-px-md q-pb-md">
           <q-btn flat label="Annuler" v-close-popup />
-          <q-btn color="primary" label="Créer" :loading="bankLoading" @click="saveBank" />
+          <q-btn color="primary" label="Créer" :loading="bankLoading" @click="saveBank" data-testid="payment-bank-create-btn" />
         </q-card-actions>
       </q-card>
     </q-dialog>

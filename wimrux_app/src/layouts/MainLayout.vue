@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-layout view="lHh Lpr lFf">
     <q-header elevated class="bg-primary">
       <q-toolbar>
@@ -119,8 +119,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth-store';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useRealtimeNotifications } from 'src/composables/useRealtimeNotifications';
 import NotificationBell from 'src/components/NotificationBell.vue';
 import FeedbackFab from 'src/components/FeedbackFab.vue';

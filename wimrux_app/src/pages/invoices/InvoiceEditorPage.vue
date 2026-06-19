@@ -283,7 +283,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useTaxCalculation, TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { useInvoicePdf } from 'src/composables/useInvoicePdf';
-import type { PdfCompanyInfo } from 'src/composables/useInvoicePdf';
+import type { PdfCompanyInfo, PdfClientInfo } from 'src/composables/useInvoicePdf';
 import { usePdfStorage } from 'src/composables/usePdfStorage';
 import { useInvoiceWorkflow, STATUS_CONFIG } from 'src/composables/useInvoiceWorkflow';
 import { useCompanyStore } from 'src/stores/company-store-appwrite';
@@ -330,23 +330,29 @@ const workflowActions = computed(() => getAvailableActions(invoice.value));
 const companyPdfInfo = computed<PdfCompanyInfo | undefined>(() => {
   const c = companyStore.company;
   if (!c) return undefined;
-  const bank = c.bank_accounts?.[0];
-  return {
-    name: c.name,
-    ifu: c.ifu,
-    rccm: c.rccm || '',
-    address_cadastral: c.address_cadastral || '',
-    address: c.address || null,
-    phone: c.phone || '',
-    email: c.email || '',
-    ...(c.tax_office ? { tax_office: c.tax_office } : {}),
-    ...(bank?.bank_name ? { bank_name: bank.bank_name } : {}),
-    ...(bank?.account_number ? { bank_account: bank.account_number } : {}),
-    ...(bank?.iban ? { iban: bank.iban } : {}),
-    logo_url: c.logo_url || null,
-    invoice_settings: c.invoice_settings || null,
-    fiscal_config: c.fiscal_config || null,
-  };
+    return {
+      name: c.name,
+      legal_form: c.legal_form || null,
+      legal_form_other: c.legal_form_other || null,
+      ifu: c.ifu,
+      rccm: c.rccm || '',
+      physical_address: c.physical_address || null,
+      cadastral_address: c.cadastral_address || null,
+      address_cadastral: c.address_cadastral || '',
+      postal_address: c.postal_address || null,
+      address: c.address || null,
+      phone_country_code: c.phone_country_code || null,
+      phone: c.phone || '',
+      email: c.email || '',
+      tax_regime: c.tax_regime || null,
+      tax_division: c.tax_division || null,
+      ...(c.tax_office ? { tax_office: c.tax_office } : {}),
+      bank_accounts: c.bank_accounts || [],
+      contacts: c.contacts || undefined,
+      logo_url: c.logo_url || null,
+      invoice_settings: c.invoice_settings || null,
+      fiscal_config: c.fiscal_config || null,
+    };
 });
 const commentContent = computed(() => invoice.value.comments?.[0]?.content ?? '');
 function updateComment(val: string | number | null) {
@@ -534,7 +540,7 @@ async function loadInvoice() {
 async function loadClients() {
   const { data } = await appwriteDb
     .from('clients')
-    .select('id, name, type, ifu, rccm, address, phone')
+    .select('*')
     .order('name', { ascending: true });
 
   if (data) clients.value = data as Client[];
@@ -709,6 +715,28 @@ async function executeAction(action: WorkflowAction, reason?: string) {
   }
 }
 
+function buildPdfClientInfo(client?: Client): PdfClientInfo | undefined {
+  if (!client) return undefined;
+  return {
+    name: client.name,
+    legal_form: client.legal_form,
+    legal_form_other: client.legal_form_other,
+    ifu: client.ifu,
+    rccm: client.rccm,
+    type: client.type,
+    physical_address: client.physical_address,
+    cadastral_address: client.cadastral_address,
+    postal_address: client.postal_address,
+    address: client.address,
+    phone_country_code: client.phone_country_code,
+    phone: client.phone,
+    email: client.email,
+    tax_regime: client.tax_regime,
+    tax_division: client.tax_division,
+    contacts: client.contacts,
+  };
+}
+
 async function downloadPdf() {
   const inv = invoice.value as Invoice;
   const client = clients.value.find(c => c.id === inv.client_id);
@@ -716,7 +744,7 @@ async function downloadPdf() {
     inv,
     items.value as InvoiceItem[],
     companyPdfInfo.value,
-    client ? { name: client.name, ifu: client.ifu, rccm: client.rccm, type: client.type, address: client.address } : undefined,
+    buildPdfClientInfo(client),
     {
       operatorName: inv.operator_name,
       creditNoteNature: inv.credit_note_nature || undefined,
@@ -733,7 +761,7 @@ async function downloadDuplicata() {
     inv,
     items.value as InvoiceItem[],
     companyPdfInfo.value,
-    client ? { name: client.name, ifu: client.ifu, rccm: client.rccm, type: client.type, address: client.address } : undefined,
+    buildPdfClientInfo(client),
     {
       isDuplicate: true,
       operatorName: inv.operator_name,

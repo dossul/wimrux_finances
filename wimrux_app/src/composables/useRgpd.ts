@@ -1,10 +1,10 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable RGPD (T20.x)
 // Consentements, export/suppression données
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useAuthStore } from 'src/stores/auth-store';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface UserConsent {
@@ -57,7 +57,7 @@ export function useRgpd() {
       .from('user_consents')
       .select('*')
       .eq('user_id', userId.value)
-      .order('consented_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     consents.value = data || [];
   }
 
@@ -105,7 +105,7 @@ export function useRgpd() {
       .from('data_export_requests')
       .select('*')
       .eq('user_id', userId.value)
-      .order('requested_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     exportRequests.value = data || [];
   }
 

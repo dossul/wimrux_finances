@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Opérateurs Mobile Money
 // payment_providers (global) + mobile_wallets (par company)
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface MobileMoneyProvider {
@@ -96,7 +96,7 @@ export function useMobileMoneyProviders() {
         .select('*')
         .eq('company_id', companyStore.company.id)
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (err) { error.value = err.message; return; }
       wallets.value = (data || []) as MobileWallet[];
     } finally {

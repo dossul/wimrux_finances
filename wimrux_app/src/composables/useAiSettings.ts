@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable AI Settings (Sprint AI pré-travail)
 // Gestion providers BYOK + routing tâches × modèles par tenant
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type {
   AiProvider, AiModel, AiTask, CompanyAiCredential,
   CompanyAiTaskRouting, AiCreditPack, CompanyAiQuotaUsage
@@ -68,7 +68,7 @@ export function useAiSettings() {
       .from('company_ai_credentials')
       .select('*')
       .eq('company_id', companyId.value)
-      .order('created_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     credentials.value = data || [];
   }
 
@@ -120,7 +120,7 @@ export function useAiSettings() {
       .from('company_ai_task_routing')
       .select('*')
       .eq('company_id', companyId.value)
-      .order('created_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     routings.value = data || [];
   }
 

@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Paiements fiscaux / reçus DGI / eSyntas (T2.4 + T2.5)
 // Import OCR (PDF/image) ou fichiers eSyntas (CSV/PDF/Excel)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { TAX_PAYMENT_TYPES, type TaxPaymentCode } from 'src/utils/fiscalCompliance';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -293,7 +293,7 @@ export function useTaxPayments() {
     if (records.length > 0) {
       const { error: err } = await appwriteDb
         .from('tax_payments')
-        .insert(records as TaxPayment[]);
+        .insert(records as Record<string, unknown>[]);
       if (err) { errors.push(err.message); return { imported: 0, errors }; }
       await loadTaxPayments();
     }

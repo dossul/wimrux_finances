@@ -1,10 +1,10 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Cartes bancaires par locataire SaaS (payment_cards)
 // Réseau : visa | mastercard | amex | other
 // Type   : debit | credit
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface PaymentCard {
@@ -41,7 +41,7 @@ export function usePaymentCards() {
         .select('*')
         .eq('company_id', companyStore.company.id)
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (err) { error.value = err.message; return; }
       cards.value = (data || []) as PaymentCard[];
     } finally {

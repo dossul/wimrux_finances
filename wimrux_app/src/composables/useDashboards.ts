@@ -1,6 +1,6 @@
-import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+﻿import { ref, computed } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type {
   CustomDashboard, CustomDashboardInput, DashboardWidget,
 } from 'src/types';
@@ -24,7 +24,7 @@ export function useDashboards() {
       .from('custom_dashboards')
       .select('*')
       .eq('company_id', companyId.value)
-      .order('created_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     if (err) { error.value = err.message; }
     else {
       dashboards.value = (data as CustomDashboard[]) || [];

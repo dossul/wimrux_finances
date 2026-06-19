@@ -27,7 +27,7 @@ export function useBankTransactions() {
         .from('bank_transactions')
         .select('*, category:transaction_categories(id, name, color, type)')
         .order('transaction_date', { ascending: false })
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
 
       if (filter.accountId) query = query.eq('bank_account_id', filter.accountId);
       if (filter.dateFrom) query = query.gte('transaction_date', filter.dateFrom);

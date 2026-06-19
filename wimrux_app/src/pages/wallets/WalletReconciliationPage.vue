@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md q-gutter-sm">
       <q-icon name="compare_arrows" size="28px" color="primary" />
@@ -198,7 +198,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useUniversalReconciliation, type WalletTx } from 'src/composables/useUniversalReconciliation';
 import { appwriteDb } from 'src/services/appwrite-db';
 

@@ -1,0 +1,53 @@
+{
+  "target": "https://appwrite.benga.live/v1",
+  "database": "wimrux_finances",
+  "total_imported": 8,
+  "total_errors": 0,
+  "tables": {
+    "companies": {
+      "imported": 2,
+      "errors": 0
+    },
+    "user_profiles": {
+      "imported": 2,
+      "errors": 0
+    },
+    "ai_providers": {
+      "imported": 2,
+      "errors": 0
+    },
+    "ai_models": {
+      "imported": 2,
+      "errors": 0
+    },
+    "clients": {
+      "imported": 0,
+      "errors": 0
+    },
+    "suppliers": {
+      "imported": 0,
+      "errors": 0
+    },
+    "articles": {
+      "imported": 0,
+      "errors": 0
+    },
+    "bank_accounts": {
+      "imported": 0,
+      "errors": 0
+    },
+    "invoices": {
+      "imported": 0,
+      "errors": 0
+    },
+    "invoice_items": {
+      "imported": 0,
+      "errors": 0
+    },
+    "invoice_payments": {
+      "imported": 0,
+      "errors": 0
+    }
+  },
+  "import_date": "2026-06-12T12:06:38"
+}

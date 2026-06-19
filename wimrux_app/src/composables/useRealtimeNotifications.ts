@@ -1,6 +1,6 @@
-import { ref, onUnmounted } from 'vue';
+﻿import { ref, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { appwriteRealtime } from 'src/services/appwrite-realtime';
 
 interface RealtimeEvent {

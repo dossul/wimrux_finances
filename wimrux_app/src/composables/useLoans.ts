@@ -3,7 +3,7 @@
 // Méthodes : constant_annuity | constant_principal | bullet
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type {
   Loan, LoanInput, LoanScheduleEntry, AmortizationMethod, PaymentFrequency, DebtRatio
 } from 'src/types';
@@ -204,9 +204,19 @@ export function useLoans() {
   }
 
   async function loadDebtRatio() {
-    const { data } = await appwriteDb.from('v_debt_ratio')
-      .select('*').eq('company_id', companyStore.company!.id).single();
-    debtRatio.value = data ?? null;
+    // Calcul JS — remplace la vue SQL v_debt_ratio
+    const active = loans.value.filter(l => l.status === 'active');
+    const totalDebt = active.reduce((s, l) => s + Number(l.outstanding_balance ?? l.principal_amount), 0);
+    const annualPayments = active.reduce((s, l) => {
+      const monthly = Number((l as any).monthly_payment ?? 0);
+      return s + monthly * 12;
+    }, 0);
+    debtRatio.value = {
+      company_id: companyStore.company?.id ?? '',
+      total_debt: totalDebt,
+      annual_debt_payments: annualPayments,
+      debt_count: active.length,
+    } as any;
   }
 
   // STATS

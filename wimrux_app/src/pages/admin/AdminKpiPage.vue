@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-lg">
       <div>
@@ -36,7 +36,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 const companyStore = useCompanyStore();
@@ -81,7 +81,7 @@ async function loadActivities() {
     .from('v_recent_activity')
     .select('*')
     .eq('company_id', companyId.value)
-    .order('created_at', { ascending: false })
+    .order('$createdAt', { ascending: false })
     .limit(50);
   activities.value = data || [];
 }

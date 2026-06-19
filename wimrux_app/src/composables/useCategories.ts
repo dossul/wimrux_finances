@@ -1,5 +1,5 @@
-import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+﻿import { ref, computed } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { TransactionCategory } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 

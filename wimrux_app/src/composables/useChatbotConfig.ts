@@ -1,6 +1,6 @@
-import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+﻿import { ref } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type {
   ChatbotApiKey,
   ChatbotPermission,
@@ -48,7 +48,7 @@ export function useChatbotConfig() {
       const { data, error } = await appwriteDb
         .from('chatbot_api_keys')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (!error && data) {
         apiKeys.value = data as ChatbotApiKey[];
       }
@@ -200,7 +200,7 @@ export function useChatbotConfig() {
       .from('chatbot_messages')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
+      .order('$createdAt', { ascending: true })
       .limit(limit);
     if (!error && data) {
       messages.value = data as ChatbotMessage[];
@@ -219,7 +219,7 @@ export function useChatbotConfig() {
 
       // Messages undefined /* count unsupported in Appwrite */
       let msgQuery = appwriteDb.from('chatbot_messages').select('*');
-      if (from) msgQuery = msgQuery.gte('created_at', from);
+      if (from) msgQuery = msgQuery.gte('$createdAt', from);
       const { data: msgData } = await msgQuery;
 
       // Active keys
@@ -270,7 +270,7 @@ export function useChatbotConfig() {
     const { data, error } = await appwriteDb
       .from('chatbot_api_keys')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     if (error || !data) return [];
     return data as ChatbotApiKey[];
   }
@@ -291,7 +291,7 @@ export function useChatbotConfig() {
     const { data: convData } = await convQuery;
 
     let msgQuery = appwriteDb.from('chatbot_messages').select('*');
-    if (from) msgQuery = msgQuery.gte('created_at', from);
+    if (from) msgQuery = msgQuery.gte('$createdAt', from);
     const { data: msgData } = await msgQuery;
 
     const { data: activeKeysCountData } = await appwriteDb

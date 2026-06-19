@@ -1,0 +1,10 @@
+{
+  "stats": {
+    "complete": 45,
+    "partial": 0,
+    "missing_table": 0,
+    "total_sql_cols": 600,
+    "total_app_attrs": 623
+  },
+  "gaps": []
+}

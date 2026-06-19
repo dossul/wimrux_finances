@@ -1,10 +1,52 @@
 /**
  * Appwrite Database Adapter
- * Mirrors the Appwrite SDK API pattern for easier migration
+ * Mirrors the Supabase-like query API for easier migration.
  */
 
 import { databases, functions, DATABASE_ID } from 'src/boot/appwrite';
-import { Query } from 'appwrite';
+import { Query, type QueryTypes } from 'appwrite';
+
+// Fields stored as JSON strings in Appwrite (object/array values).
+const JSON_FIELDS = new Set([
+  'physical_address',
+  'cadastral_address',
+  'postal_address',
+  'tax_division',
+  'contacts',
+  'bank_accounts',
+  'fiscal_config',
+  'invoice_settings',
+  'ai_routing',
+]);
+
+function stringifyJsonFields(data: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...data };
+  for (const key of JSON_FIELDS) {
+    if (
+      key in result &&
+      result[key] !== undefined &&
+      result[key] !== null &&
+      typeof result[key] !== 'string'
+    ) {
+      result[key] = JSON.stringify(result[key]);
+    }
+  }
+  return result;
+}
+
+function parseJsonFields(data: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...data };
+  for (const key of JSON_FIELDS) {
+    if (key in result && typeof result[key] === 'string') {
+      try {
+        result[key] = JSON.parse(result[key]);
+      } catch {
+        // keep raw string if not valid JSON
+      }
+    }
+  }
+  return result;
+}
 
 // queryOr: SDK 13.0.2 n'a pas Query.or(). On construit la string manuellement
 // Format Appwrite: or([equal("field", ["val1"]), equal("field", ["val2"])])
@@ -17,48 +59,51 @@ function queryOr(queries: string[]): string | null {
 
 // Appwrite retourne $createdAt / $updatedAt / $id (système).
 // L'application legacy s'attend à created_at / updated_at / id.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeAppwriteDoc(doc: any): any {
   if (!doc || typeof doc !== 'object') return doc;
   const normalized = { ...doc };
   if (doc.$id !== undefined && !normalized.id) normalized.id = doc.$id;
   if (doc.$createdAt !== undefined && !normalized.created_at) normalized.created_at = doc.$createdAt;
   if (doc.$updatedAt !== undefined && !normalized.updated_at) normalized.updated_at = doc.$updatedAt;
-  return normalized;
+  return parseJsonFields(normalized);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DbResult<T = any> = { data: T | null; error: Error | null };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface DbQueryBuilder extends PromiseLike<DbResult<any[]>> {
   select: (columns?: string) => DbQueryBuilder;
-  insert: (data: Record<string, any> | Record<string, any>[]) => Promise<DbResult>;
-  update: (id: string, data: Record<string, any>) => Promise<DbResult>;
-  updateWhere: (data: Record<string, any>) => DbQueryBuilder;
-  upsert: (data: Record<string, any>) => Promise<DbResult>;
+  insert: (data: Record<string, unknown> | Record<string, unknown>[]) => Promise<DbResult>;
+  update: (id: string, data: Record<string, unknown>) => Promise<DbResult>;
+  updateWhere: (data: Record<string, unknown>) => DbQueryBuilder;
+  upsert: (data: Record<string, unknown> | Record<string, unknown>[]) => Promise<DbResult>;
   delete: () => DbQueryBuilder;
-  eq: (column: string, value: any) => DbQueryBuilder;
-  neq: (column: string, value: any) => DbQueryBuilder;
-  gt: (column: string, value: any) => DbQueryBuilder;
-  gte: (column: string, value: any) => DbQueryBuilder;
-  lt: (column: string, value: any) => DbQueryBuilder;
-  lte: (column: string, value: any) => DbQueryBuilder;
+  eq: (column: string, value: unknown) => DbQueryBuilder;
+  neq: (column: string, value: unknown) => DbQueryBuilder;
+  gt: (column: string, value: unknown) => DbQueryBuilder;
+  gte: (column: string, value: unknown) => DbQueryBuilder;
+  lt: (column: string, value: unknown) => DbQueryBuilder;
+  lte: (column: string, value: unknown) => DbQueryBuilder;
   like: (column: string, value: string) => DbQueryBuilder;
   ilike: (column: string, value: string) => DbQueryBuilder;
-  is: (column: string, value: any) => DbQueryBuilder;
-  in: (column: string, values: any[]) => DbQueryBuilder;
-  contains: (column: string, value: any) => DbQueryBuilder;
-  containedBy: (column: string, value: any) => DbQueryBuilder;
+  is: (column: string, value: unknown) => DbQueryBuilder;
+  in: (column: string, values: unknown[]) => DbQueryBuilder;
+  contains: (column: string, value: unknown) => DbQueryBuilder;
+  containedBy: (column: string, value: unknown) => DbQueryBuilder;
   rangeGt: (column: string, range: string) => DbQueryBuilder;
   rangeGte: (column: string, range: string) => DbQueryBuilder;
   rangeLt: (column: string, range: string) => DbQueryBuilder;
   rangeLte: (column: string, range: string) => DbQueryBuilder;
   rangeAdjacent: (column: string, range: string) => DbQueryBuilder;
-  overlaps: (column: string, value: any) => DbQueryBuilder;
+  overlaps: (column: string, value: unknown) => DbQueryBuilder;
   textSearch: (column: string, query: string) => DbQueryBuilder;
-  match: (query: Record<string, any>) => DbQueryBuilder;
-  not: (column: string, operator: string, value: any) => DbQueryBuilder;
+  match: (query: Record<string, unknown>) => DbQueryBuilder;
+  not: (column: string, operator: string, value: unknown) => DbQueryBuilder;
   or: (filters: string[]) => DbQueryBuilder;
   and: (filters: string[]) => DbQueryBuilder;
-  filter: (column: string, operator: string, value: any) => DbQueryBuilder;
+  filter: (column: string, operator: string, value: unknown) => DbQueryBuilder;
   order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => DbQueryBuilder;
   limit: (count: number) => DbQueryBuilder;
   single: () => Promise<DbResult>;
@@ -76,48 +121,50 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
   private maybeSingleMode = false;
   private deleteMode = false;
   private updateMode = false;
-  private updatePayload: Record<string, any> | null = null;
+  private updatePayload: Record<string, unknown> | null = null;
 
   constructor(collectionId: string) {
     this.collectionId = collectionId;
   }
 
   // Thenable: allows `await builder` without calling .select()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   then<TResult1 = DbResult<any[]>, TResult2 = never>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onfulfilled?: ((value: DbResult<any[]>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
-    return this._execute().then(onfulfilled as any, onrejected as any);
+    return this._execute().then(onfulfilled as never, onrejected as never);
   }
 
   // Comparison filters
-  eq(column: string, value: any): DbQueryBuilder {
-    this.queries.push(Query.equal(column, value));
+  eq(column: string, value: unknown): DbQueryBuilder {
+    this.queries.push(Query.equal(column, value as QueryTypes));
     return this;
   }
 
-  neq(column: string, value: any): DbQueryBuilder {
-    this.queries.push(Query.notEqual(column, value));
+  neq(column: string, value: unknown): DbQueryBuilder {
+    this.queries.push(Query.notEqual(column, value as QueryTypes));
     return this;
   }
 
-  gt(column: string, value: any): DbQueryBuilder {
-    this.queries.push(Query.greaterThan(column, value));
+  gt(column: string, value: unknown): DbQueryBuilder {
+    this.queries.push(Query.greaterThan(column, value as QueryTypes));
     return this;
   }
 
-  gte(column: string, value: any): DbQueryBuilder {
-    this.queries.push(Query.greaterThanEqual(column, value));
+  gte(column: string, value: unknown): DbQueryBuilder {
+    this.queries.push(Query.greaterThanEqual(column, value as QueryTypes));
     return this;
   }
 
-  lt(column: string, value: any): DbQueryBuilder {
-    this.queries.push(Query.lessThan(column, value));
+  lt(column: string, value: unknown): DbQueryBuilder {
+    this.queries.push(Query.lessThan(column, value as QueryTypes));
     return this;
   }
 
-  lte(column: string, value: any): DbQueryBuilder {
-    this.queries.push(Query.lessThanEqual(column, value));
+  lte(column: string, value: unknown): DbQueryBuilder {
+    this.queries.push(Query.lessThanEqual(column, value as QueryTypes));
     return this;
   }
 
@@ -133,33 +180,33 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
     return this;
   }
 
-  is(column: string, value: any): DbQueryBuilder {
+  is(column: string, value: unknown): DbQueryBuilder {
     if (value === null) {
       this.queries.push(Query.isNull(column));
     } else {
-      this.queries.push(Query.equal(column, value));
+      this.queries.push(Query.equal(column, value as QueryTypes));
     }
     return this;
   }
 
-  in(column: string, values: any[]): DbQueryBuilder {
+  in(column: string, values: unknown[]): DbQueryBuilder {
     if (values.length === 0) {
       // empty IN list should match nothing
       this.queries.push(Query.equal(column, '__empty_in_list__'));
       return this;
     }
     // Appwrite .equal() accepts an array for IN semantics
-    this.queries.push(Query.equal(column, values));
+    this.queries.push(Query.equal(column, values as QueryTypes));
     return this;
   }
 
-  contains(column: string, value: any): DbQueryBuilder {
+  contains(column: string, value: unknown): DbQueryBuilder {
     // For array contains
-    this.queries.push(Query.search(column, value));
+    this.queries.push(Query.search(column, value as string));
     return this;
   }
 
-  containedBy(column: string, value: any): DbQueryBuilder {
+  containedBy(column: string, value: unknown): DbQueryBuilder {
     // Appwrite doesn't have direct equivalent, use search
     this.queries.push(Query.search(column, JSON.stringify(value)));
     return this;
@@ -182,11 +229,11 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
     return this.lte(column, range);
   }
 
-  rangeAdjacent(column: string, range: string): DbQueryBuilder {
+  rangeAdjacent(_column: string, _range: string): DbQueryBuilder {
     return this;
   }
 
-  overlaps(column: string, value: any): DbQueryBuilder {
+  overlaps(_column: string, _value: unknown): DbQueryBuilder {
     return this;
   }
 
@@ -195,14 +242,14 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
     return this;
   }
 
-  match(query: Record<string, any>): DbQueryBuilder {
+  match(query: Record<string, unknown>): DbQueryBuilder {
     Object.entries(query).forEach(([key, value]) => {
-      this.queries.push(Query.equal(key, value));
+      this.queries.push(Query.equal(key, value as QueryTypes));
     });
     return this;
   }
 
-  not(column: string, operator: string, value: any): DbQueryBuilder {
+  not(_column: string, _operator: string, _value: unknown): DbQueryBuilder {
     // Simplified - Appwrite doesn't have complex NOT queries
     return this;
   }
@@ -221,7 +268,7 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
     return this;
   }
 
-  filter(column: string, operator: string, value: any): DbQueryBuilder {
+  filter(column: string, operator: string, value: unknown): DbQueryBuilder {
     // Generic filter handler
     switch (operator) {
       case 'eq': return this.eq(column, value);
@@ -230,8 +277,8 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
       case 'gte': return this.gte(column, value);
       case 'lt': return this.lt(column, value);
       case 'lte': return this.lte(column, value);
-      case 'like': return this.like(column, value);
-      case 'ilike': return this.ilike(column, value);
+      case 'like': return this.like(column, value as string);
+      case 'ilike': return this.ilike(column, value as string);
       default: return this.eq(column, value);
     }
   }
@@ -268,6 +315,7 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
   }
 
   // Internal executor
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async _execute(): Promise<DbResult<any[]>> {
     try {
       if (this.deleteMode) {
@@ -283,13 +331,19 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
         const queries = this._buildQueries();
         const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
         for (const doc of response.documents) {
-          await databases.updateDocument(DATABASE_ID, this.collectionId, doc.$id, this.updatePayload!);
+          await databases.updateDocument(
+            DATABASE_ID,
+            this.collectionId,
+            doc.$id,
+            this.updatePayload
+          );
         }
         return { data: null, error: null };
       }
 
       const queries = this._buildQueries();
       const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any = response.documents.map(normalizeAppwriteDoc);
 
       if (this.singleMode || this.maybeSingleMode) {
@@ -315,14 +369,16 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
     return queries;
   }
 
-  async insert(data: Record<string, any> | Record<string, any>[]): Promise<{ data: any | null; error: Error | null }> {
+  async insert(
+    data: Record<string, unknown> | Record<string, unknown>[]
+  ): Promise<DbResult> {
     try {
       if (Array.isArray(data)) {
         // Appwrite doesn't support bulk insert, insert one by one
-        const results = [];
+        const results: unknown[] = [];
         for (const item of data) {
-          const documentId = item.id && item.id !== 'unique()' ? item.id : crypto.randomUUID();
-          const payload = { ...item, id: documentId };
+          const documentId = item.id && item.id !== 'unique()' ? (item.id as string) : crypto.randomUUID();
+          const payload = stringifyJsonFields({ ...item, id: documentId });
           const response = await databases.createDocument(
             DATABASE_ID,
             this.collectionId,
@@ -333,8 +389,8 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
         }
         return { data: results, error: null };
       } else {
-        const documentId = data.id && data.id !== 'unique()' ? data.id : crypto.randomUUID();
-        const payload = { ...data, id: documentId };
+        const documentId = data.id && data.id !== 'unique()' ? (data.id as string) : crypto.randomUUID();
+        const payload = stringifyJsonFields({ ...data, id: documentId });
         const response = await databases.createDocument(
           DATABASE_ID,
           this.collectionId,
@@ -349,26 +405,42 @@ class AppwriteQueryBuilder implements DbQueryBuilder {
     }
   }
 
-  update(id: string, data: Record<string, any>): Promise<DbResult> {
-    return databases.updateDocument(DATABASE_ID, this.collectionId, id, data)
+  update(id: string, data: Record<string, unknown>): Promise<DbResult> {
+    const payload = stringifyJsonFields(data);
+    return databases
+      .updateDocument(DATABASE_ID, this.collectionId, id, payload)
       .then((r) => ({ data: normalizeAppwriteDoc(r), error: null }))
-      .catch((e: Error) => { console.error(`[Appwrite DB] update ${this.collectionId}:`, e); return { data: null, error: e as Error }; });
+      .catch((e: Error) => {
+        console.error(`[Appwrite DB] update ${this.collectionId}:`, e);
+        return { data: null, error: e };
+      });
   }
 
-  updateWhere(data: Record<string, any>): DbQueryBuilder {
-    this.updatePayload = data;
+  updateWhere(data: Record<string, unknown>): DbQueryBuilder {
+    this.updatePayload = stringifyJsonFields(data);
     this.updateMode = true;
     return this;
   }
 
-  async upsert(data: Record<string, any>): Promise<{ data: any | null; error: Error | null }> {
+  async upsert(
+    data: Record<string, unknown> | Record<string, unknown>[]
+  ): Promise<DbResult> {
     try {
+      if (Array.isArray(data)) {
+        const results: unknown[] = [];
+        for (const item of data) {
+          const { data: upserted, error } = await this.upsert(item);
+          if (error) return { data: null, error };
+          if (upserted) results.push(upserted);
+        }
+        return { data: results, error: null };
+      }
       if (data.id) {
         // Try update first
         try {
-          const existing = await databases.getDocument(DATABASE_ID, this.collectionId, data.id);
+          const existing = await databases.getDocument(DATABASE_ID, this.collectionId, data.id as string);
           if (existing) {
-            return this.update(data.id, data);
+            return this.update(data.id as string, data);
           }
         } catch {
           // Document doesn't exist, create it
@@ -407,7 +479,10 @@ export const appwriteDb = {
   },
 
   // Additional direct methods
-  async getById(collectionId: string, id: string): Promise<{ data: any | null; error: Error | null }> {
+  async getById(
+    collectionId: string,
+    id: string
+  ): Promise<DbResult> {
     try {
       const response = await databases.getDocument(DATABASE_ID, collectionId, id);
       return { data: normalizeAppwriteDoc(response), error: null };
@@ -416,7 +491,10 @@ export const appwriteDb = {
     }
   },
 
-  async deleteById(collectionId: string, id: string): Promise<{ data: any | null; error: Error | null }> {
+  async deleteById(
+    collectionId: string,
+    id: string
+  ): Promise<DbResult> {
     try {
       await databases.deleteDocument(DATABASE_ID, collectionId, id);
       return { data: null, error: null };
@@ -430,31 +508,40 @@ export const appwriteDb = {
    * Mapping : nom_fonction_sql -> nom-fonction-appwrite
    * Ex: 'next_invoice_reference' -> fonction 'generate-invoice-ref'
    */
-  async rpc(functionName: string, params?: Record<string, any>): Promise<{ data: any | null; error: Error | null }> {
+  async rpc(
+    functionName: string,
+    params?: Record<string, unknown>
+  ): Promise<DbResult> {
     // Map SQL function names to Appwrite Function IDs
     const FUNCTION_MAP: Record<string, string> = {
-      'next_invoice_reference': 'generate-invoice-ref',
-      'generate_invoice_reference': 'generate-invoice-ref',
+      next_invoice_reference: 'generate-invoice-ref',
+      generate_invoice_reference: 'generate-invoice-ref',
     };
     const appwriteFunctionId = FUNCTION_MAP[functionName] ?? functionName.replace(/_/g, '-');
     try {
       const execution = await functions.createExecution(
         appwriteFunctionId,
         params ? JSON.stringify(params) : undefined,
-        false, // synchrone
+        false // synchrone
       );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any = execution.responseBody;
-      try { data = JSON.parse(execution.responseBody); } catch { /* garde raw */ }
+      try {
+        data = JSON.parse(execution.responseBody);
+      } catch {
+        /* garde raw */
+      }
       if (execution.responseStatusCode >= 400) {
-        throw new Error(`Function ${appwriteFunctionId} returned ${execution.responseStatusCode}: ${execution.responseBody}`);
+        throw new Error(
+          `Function ${appwriteFunctionId} returned ${execution.responseStatusCode}: ${execution.responseBody}`
+        );
       }
       return { data, error: null };
     } catch (error) {
       console.error(`[Appwrite DB] rpc(${functionName}) error:`, error);
       return { data: null, error: error as Error };
     }
-  }
-
+  },
 };
 
 export default appwriteDb;

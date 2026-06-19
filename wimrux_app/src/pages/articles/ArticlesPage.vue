@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md">
       <div class="text-h5">Catalogue articles</div>
       <q-space />
-      <q-btn color="primary" icon="add" label="Nouvel article" no-caps @click="openDialog()" />
+      <q-btn color="primary" icon="add" label="Nouvel article" no-caps @click="openDialog()" data-testid="article-new-btn" />
     </div>
 
     <!-- Filters -->
@@ -24,6 +24,7 @@
       :loading="loading"
       flat
       bordered
+      data-testid="articles-table"
       :pagination="{ rowsPerPage: 20, sortBy: 'code' }"
     >
       <template #body-cell-type="props">
@@ -50,23 +51,23 @@
     </q-table>
 
     <!-- Create/Edit Dialog -->
-    <q-dialog v-model="dialogOpen" persistent>
+    <q-dialog v-model="dialogOpen" persistent data-testid="article-dialog">
       <q-card style="min-width: 500px">
         <q-card-section>
           <div class="text-h6">{{ editingId ? 'Modifier article' : 'Nouvel article' }}</div>
         </q-card-section>
         <q-card-section class="q-gutter-sm">
-          <q-input v-model="form.code" outlined dense label="Code article *" :rules="[v => !!v || 'Requis']" />
-          <q-input v-model="form.name" outlined dense label="Désignation *" :rules="[v => !!v || 'Requis', v => v.length >= 3 || 'Min 3 caractères']" />
-          <q-select v-model="form.type" :options="typeOptions" emit-value map-options outlined dense label="Type article *" />
-          <q-select v-model="form.tax_group" :options="groupOptions" emit-value map-options outlined dense label="Groupe taxation *" />
-          <q-input v-model.number="form.unit_price" outlined dense label="Prix unitaire (FCFA) *" type="number" min="0" :rules="[v => v >= 0 || 'Positif']" />
-          <q-input v-model.number="form.specific_tax" outlined dense label="Taxe spécifique (FCFA)" type="number" min="0" />
-          <q-toggle v-model="form.is_active" label="Article actif" />
+          <q-input v-model="form.code" outlined dense label="Code article *" :rules="[v => !!v || 'Requis']" data-testid="article-code" />
+          <q-input v-model="form.name" outlined dense label="Désignation *" :rules="[v => !!v || 'Requis', v => v.length >= 3 || 'Min 3 caractères']" data-testid="article-name" />
+          <q-select v-model="form.type" :options="typeOptions" emit-value map-options outlined dense label="Type article *" data-testid="article-type" />
+          <q-select v-model="form.tax_group" :options="groupOptions" emit-value map-options outlined dense label="Groupe taxation *" data-testid="article-tax-group" />
+          <q-input v-model.number="form.unit_price" outlined dense label="Prix unitaire (FCFA) *" type="number" min="0" :rules="[v => v >= 0 || 'Positif']" data-testid="article-unit-price" />
+          <q-input v-model.number="form.specific_tax" outlined dense label="Taxe spécifique (FCFA)" type="number" min="0" data-testid="article-specific-tax" />
+          <q-toggle v-model="form.is_active" label="Article actif" data-testid="article-active" />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Annuler" no-caps @click="dialogOpen = false" />
-          <q-btn color="primary" :label="editingId ? 'Enregistrer' : 'Créer'" no-caps :loading="saving" @click="save" />
+          <q-btn color="primary" :label="editingId ? 'Enregistrer' : 'Créer'" no-caps :loading="saving" @click="save" data-testid="article-save-btn" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -76,7 +77,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { Article, ArticleType, TaxGroup } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 

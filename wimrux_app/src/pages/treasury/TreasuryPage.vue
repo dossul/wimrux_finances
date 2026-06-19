@@ -1,10 +1,11 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md">
       <div class="text-h5">Trésorerie</div>
       <q-space />
       <q-btn color="green-7" icon="arrow_downward" label="Dépôt caisse" no-caps class="q-mr-sm" @click="openCashDialog('credit')" />
       <q-btn color="red-7" icon="arrow_upward" label="Retrait caisse" no-caps class="q-mr-sm" @click="openCashDialog('debit')" />
+      <q-btn color="primary" icon="add" label="Compte" no-caps class="q-mr-sm" data-testid="treasury-new-account-btn" @click="openAccountDialog()" />
       <q-btn color="primary" icon="add" label="Mouvement" no-caps data-testid="treasury-new-movement-btn" @click="openDialog()" />
     </div>
 
@@ -14,8 +15,8 @@
         <q-card flat bordered>
           <q-card-section>
             <div class="text-caption text-grey-7">{{ account.name }}</div>
-            <div class="text-h5 text-weight-bold" :class="account.balance >= 0 ? 'text-green' : 'text-red'">
-              {{ fmtCur(account.balance) }}
+            <div class="text-h5 text-weight-bold" :class="account.current_balance >= 0 ? 'text-green' : 'text-red'">
+              {{ fmtCur(account.current_balance) }}
             </div>
             <div class="text-caption">{{ account.type }}</div>
           </q-card-section>
@@ -99,7 +100,7 @@
           <q-form @submit.prevent="saveAccount" class="q-gutter-sm">
             <q-input v-model="accountForm.name" label="Nom du compte" filled data-testid="bank-account-name" :rules="[v => !!v || 'Nom requis']" />
             <q-select v-model="accountForm.type" :options="['caisse','banque','mobile_money']" label="Type" filled data-testid="bank-account-type" />
-            <q-input v-model.number="accountForm.balance" label="Solde initial" filled type="number" data-testid="bank-account-balance" />
+            <q-input v-model.number="accountForm.opening_balance" label="Solde initial" filled type="number" data-testid="bank-account-balance" />
             <div class="row justify-end q-gutter-sm q-mt-md">
               <q-btn flat label="Annuler" v-close-popup no-caps />
               <q-btn type="submit" color="primary" label="Créer" data-testid="bank-account-save-btn" :loading="saving" no-caps />
@@ -114,7 +115,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
+import { ID } from 'appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 interface TreasuryAccount {
@@ -122,20 +124,22 @@ interface TreasuryAccount {
   company_id: string;
   name: string;
   type: string;
-  balance: number;
+  opening_balance: number;
+  current_balance: number;
   created_at: string;
 }
 
 interface TreasuryMovement {
   id: string;
-  account_id: string;
-  type: 'credit' | 'debit';
+  treasury_account_id: string;
+  type: 'credit' | 'debit' | 'transfer';
   amount: number;
-  description: string;
-  payment_type: string;
+  label: string;
+  description: string | null;
   reference: string | null;
-  invoice_id: string | null;
-  is_cash_operation: boolean;
+  balance_after: number | null;
+  date: string;
+  movement_date: string;
   created_at: string;
 }
 
@@ -162,13 +166,12 @@ const form = ref({
   description: '',
   payment_type: 'ESPECES',
   reference: '',
-  is_cash_operation: false,
 });
 
 const accountForm = ref({
   name: '',
   type: 'caisse',
-  balance: 0,
+  opening_balance: 0,
 });
 
 const movementTypeOptions = [
@@ -191,17 +194,15 @@ const accountOptions = computed(() =>
 const columns = [
   { name: 'created_at', label: 'Date', field: 'created_at', align: 'left' as const, sortable: true },
   { name: 'type', label: 'Type', field: 'type', align: 'center' as const, sortable: true },
-  { name: 'description', label: 'Description', field: 'description', align: 'left' as const },
-  { name: 'payment_type', label: 'Mode', field: 'payment_type', align: 'center' as const },
+  { name: 'label', label: 'Description', field: 'label', align: 'left' as const },
   { name: 'amount', label: 'Montant', field: 'amount', align: 'right' as const, sortable: true },
   { name: 'reference', label: 'Référence', field: 'reference', align: 'left' as const },
 ];
 
 const filteredMovements = computed(() => {
   let result = movements.value;
-  if (filterAccount.value) result = result.filter(m => m.account_id === filterAccount.value);
+  if (filterAccount.value) result = result.filter(m => m.treasury_account_id === filterAccount.value);
   if (filterType.value) result = result.filter(m => m.type === filterType.value);
-  if (filterCashOnly.value) result = result.filter(m => m.is_cash_operation);
   return result;
 });
 
@@ -215,7 +216,7 @@ function formatDate(d: string) {
 }
 
 function openDialog() {
-  form.value = { account_id: accounts.value[0]?.id || '', type: 'credit', amount: 0, description: '', payment_type: 'ESPECES', reference: '', is_cash_operation: false };
+  form.value = { account_id: accounts.value[0]?.id || '', type: 'credit', amount: 0, description: '', payment_type: 'ESPECES', reference: '' };
   dialogOpen.value = true;
 }
 
@@ -228,13 +229,12 @@ function openCashDialog(type: 'credit' | 'debit') {
     description: type === 'credit' ? 'Dépôt de numéraires' : 'Retrait de numéraires',
     payment_type: 'ESPECES',
     reference: '',
-    is_cash_operation: true,
   };
   dialogOpen.value = true;
 }
 
 function openAccountDialog() {
-  accountForm.value = { name: '', type: 'caisse', balance: 0 };
+  accountForm.value = { name: '', type: 'caisse', opening_balance: 0 };
   accountDialogOpen.value = true;
 }
 
@@ -243,7 +243,7 @@ async function loadData() {
   try {
     const [accRes, movRes] = await Promise.all([
       appwriteDb.from('treasury_accounts').select('*').order('name', { ascending: true }),
-      appwriteDb.from('treasury_movements').select('*').order('created_at', { ascending: false }).limit(200),
+      appwriteDb.from('treasury_movements').select('*').order('$createdAt', { ascending: false }).limit(200),
     ]);
     if (accRes.data) accounts.value = accRes.data as TreasuryAccount[];
     if (movRes.data) movements.value = movRes.data as TreasuryMovement[];
@@ -255,25 +255,33 @@ async function loadData() {
 async function saveMovement() {
   saving.value = true;
   try {
+    const account = accounts.value.find(a => a.id === form.value.account_id);
+    if (!account) {
+      throw new Error('Compte introuvable');
+    }
+
+    const delta = form.value.type === 'credit' ? form.value.amount : -form.value.amount;
+    const newBalance = (account.current_balance || 0) + delta;
+    const nowIso = new Date().toISOString();
+
     const { error } = await appwriteDb.from('treasury_movements').insert({
+      id: ID.unique(),
       company_id: authStore.companyId,
-      account_id: form.value.account_id,
+      treasury_account_id: form.value.account_id,
       type: form.value.type,
+      direction: form.value.type,
       amount: form.value.amount,
-      description: form.value.description,
-      payment_type: form.value.payment_type,
+      label: form.value.description,
+      description: form.value.description || null,
       reference: form.value.reference || null,
-      is_cash_operation: form.value.is_cash_operation,
+      balance_after: newBalance,
+      date: nowIso.slice(0, 10),
+      movement_date: nowIso,
     });
     if (error) throw new Error(error.message);
 
-    // Update account balance
-    const account = accounts.value.find(a => a.id === form.value.account_id);
-    if (account) {
-      const delta = form.value.type === 'credit' ? form.value.amount : -form.value.amount;
-      await appwriteDb.from('treasury_accounts')
-        .update(account.id, { balance: account.balance + delta });
-    }
+    await appwriteDb.from('treasury_accounts')
+      .update(account.id, { current_balance: newBalance });
 
     dialogOpen.value = false;
     $q.notify({ type: 'positive', message: 'Mouvement enregistré' });
@@ -289,10 +297,12 @@ async function saveAccount() {
   saving.value = true;
   try {
     const { error } = await appwriteDb.from('treasury_accounts').insert({
+      id: ID.unique(),
       company_id: authStore.companyId,
       name: accountForm.value.name,
       type: accountForm.value.type,
-      balance: accountForm.value.balance,
+      opening_balance: accountForm.value.opening_balance,
+      current_balance: accountForm.value.opening_balance,
     });
     if (error) throw new Error(error.message);
     accountDialogOpen.value = false;

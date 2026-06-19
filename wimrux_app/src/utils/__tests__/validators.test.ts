@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isValidCadastralAddress,
+  isValidLegacyCadastralAddress,
+  isValidCadastralAddressParts,
+  formatLegacyCadastralAddress,
   formatCadastralAddress,
   isValidIFU,
   isValidExportIFU,
@@ -8,38 +10,60 @@ import {
   isValidInvoiceReference,
 } from '../validators';
 
-describe('isValidCadastralAddress', () => {
+describe('isValidLegacyCadastralAddress', () => {
   it('accepts valid format SSSS LLL PPPP', () => {
-    expect(isValidCadastralAddress('0012 045 0023')).toBe(true);
-    expect(isValidCadastralAddress('1234 567 8901')).toBe(true);
-    expect(isValidCadastralAddress('0000 000 0000')).toBe(true);
+    expect(isValidLegacyCadastralAddress('0012 045 0023')).toBe(true);
+    expect(isValidLegacyCadastralAddress('1234 567 8901')).toBe(true);
+    expect(isValidLegacyCadastralAddress('0000 000 0000')).toBe(true);
   });
 
   it('rejects invalid formats', () => {
-    expect(isValidCadastralAddress('123 456 7890')).toBe(false);   // 3 digits first group
-    expect(isValidCadastralAddress('12345 67 8901')).toBe(false);  // 5 digits first group
-    expect(isValidCadastralAddress('1234-567-8901')).toBe(false);  // wrong separator
-    expect(isValidCadastralAddress('')).toBe(false);
-    expect(isValidCadastralAddress('abcd efg hijk')).toBe(false);
+    expect(isValidLegacyCadastralAddress('123 456 7890')).toBe(false);   // 3 digits first group
+    expect(isValidLegacyCadastralAddress('12345 67 8901')).toBe(false);  // 5 digits first group
+    expect(isValidLegacyCadastralAddress('1234-567-8901')).toBe(false);  // wrong separator
+    expect(isValidLegacyCadastralAddress('')).toBe(false);
+    expect(isValidLegacyCadastralAddress('abcd efg hijk')).toBe(false);
   });
 
   it('trims whitespace', () => {
-    expect(isValidCadastralAddress(' 0012 045 0023 ')).toBe(true);
+    expect(isValidLegacyCadastralAddress(' 0012 045 0023 ')).toBe(true);
+  });
+});
+
+describe('isValidCadastralAddressParts', () => {
+  it('accepts non-empty section, lot and parcel', () => {
+    expect(isValidCadastralAddressParts({ section: 'A', lot: '12', parcel: '45' })).toBe(true);
+  });
+
+  it('rejects empty parts', () => {
+    expect(isValidCadastralAddressParts({ section: '', lot: '12', parcel: '45' })).toBe(false);
+    expect(isValidCadastralAddressParts({ section: 'A', lot: '', parcel: '45' })).toBe(false);
+    expect(isValidCadastralAddressParts({ section: 'A', lot: '12', parcel: '' })).toBe(false);
+  });
+});
+
+describe('formatLegacyCadastralAddress', () => {
+  it('formats 11-digit string into SSSS LLL PPPP', () => {
+    expect(formatLegacyCadastralAddress('00120450023')).toBe('0012 045 0023');
+  });
+
+  it('returns null for wrong length', () => {
+    expect(formatLegacyCadastralAddress('12345')).toBeNull();
+    expect(formatLegacyCadastralAddress('123456789012')).toBeNull();
+  });
+
+  it('strips non-numeric characters', () => {
+    expect(formatLegacyCadastralAddress('0012-045-0023')).toBe('0012 045 0023');
   });
 });
 
 describe('formatCadastralAddress', () => {
-  it('formats 11-digit string into SSSS LLL PPPP', () => {
-    expect(formatCadastralAddress('00120450023')).toBe('0012 045 0023');
+  it('formats parcel, lot and section', () => {
+    expect(formatCadastralAddress({ parcel: '45', lot: '12', section: 'A' })).toBe('Plle 45, Lot 12, Section A');
   });
 
-  it('returns null for wrong length', () => {
-    expect(formatCadastralAddress('12345')).toBeNull();
-    expect(formatCadastralAddress('123456789012')).toBeNull();
-  });
-
-  it('strips non-numeric characters', () => {
-    expect(formatCadastralAddress('0012-045-0023')).toBe('0012 045 0023');
+  it('returns empty string for incomplete parts', () => {
+    expect(formatCadastralAddress({ parcel: '45', lot: '', section: 'A' })).toBe('');
   });
 });
 

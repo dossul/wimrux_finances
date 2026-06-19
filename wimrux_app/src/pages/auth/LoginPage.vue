@@ -93,16 +93,6 @@
       </q-form>
     </q-card-section>
 
-    <q-separator v-if="step === 'credentials'" />
-
-    <q-card-section v-if="step === 'credentials'" class="text-center">
-      <div class="text-body2 q-mb-sm">Ou se connecter avec</div>
-      <div class="q-gutter-sm">
-        <q-btn flat round icon="img:https://www.google.com/favicon.ico" @click="loginWithOAuth('google')" />
-        <q-btn flat round icon="mdi-github" @click="loginWithOAuth('github')" />
-      </div>
-    </q-card-section>
-
     <q-card-section v-if="step === 'credentials'" class="text-center text-caption text-grey">
       Contactez votre administrateur pour obtenir un compte
     </q-card-section>
@@ -113,12 +103,12 @@
 import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
-import { useCompanyStore } from 'src/stores/company-store';
-import { appwriteAuth } from 'src/services/appwrite-auth';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { functions } from 'src/boot/appwrite';
 // import { useEmailService } from 'src/composables/useEmailService'; // Désactivé - SMTP non configuré
 
-const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string;
+
 
 const router = useRouter();
 const route = useRoute();
@@ -141,56 +131,71 @@ const loadingResend = ref(false);
 
 async function onSubmit() {
   loading.value = true;
+  const debug: string[] = [];
   try {
+    debug.push('1. login start');
     await authStore.login(email.value, password.value);
+    debug.push('2. login done');
     if (authStore.companyId) {
+      debug.push('3. loadCompanies start');
       await companyStore.loadCompanies(authStore.companyId);
+      debug.push('4. loadCompanies done');
     }
 
     const phone = authStore.phone as string | undefined;
     const twoFaEnabled = authStore.twoFaEnabled;
+    debug.push(`5. phone=${phone}, 2fa=${twoFaEnabled}`);
     if (phone && twoFaEnabled) {
+      debug.push('6. sendOtp start');
       await sendOtp(phone);
+      debug.push('7. sendOtp done');
       otpPhone.value = phone.replace(/^\+?/, '');
       step.value = 'otp';
+      debug.push('8. step=otp');
     } else {
-      // ⚠️ Fallback email OTP désactivé (problème SMTP - mail.wimrux.app non configuré)
-      // TODO: Réactiver quand le SMTP sera opérationnel
-      // Pour l'instant, connexion directe sans 2FA si pas de téléphone
-      console.warn('[2FA] Email OTP désactivé - connexion directe (pas de téléphone configuré)');
+      debug.push('6. finalizeLogin start');
       await finalizeLogin();
+      debug.push('7. finalizeLogin done');
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur de connexion';
+    debug.push(`ERROR: ${message}`);
     $q.notify({ type: 'negative', message });
   } finally {
+    (window as any).__loginDebug = debug;
     loading.value = false;
   }
 }
 
 async function sendOtp(phone: string) {
-  const token = authStore.accessToken as string;
-  const res = await fetch(`${APPWRITE_ENDPOINT}/functions/send-otp-whatsapp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ phone }),
-  });
-  if (!res.ok) {
-    const err = await res.json() as { error?: string };
-    throw new Error(err.error || 'Envoi OTP échoué');
+  try {
+    // Utilise le SDK Appwrite (session cookie incluse automatiquement)
+    const result = await functions.createExecution(
+      'send-otp-whatsapp',
+      JSON.stringify({ phone }),
+      false, // synchrone
+    );
+    (window as any).__sendOtpResult = result;
+    if (result.responseStatusCode !== 200) {
+      console.warn('[Login] sendOtp failed:', result.responseBody);
+    }
+  } catch (err: any) {
+    // Ne pas bloquer le login si la fonction n'existe pas encore
+    console.warn('[Login] sendOtp error (non-bloquant):', err?.message || err);
   }
 }
 
 async function onVerifyOtp() {
   loadingOtp.value = true;
   try {
-    const token = authStore.accessToken as string;
-    const res = await fetch(`${APPWRITE_ENDPOINT}/functions/verify-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ code: otpCode.value }),
-    });
-    const data = await res.json() as { success?: boolean; error?: string };
+    // Utilise le SDK Appwrite (session cookie incluse automatiquement)
+    const result = await functions.createExecution(
+      'verify-otp',
+      JSON.stringify({ code: otpCode.value }),
+      false, // synchrone
+    );
+    let data: { success?: boolean; error?: string } = {};
+    try { data = JSON.parse(result.responseBody); } catch { /* garde {} */ }
     if (!data.success) throw new Error(data.error || 'Code invalide');
     await finalizeLogin();
   } catch (err: unknown) {
@@ -224,14 +229,5 @@ async function finalizeLogin() {
   const redirect = (route.query.redirect as string) || '/app';
   await router.push(redirect);
   $q.notify({ type: 'positive', message: `Bienvenue, ${authStore.fullName || 'utilisateur'}` });
-}
-
-async function loginWithOAuth(provider: 'google' | 'github') {
-  try {
-    await appwriteAuth.signInWithOAuth(provider);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erreur OAuth';
-    $q.notify({ type: 'negative', message });
-  }
 }
 </script>

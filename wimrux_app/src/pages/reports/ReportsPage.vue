@@ -351,8 +351,8 @@ async function generateReport() {
       .from('invoices')
       .select('*')
       .in('status', ['validated', 'certified']);
-    if (range.from) query = query.gte('created_at', range.from);
-    if (range.to) query = query.lte('created_at', range.to);
+    if (range.from) query = query.gte('$createdAt', range.from);
+    if (range.to) query = query.lte('$createdAt', range.to);
     const { data } = await query;
     const invoices = (data || []) as Invoice[];
     allInvoices.value = invoices;

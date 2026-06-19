@@ -1,4 +1,4 @@
-import { defineRouter } from '#q-app/wrappers';
+﻿import { defineRouter } from '#q-app/wrappers';
 import {
   createMemoryHistory,
   createRouter,
@@ -6,7 +6,7 @@ import {
   createWebHistory,
 } from 'vue-router';
 import routes from './routes';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 
 /*
  * If not building with SSR mode, you can

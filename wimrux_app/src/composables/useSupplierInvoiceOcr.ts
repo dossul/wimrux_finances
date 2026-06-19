@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — OCR Factures Fournisseurs (images scannées)
 //
 // WORKFLOW :
@@ -14,7 +14,7 @@
 //  - Coût marginal (~$0.01-0.02/facture vs ~$0.005 avec Tesseract)
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useCrypto } from 'src/composables/useCrypto';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -159,15 +159,16 @@ export function useSupplierInvoiceOcr() {
   // ── Étape 1 : PDF/Image → base64 PNG via fonction edge Appwrite ─────────────
   // Appel fetch direct (le SDK Appwrite sérialise FormData en JSON → KO)
   async function pdfToBase64Images(file: File): Promise<string[]> {
-    const FUNC_URL = 'https://gfe4bd9y.functions.appwrite.benga.live/pdf-to-images';
-    const ANON_KEY = 'ik_1358be6dcbccff7c0d6636b011559406';
+    const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string || 'https://appwrite.benga.live/v1';
+    const APPWRITE_PROJECT  = import.meta.env.VITE_APPWRITE_PROJECT as string || '6a29285200015cd421c7';
+    const FUNC_URL = `${APPWRITE_ENDPOINT}/functions/pdf-to-images/executions`;
 
     const form = new FormData();
     form.append('file', file);
 
     const res = await fetch(FUNC_URL, {
       method:  'POST',
-      headers: { 'Authorization': `Bearer ${ANON_KEY}` },
+      headers: { 'X-Appwrite-Project': APPWRITE_PROJECT },
       body:    form,
     });
 

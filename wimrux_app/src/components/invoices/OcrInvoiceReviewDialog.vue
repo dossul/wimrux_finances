@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-dialog :model-value="modelValue" persistent maximized transition-show="slide-up" transition-hide="slide-down"
     @update:model-value="$emit('update:modelValue', $event)">
     <q-layout view="hHh lpR fFf" container style="height:100vh">
@@ -273,8 +273,8 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import dayjs from 'dayjs';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { useSuppliers } from 'src/composables/useSuppliers';
 import { useReceivedInvoices } from 'src/composables/useReceivedInvoices';
 import {

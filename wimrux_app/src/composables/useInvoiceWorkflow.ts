@@ -1,8 +1,10 @@
 import { computed } from 'vue';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { useEmailService } from 'src/composables/useEmailService';
 import type { Invoice, InvoiceItem, InvoiceStatus, InvoiceType, Permission } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
+import { databases, DATABASE_ID } from 'src/boot/appwrite';
+import { Query } from 'appwrite';
 
 // ============================================================================
 // Invoice Lifecycle Workflow — WIMRUX® FINANCES
@@ -46,6 +48,8 @@ export const STATUS_CONFIG: Record<InvoiceStatus, { label: string; color: string
   accepted: { label: 'Acceptée', color: 'green-7', icon: 'check_circle_outline' },
   rejected: { label: 'Refusée', color: 'deep-orange', icon: 'cancel_presentation' },
   cancelled: { label: 'Annulée', color: 'red', icon: 'cancel' },
+  overdue: { label: 'En retard', color: 'deep-orange', icon: 'schedule' },
+  paid: { label: 'Payée', color: 'positive', icon: 'paid' },
 };
 
 // Permission required for each transition
@@ -304,9 +308,24 @@ export function useInvoiceWorkflow() {
     const year = now.slice(0, 4);
 
     // Get next reference for the target type
-    const { data: refData, error: refError } = await appwriteDb
-      .rpc('next_invoice_reference', { p_company_id: proforma.company_id, p_type: targetType, p_year: Number(year) });
-    if (refError) return { success: false, error: refError.message };
+    // Génération de référence native Appwrite (remplace .rpc('next_invoice_reference'))
+    let refData: string;
+    try {
+      const existing = await databases.listDocuments(DATABASE_ID, 'invoices', [
+        Query.equal('company_id', proforma.company_id),
+        Query.equal('type', targetType),
+        Query.startsWith('reference', `${targetType}-${year}`),
+        Query.orderDesc('reference'),
+        Query.limit(1),
+      ]);
+      const nextNum = (existing.total + 1).toString().padStart(4, '0');
+      refData = `${targetType}-${year}-${nextNum}`;
+    } catch (refErr) {
+      // Fallback : timestamp-based reference
+      const ts = Date.now().toString().slice(-6);
+      refData = `${targetType}-${year}-${ts}`;
+      console.warn('[InvoiceWorkflow] Fallback reference used:', refData);
+    }
 
     // Create new invoice draft
     const { data: newInv, error: invError } = await appwriteDb

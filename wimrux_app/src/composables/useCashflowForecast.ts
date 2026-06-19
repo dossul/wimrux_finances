@@ -1,10 +1,10 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable Trésorerie prévisionnelle (T5.2)
 // Méthodes : historical (moyenne mobile) | hybrid (factures + dépenses récurrentes)
 // Méthode ml : stub — activé après réception credentials IA
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type {
   CashflowForecast, CashflowScenario, CashflowDataPoint,
   CashflowForecastInput, CashflowScenarioInput, ScenarioAssumption
@@ -44,7 +44,7 @@ export function useCashflowForecast() {
         .from('cashflow_forecasts')
         .select('*')
         .eq('company_id', companyStore.company!.id)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (err) { error.value = err.message; return; }
       forecasts.value = (data || []).map(f => ({ ...f, data: f.data || [] }));
     } finally { loading.value = false; }
@@ -276,7 +276,7 @@ export function useCashflowForecast() {
         .from('cashflow_scenarios')
         .select('*')
         .eq('company_id', companyStore.company!.id)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (forecastId) q = q.eq('forecast_id', forecastId);
       const { data, error: err } = await q;
       if (err) { error.value = err.message; return; }

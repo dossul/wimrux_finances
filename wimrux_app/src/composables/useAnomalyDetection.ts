@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — useAnomalyDetection
 // Appelle l'Edge Function detect-anomalies et expose les alertes réactives
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { functions } from 'src/boot/appwrite';
 

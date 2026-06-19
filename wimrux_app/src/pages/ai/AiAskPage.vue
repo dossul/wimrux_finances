@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page class="suivi-ia-page column" padding>
 
     <!-- Header -->
@@ -172,8 +172,8 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import { useQuasar, QScrollArea } from 'quasar';
 import { useAiChat } from 'src/composables/useAiChat';
-import { useAuthStore } from 'src/stores/auth-store';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { marked } from 'marked';
 
 const $q = useQuasar();

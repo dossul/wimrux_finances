@@ -24,7 +24,7 @@
               <q-icon :name="kpi.icon" :color="kpi.color" size="40px" class="q-mr-md" />
               <div class="full-width">
                 <q-skeleton v-if="loading" type="text" width="80px" height="32px" />
-                <div v-else class="text-h5 text-weight-bold">{{ kpi.value }}</div>
+                <div v-else class="text-h5 text-weight-bold" :data-testid="kpi.label === 'CA TTC certifié' ? 'kpi-total-ttc' : null">{{ kpi.value }}</div>
                 <div class="text-caption text-grey-7">{{ kpi.label }}</div>
               </div>
             </div>
@@ -44,7 +44,7 @@
           </q-card-section>
           <q-card-section class="q-pt-sm" style="height: 210px">
             <q-skeleton v-if="loading" height="160px" />
-            <div v-else class="row items-end full-height q-gutter-xs" style="overflow-x:auto">
+            <div v-else class="row items-end full-height q-gutter-xs" style="overflow-x:auto" data-testid="chart-revenue">
               <div
                 v-for="bar in caChart"
                 :key="bar.label"
@@ -78,7 +78,7 @@
             <template v-if="loading">
               <q-skeleton v-for="n in 5" :key="n" type="text" class="q-mb-sm" />
             </template>
-            <div v-else>
+            <div v-else data-testid="top-clients">
               <div v-for="(c, idx) in top5Clients" :key="c.id" class="q-mb-sm">
                 <div class="row items-center q-mb-xs">
                   <q-avatar size="20px" :color="clientColors[idx]" text-color="white" class="q-mr-sm" style="font-size:10px">
@@ -252,11 +252,13 @@ const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon', pending_validation: 'En attente', approved: 'Approuvée',
   validated: 'Validée', certified: 'Certifiée', cancelled: 'Annulée',
   sent: 'Envoyée', accepted: 'Acceptée', rejected: 'Refusée',
+  overdue: 'En retard', paid: 'Payée',
 };
 const STATUS_COLORS: Record<string, string> = {
   draft: 'grey', pending_validation: 'orange', approved: 'blue',
   validated: 'amber-8', certified: 'green', cancelled: 'red',
   sent: 'teal', accepted: 'green-7', rejected: 'deep-orange',
+  overdue: 'deep-orange', paid: 'positive',
 };
 
 function statusColor(s: string) { return STATUS_COLORS[s] ?? 'grey'; }
@@ -312,18 +314,18 @@ async function loadDashboard() {
     const [periodRes, allRes, pendingRes, treasuryRes] = await Promise.all([
       appwriteDb
         .from('invoices')
-        .select('id, reference, type, status, total_ttc, client_id, created_at')
-        .gte('created_at', periodStart)
-        .order('created_at', { ascending: false }),
+        .select('id, reference, type, status, total_ttc, client_id')
+        .gte('$createdAt', periodStart)
+        .order('$createdAt', { ascending: false }),
       appwriteDb
         .from('invoices')
-        .select('id, status, total_ttc, client_id, created_at')
-        .gte('created_at', twelveMonthsAgo.toISOString()),
+        .select('id, status, total_ttc, client_id')
+        .gte('$createdAt', twelveMonthsAgo.toISOString()),
       appwriteDb
         .from('invoices')
         .select('id, reference, type, status, total_ttc')
         .in('status', ['pending_validation', 'approved'])
-        .order('created_at', { ascending: false }),
+        .order('$createdAt', { ascending: false }),
       appwriteDb
         .from('treasury_accounts')
         .select('balance'),

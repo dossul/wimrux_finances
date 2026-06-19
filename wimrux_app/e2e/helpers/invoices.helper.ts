@@ -193,6 +193,25 @@ export async function createInvoiceWithItemsViaApi(
   return documentId;
 }
 
+export async function createValidatedInvoiceViaApi(
+  page: Page,
+  type: 'FV' | 'FA' | 'FT' | 'EV' | 'ET' | 'EA' | 'PF',
+  options: {
+    clientId?: string | undefined;
+    description?: string | undefined;
+    items?: { designation: string; qty: number; priceHt: number; taxGroup: string }[] | undefined;
+  } = {}
+): Promise<string> {
+  const invoiceId = await createInvoiceWithItemsViaApi(page, type, options);
+
+  return page.evaluate(async (id) => {
+    const databases = (window as any).__appwriteDatabases;
+    const databaseId = (window as any).__appwriteDatabaseId;
+    await databases.updateDocument(databaseId, 'invoices', id, { status: 'validated' });
+    return id;
+  }, invoiceId);
+}
+
 export async function createCertifiedInvoiceViaApi(
   page: Page,
   type: 'FV' | 'FA' | 'FT' | 'EV' | 'ET' | 'EA' | 'PF',

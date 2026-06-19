@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-lg">
@@ -12,8 +12,9 @@
         outline color="primary" icon="download" label="Export SEPA XML"
         class="q-mr-sm"
         @click="exportSelected"
+        data-testid="wire-transfer-export-sepa-btn"
       />
-      <q-btn color="primary" icon="add" label="Nouveau virement" @click="openCreate" />
+      <q-btn color="primary" icon="add" label="Nouveau virement" @click="openCreate" data-testid="wire-transfer-new-btn" />
     </div>
 
     <!-- Filtres -->
@@ -49,7 +50,7 @@
     </div>
 
     <!-- Table -->
-    <q-card flat bordered>
+    <q-card flat bordered data-testid="wire-transfers-table">
       <q-table
         :rows="transfers"
         :columns="columns"
@@ -124,7 +125,7 @@
     </q-card>
 
     <!-- Dialog Créer / Modifier -->
-    <q-dialog v-model="showForm" persistent>
+    <q-dialog v-model="showForm" persistent data-testid="wire-transfer-dialog">
       <q-card style="min-width:520px; max-width:600px">
         <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">{{ editingTransfer ? 'Modifier le virement' : 'Nouveau virement' }}</div>
@@ -141,28 +142,29 @@
               emit-value map-options
               outlined dense
               :rules="[v => !!v || 'Requis']"
+              data-testid="wire-transfer-source-account"
             />
             <q-input v-model="form.beneficiary_name" label="Nom du bénéficiaire *" outlined dense
-              :rules="[v => !!v || 'Requis']" />
+              :rules="[v => !!v || 'Requis']" data-testid="wire-transfer-beneficiary" />
             <div class="row q-gutter-sm">
-              <q-input v-model="form.beneficiary_iban" label="IBAN / Numéro compte" outlined dense class="col" />
-              <q-input v-model="form.beneficiary_bic"  label="BIC / SWIFT" outlined dense class="col-4" />
+              <q-input v-model="form.beneficiary_iban" label="IBAN / Numéro compte" outlined dense class="col" data-testid="wire-transfer-iban" />
+              <q-input v-model="form.beneficiary_bic"  label="BIC / SWIFT" outlined dense class="col-4" data-testid="wire-transfer-bic" />
             </div>
-            <q-input v-model="form.beneficiary_bank" label="Banque bénéficiaire" outlined dense />
+            <q-input v-model="form.beneficiary_bank" label="Banque bénéficiaire" outlined dense data-testid="wire-transfer-bank" />
             <div class="row q-gutter-sm">
               <q-input v-model.number="form.amount" label="Montant *" type="number" outlined dense class="col"
-                :rules="[v => v > 0 || 'Montant > 0']" />
-              <q-select v-model="form.currency" :options="currencies" label="Devise" outlined dense class="col-4" />
+                :rules="[v => v > 0 || 'Montant > 0']" data-testid="wire-transfer-amount" />
+              <q-select v-model="form.currency" :options="currencies" label="Devise" outlined dense class="col-4" data-testid="wire-transfer-currency" />
             </div>
-            <q-input v-model="form.motif" label="Motif / Référence" outlined dense type="textarea" rows="2" />
-            <q-input v-model="form.scheduled_date" label="Date d'exécution prévue" type="date" outlined dense />
+            <q-input v-model="form.motif" label="Motif / Référence" outlined dense type="textarea" rows="2" data-testid="wire-transfer-motif" />
+            <q-input v-model="form.scheduled_date" label="Date d'exécution prévue" type="date" outlined dense data-testid="wire-transfer-scheduled-date" />
           </div>
         </q-card-section>
 
         <q-card-actions align="right" class="q-px-md q-pb-md">
           <q-btn flat label="Annuler" v-close-popup />
           <q-btn color="primary" :label="editingTransfer ? 'Enregistrer' : 'Créer'" :loading="loading"
-            @click="submitForm" />
+            @click="submitForm" data-testid="wire-transfer-save-btn" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -175,7 +177,7 @@ import { useQuasar } from 'quasar';
 import { useWireTransfers } from 'src/composables/useWireTransfers';
 import { downloadSEPAXml, printWireTransferOrder } from 'src/composables/useWireTransferExport';
 import { useBankAccounts } from 'src/composables/useBankAccounts';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { WireTransfer, WireTransferStatus } from 'src/types';
 
 const $q           = useQuasar();

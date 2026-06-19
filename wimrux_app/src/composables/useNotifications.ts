@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable Notifications (T16.x)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface Notification {
@@ -69,7 +69,7 @@ export function useNotifications() {
         .eq('company_id', companyId.value)
         .eq('user_id', userId.value)
         .eq('is_archived', false)
-        .order('created_at', { ascending: false })
+        .order('$createdAt', { ascending: false })
         .limit(limit);
       if (err) { error.value = err.message; return; }
       notifications.value = data || [];

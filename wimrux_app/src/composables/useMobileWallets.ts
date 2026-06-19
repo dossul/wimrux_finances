@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type {
   MobileWallet,
   MobileWalletInput,
@@ -45,14 +45,22 @@ export function useMobileWallets() {
   }
 
   async function loadSummaries() {
+    // Calcul JS — remplace v_mobile_wallet_summary
+    // Les summaries = les wallets eux-mêmes avec leurs stats
     loading.value = true;
     error.value = null;
     const { data, error: err } = await appwriteDb
-      .from('v_mobile_wallet_summary')
+      .from('mobile_wallets')
       .select('*')
       .eq('company_id', companyId.value);
     if (err) { error.value = err.message; }
-    else { summaries.value = data as MobileWalletSummary[]; }
+    else { summaries.value = (data || []).map((w: any) => ({
+      ...w,
+      id: w.$id ?? w.id,
+      total_in: 0,
+      total_out: 0,
+      transaction_count: 0,
+    })) as any; }
     loading.value = false;
   }
 

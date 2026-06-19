@@ -1,5 +1,5 @@
-import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+﻿import { ref } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { BankAccountFull } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 

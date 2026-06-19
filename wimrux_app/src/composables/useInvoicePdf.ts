@@ -4,6 +4,27 @@ import QRCode from 'qrcode';
 import type { Invoice, InvoiceItem, InvoiceColors, InvoiceSettings, FiscalConfig } from 'src/types';
 import { TAX_GROUP_RATES } from 'src/composables/useTaxCalculation';
 import { numberToFrenchWords } from 'src/utils/numberToFrenchWords';
+import {
+  fmtLegalForm,
+  fmtPhysicalAddress,
+  fmtCadastralAddress,
+  fmtPostalAddress,
+  fmtPhone,
+  fmtTaxRegime,
+  fmtTaxDivision,
+  fmtPartnerContact,
+  fmtBankAccount,
+} from 'src/utils/formatters';
+import type {
+  LegalForm,
+  PhysicalAddress,
+  CadastralAddress,
+  PostalAddress,
+  TaxRegimeBF,
+  TaxDivision,
+  PartnerContact,
+  PartnerBankAccount,
+} from 'src/types';
 
 // ============================================================================
 // PDF FEC — Conforme DGI Burkina Faso / SECeF / SYGMEF
@@ -64,17 +85,26 @@ function resolveColors(settings?: InvoiceSettings | null): InvoiceColors {
 
 export interface PdfCompanyInfo {
   name: string;
+  legal_form?: LegalForm | null | undefined;
+  legal_form_other?: string | null | undefined;
   ifu: string;
   rccm: string;
-  address_cadastral: string;
-  address?: string | null;
+  physical_address?: PhysicalAddress | null | undefined;
+  cadastral_address?: CadastralAddress | null | undefined;
+  address_cadastral?: string | null | undefined;
+  postal_address?: PostalAddress | null | undefined;
+  address?: string | null | undefined;
+  phone_country_code?: string | null | undefined;
   phone: string;
   email: string;
-  tax_regime?: string;
+  tax_regime?: TaxRegimeBF | null | undefined;
+  tax_division?: TaxDivision | null | undefined;
   tax_office?: string;
+  bank_accounts?: PartnerBankAccount[];
   bank_name?: string;
   bank_account?: string;
   iban?: string;
+  contacts?: PartnerContact[] | undefined;
   isf_number?: string;
   logo_url?: string | null;
   invoice_settings?: InvoiceSettings | null;
@@ -83,11 +113,21 @@ export interface PdfCompanyInfo {
 
 export interface PdfClientInfo {
   name: string;
-  ifu?: string | null;
-  rccm?: string | null;
+  legal_form?: LegalForm | null | undefined;
+  legal_form_other?: string | null | undefined;
+  ifu?: string | null | undefined;
+  rccm?: string | null | undefined;
   type: string;
-  address?: string | null;
-  phone?: string | null;
+  physical_address?: PhysicalAddress | null | undefined;
+  cadastral_address?: CadastralAddress | null | undefined;
+  postal_address?: PostalAddress | null | undefined;
+  address?: string | null | undefined;
+  phone_country_code?: string | null | undefined;
+  phone?: string | null | undefined;
+  email?: string | null | undefined;
+  tax_regime?: TaxRegimeBF | null | undefined;
+  tax_division?: TaxDivision | null | undefined;
+  contacts?: PartnerContact[] | undefined;
 }
 
 export interface PdfOptions {
@@ -224,37 +264,78 @@ export function useInvoicePdf() {
       doc.setFont('helvetica', 'bold');
       doc.text(company.name, leftX, yL); yL += ls;
       doc.setFont('helvetica', 'normal');
+      if (company.legal_form) {
+        doc.text(`Forme juridique : ${fmtLegalForm(company.legal_form, company.legal_form_other)}`, leftX, yL); yL += ls;
+      }
       doc.text(`IFU : ${company.ifu}`, leftX, yL); yL += ls;
       doc.text(`RCCM : ${company.rccm}`, leftX, yL); yL += ls;
-      // Adresse cadastrale (géographique)
-      const addrLinesL = doc.splitTextToSize(`Adresse cadastrale : ${company.address_cadastral}`, colW - 4) as string[];
-      for (const ln of addrLinesL) { doc.text(ln, leftX, yL); yL += ls; }
-      // Adresse postale (si différente)
-      if (company.address && company.address !== company.address_cadastral) {
-        const postAddrLines = doc.splitTextToSize(`Adresse postale : ${company.address}`, colW - 4) as string[];
+
+      // Adresse physique
+      const physical = fmtPhysicalAddress(company.physical_address);
+      if (physical) {
+        const lines = doc.splitTextToSize(`Adresse physique : ${physical}`, colW - 4) as string[];
+        for (const ln of lines) { doc.text(ln, leftX, yL); yL += ls; }
+      }
+
+      // Adresse cadastrale
+      const cadastral = fmtCadastralAddress(company.cadastral_address) || company.address_cadastral;
+      if (cadastral) {
+        const lines = doc.splitTextToSize(`Adresse cadastrale : ${cadastral}`, colW - 4) as string[];
+        for (const ln of lines) { doc.text(ln, leftX, yL); yL += ls; }
+      }
+
+      // Adresse postale
+      const postal = fmtPostalAddress(company.postal_address);
+      if (postal) {
+        const lines = doc.splitTextToSize(`Adresse postale : ${postal}`, colW - 4) as string[];
+        for (const ln of lines) { doc.text(ln, leftX, yL); yL += ls; }
+      }
+
+      // Fallback legacy address
+      if (company.address && !physical && !postal) {
+        const postAddrLines = doc.splitTextToSize(`Adresse : ${company.address}`, colW - 4) as string[];
         for (const ln of postAddrLines) { doc.text(ln, leftX, yL); yL += ls; }
       }
-      const telLinesL = doc.splitTextToSize(`Tél : ${company.phone}${company.email ? ' — ' + company.email : ''}`, colW - 4) as string[];
+
+      const phone = fmtPhone(company.phone, company.phone_country_code);
+      const telLinesL = doc.splitTextToSize(`Tél : ${phone}${company.email ? ' — ' + company.email : ''}`, colW - 4) as string[];
       for (const ln of telLinesL) { doc.text(ln, leftX, yL); yL += ls; }
-      if (fiscalCfg?.tax_category) {
-        const subRegime = fiscalCfg.tax_sub_regime ? ` — ${fiscalCfg.tax_sub_regime}` : '';
-        doc.text(`Catégorie : ${fiscalCfg.tax_category}${subRegime}`, leftX, yL); yL += ls;
-      } else if (company.tax_regime) {
-        doc.text(`Régime fiscal : ${company.tax_regime}`, leftX, yL); yL += ls;
+
+      if (company.tax_regime) {
+        doc.text(`Régime d'imposition : ${fmtTaxRegime(company.tax_regime)}`, leftX, yL); yL += ls;
       }
-      if (company.tax_office) {
+      if (company.tax_division) {
+        doc.text(`Division fiscale : ${fmtTaxDivision(company.tax_division)}`, leftX, yL); yL += ls;
+      } else if (company.tax_office) {
         doc.text(`Centre des impôts : ${company.tax_office}`, leftX, yL); yL += ls;
       }
       if (company.isf_number) {
         doc.text(`N° ISF : ${company.isf_number}`, leftX, yL); yL += ls;
       }
-      if (company.bank_name || company.bank_account) {
-        const bankLines = doc.splitTextToSize(`Banque : ${company.bank_name || '—'} — Compte : ${company.bank_account || '—'}`, colW - 4) as string[];
-        for (const ln of bankLines) { doc.text(ln, leftX, yL); yL += ls; }
+
+      // Comptes bancaires (jusqu'à 5)
+      const bankAccounts = company.bank_accounts?.length
+        ? company.bank_accounts
+        : (company.bank_name || company.bank_account || company.iban)
+          ? [{ bank_name: company.bank_name || '', account_number: company.bank_account || '', iban: company.iban || '', bic: '' }]
+          : [];
+      if (bankAccounts.length > 0) {
+        doc.text('Comptes bancaires :', leftX, yL); yL += ls;
+        for (let i = 0; i < Math.min(bankAccounts.length, 5); i++) {
+          const line = `  ${i + 1}. ${fmtBankAccount(bankAccounts[i])}`;
+          const bankLines = doc.splitTextToSize(line, colW - 4) as string[];
+          for (const ln of bankLines) { doc.text(ln, leftX, yL); yL += ls; }
+        }
       }
-      if (company.iban) {
-        const ibanLines = doc.splitTextToSize(`IBAN : ${company.iban}`, colW - 4) as string[];
-        for (const ln of ibanLines) { doc.text(ln, leftX, yL); yL += ls; }
+
+      // Contacts
+      if (company.contacts && company.contacts.length > 0) {
+        for (const contact of company.contacts) {
+          const line = fmtPartnerContact(contact);
+          if (!line) continue;
+          const contactLines = doc.splitTextToSize(line, colW - 4) as string[];
+          for (const ln of contactLines) { doc.text(ln, leftX, yL); yL += ls; }
+        }
       }
     }
 
@@ -264,6 +345,9 @@ export function useInvoicePdf() {
       doc.text(client.name, rightX, yR); yR += ls;
       doc.setFont('helvetica', 'normal');
       doc.text(`Type : ${client.type}`, rightX, yR); yR += ls;
+      if (client.legal_form) {
+        doc.text(`Forme juridique : ${fmtLegalForm(client.legal_form, client.legal_form_other)}`, rightX, yR); yR += ls;
+      }
       if (client.ifu) {
         doc.text(`IFU : ${client.ifu}`, rightX, yR); yR += ls;
       } else if (invoice.type === 'EV' || invoice.type === 'ET' || invoice.type === 'EA') {
@@ -272,12 +356,47 @@ export function useInvoicePdf() {
       if (client.rccm) {
         doc.text(`RCCM : ${client.rccm}`, rightX, yR); yR += ls;
       }
-      if (client.address) {
+
+      const physicalR = fmtPhysicalAddress(client.physical_address);
+      if (physicalR) {
+        const lines = doc.splitTextToSize(`Adresse physique : ${physicalR}`, colW - 4) as string[];
+        for (const ln of lines) { doc.text(ln, rightX, yR); yR += ls; }
+      }
+      const cadastralR = fmtCadastralAddress(client.cadastral_address);
+      if (cadastralR) {
+        const lines = doc.splitTextToSize(`Adresse cadastrale : ${cadastralR}`, colW - 4) as string[];
+        for (const ln of lines) { doc.text(ln, rightX, yR); yR += ls; }
+      }
+      const postalR = fmtPostalAddress(client.postal_address);
+      if (postalR) {
+        const lines = doc.splitTextToSize(`Adresse postale : ${postalR}`, colW - 4) as string[];
+        for (const ln of lines) { doc.text(ln, rightX, yR); yR += ls; }
+      }
+      if (client.address && !physicalR && !postalR) {
         const addrLinesR = doc.splitTextToSize(`Adresse : ${client.address}`, colW - 4) as string[];
         for (const ln of addrLinesR) { doc.text(ln, rightX, yR); yR += ls; }
       }
-      if (client.phone) {
-        doc.text(`Tél : ${client.phone}`, rightX, yR); yR += ls;
+
+      const phoneR = fmtPhone(client.phone, client.phone_country_code);
+      if (phoneR) {
+        doc.text(`Tél : ${phoneR}`, rightX, yR); yR += ls;
+      }
+      if (client.email) {
+        doc.text(`E-mail : ${client.email}`, rightX, yR); yR += ls;
+      }
+      if (client.tax_regime) {
+        doc.text(`Régime : ${fmtTaxRegime(client.tax_regime)}`, rightX, yR); yR += ls;
+      }
+      if (client.tax_division) {
+        doc.text(`Division fiscale : ${fmtTaxDivision(client.tax_division)}`, rightX, yR); yR += ls;
+      }
+      if (client.contacts && client.contacts.length > 0) {
+        for (const contact of client.contacts) {
+          const line = fmtPartnerContact(contact);
+          if (!line) continue;
+          const contactLines = doc.splitTextToSize(line, colW - 4) as string[];
+          for (const ln of contactLines) { doc.text(ln, rightX, yR); yR += ls; }
+        }
       }
     } else {
       doc.text('Client comptant (PP)', rightX, yR); yR += ls;

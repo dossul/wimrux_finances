@@ -101,6 +101,7 @@ export const TREASURY = {
 // ===================== REPORTS =====================
 export const REPORT = {
   period: '[data-testid="report-period"]',
+  generateBtn: '[data-testid="report-generate-btn"]',
   kpiInvoiceCount: '[data-testid="kpi-invoice-count"]',
   kpiRevenueHt: '[data-testid="kpi-revenue-ht"]',
   kpiTvaCollected: '[data-testid="kpi-tva-collected"]',
@@ -141,6 +142,124 @@ export const AI = {
   providerSelect: '[data-testid="ai-provider-select"]',
   apiKey: '[data-testid="ai-api-key"]',
   providerSaveBtn: '[data-testid="ai-provider-save-btn"]',
+} as const;
+
+// ===================== SUPPLIERS =====================
+export const SUPPLIER = {
+  newBtn: '[data-testid="supplier-new-btn"]',
+  dialog: '[data-testid="supplier-dialog"]',
+  name: '[data-testid="supplier-name"]',
+  ifu: '[data-testid="supplier-ifu"]',
+  rccm: '[data-testid="supplier-rccm"]',
+  regime: '[data-testid="supplier-regime"]',
+  division: '[data-testid="supplier-division"]',
+  phone: '[data-testid="supplier-phone"]',
+  email: '[data-testid="supplier-email"]',
+  address: '[data-testid="supplier-address"]',
+  bankName: '[data-testid="supplier-bank-name"]',
+  bankIban: '[data-testid="supplier-bank-iban"]',
+  bankBic: '[data-testid="supplier-bank-bic"]',
+  saveBtn: '[data-testid="supplier-save-btn"]',
+  table: '[data-testid="suppliers-table"]',
+} as const;
+
+// ===================== BANKING =====================
+export const BANKING = {
+  newAccountBtn: '[data-testid="banking-new-account-btn"]',
+  accountDialog: '[data-testid="banking-account-dialog"]',
+  accountBankName: '[data-testid="banking-account-bank-name"]',
+  accountNumber: '[data-testid="banking-account-number"]',
+  accountIban: '[data-testid="banking-account-iban"]',
+  accountBic: '[data-testid="banking-account-bic"]',
+  accountHolder: '[data-testid="banking-account-holder"]',
+  accountCurrency: '[data-testid="banking-account-currency"]',
+  accountOpeningBalance: '[data-testid="banking-account-opening-balance"]',
+  accountSaveBtn: '[data-testid="banking-account-save-btn"]',
+  accountCard: '[data-testid="bank-account-card"]',
+} as const;
+
+// ===================== WIRE TRANSFERS =====================
+export const WIRE_TRANSFER = {
+  newBtn: '[data-testid="wire-transfer-new-btn"]',
+  dialog: '[data-testid="wire-transfer-dialog"]',
+  sourceAccount: '[data-testid="wire-transfer-source-account"]',
+  beneficiary: '[data-testid="wire-transfer-beneficiary"]',
+  iban: '[data-testid="wire-transfer-iban"]',
+  bic: '[data-testid="wire-transfer-bic"]',
+  bank: '[data-testid="wire-transfer-bank"]',
+  amount: '[data-testid="wire-transfer-amount"]',
+  currency: '[data-testid="wire-transfer-currency"]',
+  motif: '[data-testid="wire-transfer-motif"]',
+  scheduledDate: '[data-testid="wire-transfer-scheduled-date"]',
+  saveBtn: '[data-testid="wire-transfer-save-btn"]',
+  table: '[data-testid="wire-transfers-table"]',
+} as const;
+
+// ===================== ARTICLES =====================
+export const ARTICLE = {
+  newBtn: '[data-testid="article-new-btn"]',
+  dialog: '[data-testid="article-dialog"]',
+  code: '[data-testid="article-code"]',
+  name: '[data-testid="article-name"]',
+  type: '[data-testid="article-type"]',
+  taxGroup: '[data-testid="article-tax-group"]',
+  unitPrice: '[data-testid="article-unit-price"]',
+  saveBtn: '[data-testid="article-save-btn"]',
+  table: '[data-testid="articles-table"]',
+} as const;
+
+// ===================== AI CREDITS =====================
+export const AI_CREDITS = {
+  balance: '[data-testid="ai-credit-balance"]',
+  pack: '[data-testid="ai-credit-pack"]',
+  paymentMethod: '[data-testid="ai-credit-payment-method"]',
+  payBtn: '[data-testid="ai-credit-pay-btn"]',
+  historyTable: '[data-testid="ai-credit-history-table"]',
+  confirmDialog: '.q-dialog',
+} as const;
+
+// ===================== RECEIVED INVOICES =====================
+export const RECEIVED_INVOICE = {
+  newBtn: '[data-testid="received-invoice-new-btn"]',
+  table: '[data-testid="received-invoices-table"]',
+  paymentBtn: '[data-testid="received-invoice-payment-btn"]',
+  submitBtn: '[data-testid="received-invoice-submit-btn"]',
+  approveBtn: '[data-testid="received-invoice-approve-btn"]',
+  validateBtn: '[data-testid="received-invoice-validate-btn"]',
+} as const;
+
+// ===================== WIZARD =====================
+export const WIZARD = {
+  supplierSelect: '[data-testid="wizard-supplier-select"]',
+  supplierInvoiceNumber: '[data-testid="wizard-supplier-invoice-number"]',
+  receivedAt: '[data-testid="wizard-received-at"]',
+  reference: '[data-testid="wizard-reference"]',
+  type: '[data-testid="wizard-type"]',
+  totalHt: '[data-testid="wizard-total-ht"]',
+  totalTva: '[data-testid="wizard-total-tva"]',
+  totalTtc: '[data-testid="wizard-total-ttc"]',
+  nextBtn: '[data-testid="wizard-next-btn"]',
+  prevBtn: '[data-testid="wizard-prev-btn"]',
+  saveBtn: '[data-testid="wizard-save-btn"]',
+  newSupplierBtn: '[data-testid="wizard-new-supplier-btn"]',
+  supplierDialog: '[data-testid="wizard-supplier-dialog"]',
+  supplierName: '[data-testid="wizard-supplier-name"]',
+  supplierCreateBtn: '[data-testid="wizard-supplier-create-btn"]',
+} as const;
+
+// ===================== PAYMENT DIALOG =====================
+export const PAYMENT = {
+  date: '[data-testid="payment-date"]',
+  amount: '[data-testid="payment-amount"]',
+  method: '[data-testid="payment-method"]',
+  bankAccount: '[data-testid="payment-bank-account"]',
+  reference: '[data-testid="payment-reference"]',
+  saveBtn: '[data-testid="payment-save-btn"]',
+  addBankBtn: '[data-testid="payment-add-bank-btn"]',
+  bankDialog: '[data-testid="payment-bank-dialog"]',
+  bankName: '[data-testid="payment-bank-name"]',
+  bankNumber: '[data-testid="payment-bank-number"]',
+  bankCreateBtn: '[data-testid="payment-bank-create-btn"]',
 } as const;
 
 // ===================== AUDIT =====================

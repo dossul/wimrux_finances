@@ -1,10 +1,10 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — useUniversalReconciliation
 // Rapprochement wallet_transactions ↔ invoices/invoice_payments
 // Suggestion IA via ai-router (reconciliation_suggestion → Claude Sonnet)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { functions } from 'src/boot/appwrite';
 

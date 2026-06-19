@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Frais bancaires
 // Réutilise bank_transactions filtrées sur transaction_categories.type = 'bank_fee'
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { BankTransaction } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 

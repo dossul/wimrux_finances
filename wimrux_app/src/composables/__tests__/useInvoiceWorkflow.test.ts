@@ -5,7 +5,7 @@ import { STATUS_CONFIG } from '../useInvoiceWorkflow';
 // since the composable depends on Pinia auth store
 
 describe('STATUS_CONFIG', () => {
-  it('defines all 6 statuses', () => {
+  it('defines all statuses used by the workflow', () => {
     const statuses = Object.keys(STATUS_CONFIG);
     expect(statuses).toContain('draft');
     expect(statuses).toContain('pending_validation');
@@ -13,7 +13,12 @@ describe('STATUS_CONFIG', () => {
     expect(statuses).toContain('validated');
     expect(statuses).toContain('certified');
     expect(statuses).toContain('cancelled');
-    expect(statuses).toHaveLength(6);
+    expect(statuses).toContain('sent');
+    expect(statuses).toContain('accepted');
+    expect(statuses).toContain('rejected');
+    expect(statuses).toContain('overdue');
+    expect(statuses).toContain('paid');
+    expect(statuses).toHaveLength(11);
   });
 
   it('each status has label, color, icon', () => {

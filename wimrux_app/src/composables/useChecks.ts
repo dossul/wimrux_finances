@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Gestion des chèques (émis + reçus)
 // Workflow statut : in_circulation → cashed | bounced | endorsed | cancelled
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { Check, CheckType, CheckStatus } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 

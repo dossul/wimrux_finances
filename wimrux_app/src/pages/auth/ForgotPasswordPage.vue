@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-card flat bordered>
     <q-card-section>
       <div class="text-h6 text-center">Mot de passe oublié</div>
@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useQuasar } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 
 const $q = useQuasar();
 const authStore = useAuthStore();

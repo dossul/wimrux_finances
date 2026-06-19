@@ -1,5 +1,5 @@
-import { computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+﻿import { computed } from 'vue';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { FiscalConfig, TaxGroupConfig, PaymentType } from 'src/types';
 
 // Default BF fiscal config — used as fallback and as template for new GENERIC accounts

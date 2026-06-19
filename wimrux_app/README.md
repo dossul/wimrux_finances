@@ -11,7 +11,7 @@ Application SaaS de gestion de facturation conforme aux normes MCF/SECeF (Machin
 | Couche | Technologie |
 |--------|-------------|
 | Frontend | Quasar Framework 2.x + Vue 3 Composition API + TypeScript |
-| Backend | InsForge BaaS (PostgreSQL, Auth, Edge Functions, Storage, Realtime) |
+| Backend | Appwrite 1.5.7 (PostgreSQL, Auth, Edge Functions, Storage, Realtime) |
 | PDF | jsPDF + jspdf-autotable |
 | Tests | Vitest (56 tests unitaires) |
 | i18n | Français (défaut) + Anglais |

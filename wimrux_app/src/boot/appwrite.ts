@@ -68,6 +68,15 @@ export default boot(async ({ app, store }) => {
   app.provide('appwrite-functions', functions);
   app.provide('appwrite-teams', teams);
 
+  // Expose for Playwright debug
+  if (typeof window !== 'undefined') {
+    (window as any).__appwriteClient = client;
+    (window as any).__appwriteAccount = account;
+    (window as any).__appwriteDatabases = databases;
+    (window as any).__appwriteDatabaseId = DATABASE_ID;
+    (window as any).__appwriteFunctions = functions;
+  }
+
   console.log('[Appwrite Boot] Client initialized for project:', APPWRITE_PROJECT);
 
   // Load session on boot

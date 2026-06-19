@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-lg">
       <div>
@@ -233,7 +233,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { 
   CompanyAiQuotaUsage, 
   CompanyAiCredits, 
@@ -445,7 +445,7 @@ async function loadData() {
       .from('ai_usage_logs')
       .select('*')
       .eq('company_id', companyId.value)
-      .order('created_at', { ascending: false })
+      .order('$createdAt', { ascending: false })
       .limit(100);
     usageLogs.value = logs || [];
 

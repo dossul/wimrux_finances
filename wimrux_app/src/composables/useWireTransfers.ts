@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Ordres de virement
 // CRUD + workflow de statut : draft → approved → sent → executed/failed/cancelled
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { WireTransfer, WireTransferStatus } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -29,7 +29,7 @@ export function useWireTransfers() {
         .from('wire_transfers')
         .select('*')
         .eq('company_id', companyStore.company!.id)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
 
       if (filters?.status) {
         const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
@@ -58,7 +58,7 @@ export function useWireTransfers() {
     try {
       const { data, error: err } = await appwriteDb
         .from('wire_transfers')
-        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'draft' }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
+        .insert([{ ...payload, company_id: companyStore.company!.id, status: 'draft', bank_account_id: payload.source_bank_account_id }]).then(r=>({data:Array.isArray(r.data)?r.data[0]:r.data,error:r.error}));
       if (err) { error.value = err.message; return null; }
       if (data) transfers.value.unshift(data);
       return data;

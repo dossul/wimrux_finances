@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md">
       <q-icon name="admin_panel_settings" size="md" color="primary" class="q-mr-sm" />
@@ -158,7 +158,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useAiUsage } from 'src/composables/useAiUsage';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 
 const authStore = useAuthStore();
 const aiUsage = useAiUsage();

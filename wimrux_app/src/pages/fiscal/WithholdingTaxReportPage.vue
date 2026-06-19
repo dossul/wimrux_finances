@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md">
       <q-icon name="account_balance" size="28px" color="primary" class="q-mr-sm" />
@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useQuasar } from 'quasar';
 import { appwriteDb } from 'src/services/appwrite-db';
 

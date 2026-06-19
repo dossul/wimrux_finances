@@ -1,0 +1,49 @@
+# Coverage Report SQL -> Appwrite
+
+| Table | SQL cols | Appwrite attrs | Status |
+|-------|----------|----------------|--------|
+| ai_models | 13 | 13 | OK |
+| ai_models_default_routing | 5 | 5 | OK |
+| ai_providers | 8 | 8 | OK |
+| ai_tasks | 14 | 14 | OK |
+| ai_usage_logs | 11 | 17 | OK |
+| articles | 11 | 11 | OK |
+| audit_log | 10 | 10 | OK |
+| bank_accounts | 15 | 15 | OK |
+| bank_statement_imports | 13 | 13 | OK |
+| bank_transactions | 18 | 25 | OK |
+| certification_devices | 10 | 10 | OK |
+| checks | 12 | 13 | OK |
+| clients | 13 | 13 | OK |
+| companies | 31 | 31 | OK |
+| company_ai_credits | 8 | 8 | OK |
+| company_ai_quota_usage | 7 | 7 | OK |
+| company_ai_task_routing | 8 | 8 | OK |
+| company_role_permissions | 9 | 9 | OK |
+| esyntas_field_mappings | 9 | 9 | OK |
+| invoice_items | 16 | 17 | OK |
+| invoice_payments | 12 | 12 | OK |
+| invoice_sequences | 7 | 7 | OK |
+| invoices | 60 | 62 | OK |
+| mcf_logs | 9 | 9 | OK |
+| mobile_wallet_transactions | 14 | 14 | OK |
+| mobile_wallets | 10 | 14 | OK |
+| notifications | 12 | 14 | OK |
+| otp_codes | 8 | 8 | OK |
+| payment_evidences | 11 | 11 | OK |
+| payment_providers | 8 | 8 | OK |
+| payment_wallets | 9 | 9 | OK |
+| pending_certification_queue | 10 | 10 | OK |
+| petty_cash_accounts | 9 | 9 | OK |
+| petty_cash_movements | 10 | 10 | OK |
+| reconciliation_rules | 10 | 10 | OK |
+| suppliers | 21 | 21 | OK |
+| tax_declarations | 13 | 13 | OK |
+| tax_payments | 23 | 23 | OK |
+| transaction_categories | 9 | 9 | OK |
+| treasury_accounts | 10 | 10 | OK |
+| treasury_movements | 14 | 14 | OK |
+| user_profiles | 8 | 8 | OK |
+| wallet_transactions | 32 | 32 | OK |
+| wire_transfers | 15 | 15 | OK |
+| withholding_taxes | 15 | 15 | OK |

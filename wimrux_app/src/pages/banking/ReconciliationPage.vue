@@ -450,7 +450,7 @@ async function loadManualData() {
     loadUnreconciled(accountId),
     appwriteDb
       .from('invoices')
-      .select('id, reference, total_ttc, client_id, certification_datetime, created_at')
+      .select('id, reference, total_ttc, client_id, certification_datetime')
       .eq('reconciliation_status' as never, 'unreconciled' as never)
       .not('status', 'in', '("draft","cancelled")')
       .order('certification_datetime', { ascending: false })

@@ -1,9 +1,9 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable Payment Wallets (T24.9/T24.10)
 // Gestion des wallets de paiement globaux + transactions
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface PaymentWallet {
@@ -93,7 +93,7 @@ export function usePaymentWallets() {
         .from('payment_wallets')
         .select('*')
         .eq('company_id', companyStore.company.id)
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
       if (err) { error.value = err.message; return; }
       wallets.value = (data || []) as PaymentWallet[];
     } finally { loading.value = false; }

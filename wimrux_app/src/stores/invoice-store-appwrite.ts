@@ -75,8 +75,8 @@ export const useInvoiceStore = defineStore('invoice', () => {
         .query([
           Query.equal('type', type),
           Query.equal('company_id', companyId),
-          Query.greaterThanEqual('created_at', `${year}-01-01T00:00:00.000Z`),
-          Query.lessThanEqual('created_at', `${year}-12-31T23:59:59.999Z`),
+          Query.greaterThanEqual('$createdAt', `${year}-01-01T00:00:00.000Z`),
+          Query.lessThanEqual('$createdAt', `${year}-12-31T23:59:59.999Z`),
         ])
         .select();
       

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-md">
@@ -286,7 +286,7 @@
 import { ref, computed, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useBankAccounts } from 'src/composables/useBankAccounts';
 import { useBankStatementOcr } from 'src/composables/useBankStatementOcr';
 import {

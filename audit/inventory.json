@@ -1,0 +1,1357 @@
+{
+  "metadata": {
+    "endpoint": "https://appwrite.benga.live/v1",
+    "project": "6a29285200015cd421c7",
+    "database": "wimrux_finances",
+    "sql_tables_count": 45,
+    "appwrite_collections_count": 25,
+    "appwrite_buckets_count": 13,
+    "appwrite_functions_count": 8
+  },
+  "tables": {
+    "audit_log": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 8,
+      "missing_attributes": [
+        "id",
+        "timestamp"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "audit_log_pkey",
+        "idx_audit_log_timestamp"
+      ],
+      "permissions_ok": true
+    },
+    "companies": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 31,
+      "appwrite_attributes_count": 26,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "is_active",
+        "fiscal_profile",
+        "is_platform_provider"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "companies_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "user_profiles": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 8,
+      "appwrite_attributes_count": 5,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "two_fa_enabled"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "user_profiles_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "clients": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 13,
+      "appwrite_attributes_count": 9,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at",
+        "is_active"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "clients_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "suppliers": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 21,
+      "appwrite_attributes_count": 9,
+      "missing_attributes": [
+        "id",
+        "bank_name",
+        "bank_iban",
+        "bank_bic",
+        "notes",
+        "is_active",
+        "created_at",
+        "updated_at",
+        "regime_fiscal",
+        "division_fiscale",
+        "supplier_code",
+        "supplier_type"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "suppliers_pkey",
+        "idx_suppliers_name"
+      ],
+      "permissions_ok": true
+    },
+    "bank_accounts": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 15,
+      "appwrite_attributes_count": 8,
+      "missing_attributes": [
+        "id",
+        "currency",
+        "opening_balance",
+        "current_balance",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "bank_accounts_pkey",
+        "idx_bank_accounts_active"
+      ],
+      "permissions_ok": true
+    },
+    "treasury_accounts": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 4,
+      "missing_attributes": [
+        "id",
+        "opening_balance",
+        "current_balance",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [],
+      "permissions_ok": true
+    },
+    "articles": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 11,
+      "appwrite_attributes_count": 4,
+      "missing_attributes": [
+        "id",
+        "type",
+        "tax_group",
+        "unit_price",
+        "specific_tax",
+        "is_active",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "stock_quantity",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "articles_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "transaction_categories": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 9,
+      "appwrite_attributes_count": 6,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [],
+      "permissions_ok": true
+    },
+    "payment_wallets": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 9,
+      "appwrite_attributes_count": 6,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "payment_wallets_company_provider_identifier_key"
+      ],
+      "permissions_ok": true
+    },
+    "payment_evidences": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 11,
+      "appwrite_attributes_count": 9,
+      "missing_attributes": [
+        "id",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [],
+      "permissions_ok": true
+    },
+    "certification_devices": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 7,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [],
+      "permissions_ok": true
+    },
+    "invoice_sequences": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 7,
+      "appwrite_attributes_count": 4,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "idx_invoice_sequences_company"
+      ],
+      "permissions_ok": true
+    },
+    "invoices": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 60,
+      "appwrite_attributes_count": 61,
+      "missing_attributes": [
+        "id"
+      ],
+      "extra_attributes": [
+        "updated_at",
+        "invoice_number"
+      ],
+      "type_mismatches": [
+        {
+          "name": "total_ht",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_tva",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_psvb",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_ttc",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "stamp_duty",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_payment",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "withholding_tax_rate",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "withholding_tax_amount",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "paid_amount",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "invoices_pkey",
+        "idx_invoices_due_date",
+        "idx_invoices_supplier",
+        "idx_invoices_received_at"
+      ],
+      "permissions_ok": true
+    },
+    "invoice_items": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 16,
+      "appwrite_attributes_count": 16,
+      "missing_attributes": [
+        "id"
+      ],
+      "extra_attributes": [
+        "company_id"
+      ],
+      "type_mismatches": [
+        {
+          "name": "price",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "quantity",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "specific_tax",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "discount",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "amount_ht",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "amount_tva",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "amount_psvb",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "amount_ttc",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "invoice_items_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "invoice_payments": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 12,
+      "appwrite_attributes_count": 10,
+      "missing_attributes": [
+        "id",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "amount",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "invoice_payments_pkey",
+        "idx_invoice_payments_date"
+      ],
+      "permissions_ok": true
+    },
+    "withholding_taxes": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 15,
+      "appwrite_attributes_count": 12,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "rate",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "base_amount",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "tax_amount",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "withholding_taxes_pkey",
+        "idx_withholding_company"
+      ],
+      "permissions_ok": true
+    },
+    "tax_payments": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 23,
+      "appwrite_attributes_count": 20,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "amount",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "tax_payments_pkey",
+        "idx_tax_payments_date",
+        "idx_tax_payments_type",
+        "idx_tax_payments_receipt"
+      ],
+      "permissions_ok": true
+    },
+    "tax_declarations": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 13,
+      "appwrite_attributes_count": 10,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "total_base",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_tax",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "tax_declarations_pkey",
+        "idx_tax_decl_company"
+      ],
+      "permissions_ok": true
+    },
+    "esyntas_field_mappings": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 9,
+      "appwrite_attributes_count": 6,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "idx_esyntas_mappings_company"
+      ],
+      "permissions_ok": true
+    },
+    "ai_providers": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 8,
+      "appwrite_attributes_count": 6,
+      "missing_attributes": [
+        "id",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "ai_providers_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "ai_models": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 13,
+      "appwrite_attributes_count": 11,
+      "missing_attributes": [
+        "id",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "input_cost_per_1k_tokens",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "output_cost_per_1k_tokens",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "ai_models_pkey",
+        "ai_models_provider_code_key"
+      ],
+      "permissions_ok": true
+    },
+    "ai_tasks": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 14,
+      "appwrite_attributes_count": 13,
+      "missing_attributes": [
+        "id"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "ai_tasks_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "ai_models_default_routing": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 5,
+      "appwrite_attributes_count": 4,
+      "missing_attributes": [
+        "id"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "ai_models_default_routing_pkey"
+      ],
+      "permissions_ok": true
+    },
+    "company_ai_credits": {
+      "status": "INCOMPLETE",
+      "exists_in_appwrite": true,
+      "sql_attributes_count": 8,
+      "appwrite_attributes_count": 5,
+      "missing_attributes": [
+        "id",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [
+        {
+          "name": "balance_usd",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_purchased_usd",
+          "expected": "float",
+          "actual": "double"
+        },
+        {
+          "name": "total_consumed_usd",
+          "expected": "float",
+          "actual": "double"
+        }
+      ],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": true
+    },
+    "company_ai_quota_usage": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 7,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "period_month",
+        "quota_cap_usd",
+        "consumed_usd",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "company_ai_task_routing": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 8,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "task_code",
+        "model_id",
+        "custom_system_prompt",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "ai_usage_logs": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 11,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "task_code",
+        "model_code",
+        "input_tokens",
+        "output_tokens",
+        "cost_usd",
+        "latency_ms",
+        "status",
+        "error_message",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "company_role_permissions": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 9,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "role",
+        "permission",
+        "granted",
+        "expires_at",
+        "granted_by",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "otp_codes": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 8,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "user_id",
+        "phone",
+        "code",
+        "purpose",
+        "used",
+        "expires_at",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "notifications": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 12,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "user_id",
+        "type",
+        "severity",
+        "title",
+        "body",
+        "link",
+        "is_read",
+        "read_at",
+        "metadata",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "mcf_logs": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 9,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "invoice_id",
+        "action_type",
+        "payload",
+        "response",
+        "status",
+        "error_message",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "pending_certification_queue": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "invoice_id",
+        "company_id",
+        "device_id",
+        "priority",
+        "status",
+        "retry_count",
+        "error_message",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "mobile_wallets": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "provider",
+        "phone_number",
+        "account_name",
+        "current_balance",
+        "treasury_account_id",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "wallet_transactions": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 32,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "wallet_id",
+        "external_transaction_id",
+        "external_reference",
+        "direction",
+        "operation_type",
+        "amount",
+        "fees",
+        "currency",
+        "counterparty_name",
+        "counterparty_identifier",
+        "counterparty_wallet_type",
+        "counterparty_country",
+        "transaction_date",
+        "value_date",
+        "label",
+        "description",
+        "raw_payload",
+        "source_channel",
+        "source_evidence_id",
+        "ingestion_batch_id",
+        "confidence_score",
+        "needs_human_review",
+        "reconciliation_status",
+        "matched_invoice_id",
+        "matched_invoice_payment_id",
+        "matched_treasury_movement_id",
+        "category_id",
+        "dedup_hash",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "mobile_wallet_transactions": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 14,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "wallet_id",
+        "external_transaction_id",
+        "direction",
+        "amount",
+        "fees",
+        "balance_after",
+        "transaction_date",
+        "label",
+        "raw_sms",
+        "parsed_confidence",
+        "reconciliation_status",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "payment_providers": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 8,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "code",
+        "name",
+        "country_codes",
+        "type",
+        "is_active",
+        "supported_operations",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "bank_transactions": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 18,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "bank_account_id",
+        "external_transaction_id",
+        "transaction_date",
+        "value_date",
+        "label",
+        "reference",
+        "amount",
+        "currency",
+        "direction",
+        "raw_data",
+        "reconciliation_status",
+        "matched_invoice_id",
+        "matched_treasury_movement_id",
+        "category_id",
+        "import_batch_id",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "bank_statement_imports": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 13,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "bank_account_id",
+        "source_file_url",
+        "source_format",
+        "date_from",
+        "date_to",
+        "total_transactions",
+        "imported_transactions",
+        "status",
+        "error_message",
+        "processed_at",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "reconciliation_rules": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "name",
+        "pattern_label",
+        "pattern_amount_min",
+        "pattern_amount_max",
+        "category_id",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "treasury_movements": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 14,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "treasury_account_id",
+        "movement_date",
+        "label",
+        "description",
+        "amount",
+        "direction",
+        "reference",
+        "bank_transaction_id",
+        "wallet_transaction_id",
+        "invoice_payment_id",
+        "is_reconciled",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "petty_cash_accounts": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 9,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "name",
+        "current_balance",
+        "limit_amount",
+        "responsible_user_id",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "petty_cash_movements": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 10,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "petty_cash_account_id",
+        "movement_date",
+        "description",
+        "amount",
+        "direction",
+        "category_id",
+        "receipt_url",
+        "created_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "checks": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 13,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "bank_account_id",
+        "check_number",
+        "payee",
+        "amount",
+        "issue_date",
+        "due_date",
+        "status",
+        "memo",
+        "cleared_at",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    },
+    "wire_transfers": {
+      "status": "MISSING",
+      "exists_in_appwrite": false,
+      "sql_attributes_count": 15,
+      "appwrite_attributes_count": 0,
+      "missing_attributes": [
+        "id",
+        "company_id",
+        "bank_account_id",
+        "beneficiary_name",
+        "beneficiary_bank",
+        "beneficiary_iban",
+        "beneficiary_bic",
+        "amount",
+        "currency",
+        "reference",
+        "status",
+        "scheduled_date",
+        "executed_at",
+        "created_at",
+        "updated_at"
+      ],
+      "extra_attributes": [],
+      "type_mismatches": [],
+      "missing_indexes": [
+        "company_ai_credits_pkey",
+        "company_ai_credits_company_id_key"
+      ],
+      "permissions_ok": false
+    }
+  },
+  "buckets": {
+    "invoices-pdf": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "company-logos": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "invoices-scans": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "carnet-logos": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "carnet-documents": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "carnet-rapports": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "carnet-scans": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "carnet-scans-processed": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "carnet-signatures": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "certified-invoices-scans": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "coupon-tickets": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "payment-evidences": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    },
+    "report-exports": {
+      "status": "MISSING",
+      "exists": false,
+      "permissions": null
+    }
+  },
+  "functions": {
+    "ai-router": {
+      "status": "OK",
+      "exists": true,
+      "runtime": "node-18.0"
+    },
+    "send-email": {
+      "status": "OK",
+      "exists": true,
+      "runtime": "node-18.0"
+    },
+    "send-otp-whatsapp": {
+      "status": "OK",
+      "exists": true,
+      "runtime": "node-18.0"
+    },
+    "verify-otp": {
+      "status": "OK",
+      "exists": true,
+      "runtime": "node-18.0"
+    },
+    "cashflow-forecast": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "detect-anomalies": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "export-report": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "ingest-payment": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "ingest-image-payment": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "ingest-statement-file": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "ingest-text-payment": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "ingest-sms": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "nl-to-sql": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "verify-tax-id": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "generate-device-key": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "device-heartbeat": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "push-certified-invoice": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "pull-pending-invoices": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "parse-certified-invoice": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "pdf-to-images": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "mcf-simulator": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "fnec-simulator": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "chatbot-gateway": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "crypto-aes256": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "delete-user": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    },
+    "next-invoice-ref": {
+      "status": "MISSING",
+      "exists": false,
+      "runtime": null
+    }
+  }
+}

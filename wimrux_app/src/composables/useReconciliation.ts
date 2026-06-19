@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Rapprochement bancaire
 // - Auto-match via RPC auto_reconcile() (SQL levenshtein)
 // - Rapprochement manuel (drag & drop)
@@ -6,7 +6,7 @@
 // - CRUD règles utilisateur (reconciliation_rules)
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { AutoReconcileResult, ReconciliationRule, BankTransaction } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 
@@ -121,7 +121,7 @@ export function useReconciliation() {
         .from('reconciliation_rules')
         .select('*')
         .order('priority', { ascending: true })
-        .order('created_at', { ascending: true });
+        .order('$createdAt', { ascending: true });
       if (err) { error.value = err.message; return; }
       rules.value = (data || []) as ReconciliationRule[];
     } finally {

@@ -3,8 +3,8 @@
 // Gestion budgétaire : budgets + lignes + suivi consommation vs réalisé
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { useEmailService } from 'src/composables/useEmailService';
 import type {
   Budget, BudgetLine, BudgetVsActual, BudgetInput, BudgetLineInput,
@@ -38,7 +38,7 @@ export function useBudgets() {
         .select('*')
         .eq('company_id', companyStore.company!.id)
         .order('fiscal_year', { ascending: false })
-        .order('created_at', { ascending: false });
+        .order('$createdAt', { ascending: false });
 
       if (filters?.status)      q = q.eq('status', filters.status);
       if (filters?.fiscal_year) q = q.eq('fiscal_year', filters.fiscal_year);
@@ -171,7 +171,7 @@ export function useBudgets() {
         .eq('budget_id', budgetId)
         .eq('company_id', companyStore.company!.id)
         .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: true });
+        .order('$createdAt', { ascending: true });
       if (err) { error.value = err.message; return; }
       budgetLines.value = data || [];
     } finally {
@@ -226,19 +226,53 @@ export function useBudgets() {
   }
 
   // ---------------------------------------------------------------------------
-  // VUE BUDGET VS ACTUAL — Consommation
+  // BUDGET VS ACTUAL — Calcul JS (remplace la vue SQL v_budget_vs_actual)
   // ---------------------------------------------------------------------------
   async function loadBudgetVsActual(budgetId: string) {
     loading.value = true;
     try {
-      const { data, error: err } = await appwriteDb
-        .from('v_budget_vs_actual')
+      // 1. Charger les lignes du budget
+      const { data: lines, error: lErr } = await appwriteDb
+        .from('budget_lines')
         .select('*')
         .eq('budget_id', budgetId)
+        .eq('company_id', companyStore.company!.id);
+      if (lErr) { error.value = lErr.message; return; }
+
+      // 2. Charger les transactions de la période pour le calcul actual
+      const { data: transactions } = await appwriteDb
+        .from('bank_transactions')
+        .select('*')
         .eq('company_id', companyStore.company!.id)
-        .order('consumption_pct', { ascending: false });
-      if (err) { error.value = err.message; return; }
-      budgetActuals.value = data || [];
+        .limit(2000);
+
+      // 3. Calculer actual par categorie en JS
+      const txByCategory = new Map<string, number>();
+      for (const tx of (transactions || [])) {
+        if (!tx.category_id) continue;
+        const prev = txByCategory.get(tx.category_id) ?? 0;
+        txByCategory.set(tx.category_id, prev + Math.abs(Number(tx.amount)));
+      }
+
+      // 4. Construire BudgetVsActual
+      const actuals = (lines || []).map((line: any) => {
+        const computed_actual = txByCategory.get(line.category_id ?? '') ?? 0;
+        const planned = Number(line.planned_amount);
+        const variance = planned - computed_actual;
+        const consumption_pct = planned > 0 ? (computed_actual / planned) * 100 : 0;
+        const threshold = line.alert_threshold_pct ?? 80;
+        return {
+          ...line,
+          computed_actual,
+          variance,
+          consumption_pct,
+          alert_triggered: consumption_pct >= threshold,
+        };
+      });
+
+      // Trier par consumption_pct desc
+      actuals.sort((a: any, b: any) => b.consumption_pct - a.consumption_pct);
+      budgetActuals.value = actuals;
     } finally {
       loading.value = false;
     }

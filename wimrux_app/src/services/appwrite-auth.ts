@@ -4,7 +4,7 @@
  */
 
 import { account, client, databases, DATABASE_ID, COLLECTIONS } from 'src/boot/appwrite';
-import { ID, OAuthProvider, Query } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export interface AuthResponse {
   user: AppwriteUser | null;
@@ -61,7 +61,7 @@ export const appwriteAuth = {
       );
 
       // Auto-create session after signup
-      const session = await account.createEmailPasswordSession(email, password);
+      const session = await account.createEmailSession(email, password);
 
       return {
         user: mapUser(user),
@@ -77,7 +77,7 @@ export const appwriteAuth = {
   // Sign in with email/password
   async signIn(email: string, password: string): Promise<AuthResponse> {
     try {
-      const session = await account.createEmailPasswordSession(email, password);
+      const session = await account.createEmailSession(email, password);
       const user = await account.get();
 
       return {
@@ -179,7 +179,7 @@ export const appwriteAuth = {
   // Confirm reset password
   async confirmResetPassword(userId: string, secret: string, newPassword: string): Promise<{ error: Error | null }> {
     try {
-      await account.updateRecovery(userId, secret, newPassword);
+      await account.updateRecovery(userId, secret, newPassword, newPassword);
       return { error: null };
     } catch (error) {
       console.error('[Appwrite Auth] Confirm reset error:', error);
@@ -190,7 +190,7 @@ export const appwriteAuth = {
   // OAuth sign in
   async signInWithOAuth(provider: 'google' | 'github' | 'microsoft' | 'apple'): Promise<void> {
     const redirectUrl = `${window.location.origin}/auth/callback`;
-    account.createOAuth2Session(provider as OAuthProvider, redirectUrl, redirectUrl);
+    account.createOAuth2Session(provider as any, redirectUrl, redirectUrl);
   },
 
   // Verify email

@@ -1,11 +1,11 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — useAiChat
 // Chat fiscal/comptable + NL-to-SQL
 // Calls OpenRouter directly (same pattern as useAiAssistant) to avoid 403.
 // =============================================================================
 import { ref } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { useCrypto } from 'src/composables/useCrypto';
 import type { AiRouting } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';

@@ -1,4 +1,4 @@
-import { useCompanyStore } from 'src/stores/company-store';
+﻿import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import type { ChatbotApiKey, ChatbotPermission, ChatbotAction } from 'src/types';
 import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS } from 'src/types';

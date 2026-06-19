@@ -3,7 +3,7 @@
 // Retenues à la source + déclarations fiscales DGI BF
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface WithholdingTax {
@@ -81,7 +81,7 @@ export function useTaxDeclarations() {
     try {
       let q = appwriteDb.from('withholding_taxes').select('*').eq('company_id', companyId.value);
       if (periodMonth) q = q.eq('period_month', periodMonth);
-      const { data, error: err } = await q.order('created_at', { ascending: false });
+      const { data, error: err } = await q.order('$createdAt', { ascending: false });
       if (err) { error.value = err.message; return; }
       withholdings.value = data || [];
     } finally { loading.value = false; }
@@ -139,15 +139,37 @@ export function useTaxDeclarations() {
   }
 
   // ---------------------------------------------------------------------------
-  // TVA MENSUELLE
+  // TVA MENSUELLE — Calcul JS (remplace la vue SQL v_tva_monthly)
   // ---------------------------------------------------------------------------
   async function loadTvaMonthly() {
+    // Charger les retenues TVA et calculer par mois en JS
     const { data } = await appwriteDb
-      .from('v_tva_monthly')
+      .from('withholding_taxes')
       .select('*')
       .eq('company_id', companyId.value)
-      .order('period', { ascending: false });
-    tvaMonthly.value = data || [];
+      .eq('tax_type', 'tva')
+      .order('period_month', { ascending: false });
+
+    const byPeriod = new Map<string, { collectee: number; deductible: number }>();
+    for (const w of (data || [])) {
+      const p = w.period_month as string;
+      if (!byPeriod.has(p)) byPeriod.set(p, { collectee: 0, deductible: 0 });
+      const entry = byPeriod.get(p)!;
+      // RAS-TVA sur ventes = TVA collectée, sur achats = TVA déductible
+      if ((w.invoice_id ?? '').length > 0) {
+        entry.collectee += Number(w.tax_amount);
+      } else {
+        entry.deductible += Number(w.tax_amount);
+      }
+    }
+
+    tvaMonthly.value = Array.from(byPeriod.entries()).map(([period, v]) => ({
+      company_id: companyId.value,
+      period,
+      tva_collectee: v.collectee,
+      tva_deductible: v.deductible,
+      tva_nette: v.collectee - v.deductible,
+    })).sort((a, b) => b.period.localeCompare(a.period));
   }
 
   // ---------------------------------------------------------------------------

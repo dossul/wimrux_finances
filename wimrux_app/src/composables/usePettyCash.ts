@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type {
   PettyCashAccount,
   PettyCashAccountInput,
@@ -43,14 +43,21 @@ export function usePettyCash() {
   }
 
   async function loadSummaries() {
+    // Calcul JS — remplace v_petty_cash_summary
     loading.value = true;
     error.value = null;
     const { data, error: err } = await appwriteDb
-      .from('v_petty_cash_summary')
+      .from('petty_cash_accounts')
       .select('*')
-      .eq('company_id', companyId.value);
+      .eq('company_id', companyId.value)
+      .order('name');
     if (err) { error.value = err.message; }
-    else { summaries.value = data as PettyCashSummary[]; }
+    else { summaries.value = (data || []).map((a: any) => ({
+      ...a,
+      id: a.$id ?? a.id,
+      total_movements_in: 0,
+      total_movements_out: 0,
+    })) as any; }
     loading.value = false;
   }
 
@@ -149,7 +156,7 @@ export function usePettyCash() {
       .from('replenishment_requests')
       .select('*')
       .eq('company_id', companyId.value)
-      .order('requested_at', { ascending: false });
+      .order('$createdAt', { ascending: false });
     if (targetId) query = query.eq('target_id', targetId);
     const { data, error: err } = await query;
     if (err) { error.value = err.message; }

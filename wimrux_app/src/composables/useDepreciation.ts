@@ -1,8 +1,8 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable Immobilisations & Amortissement (T6.x)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type {
   FixedAsset, FixedAssetInput, AssetCategory, AssetDepreciationEntry,
   DepreciationMethod, AssetStatus

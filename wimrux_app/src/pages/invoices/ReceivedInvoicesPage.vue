@@ -9,7 +9,7 @@
       <q-space />
       <q-btn outline color="primary" icon="people" label="Fournisseurs" no-caps :to="'/app/suppliers'" class="q-mr-sm" />
       <q-btn outline color="secondary" icon="document_scanner" label="Import OCR" no-caps class="q-mr-sm" data-testid="invoice-ocr-import-btn" @click="showOcrDialog = true" />
-      <q-btn color="primary" icon="add" label="Nouvelle facture" no-caps @click="openCreate" />
+      <q-btn color="primary" icon="add" label="Nouvelle facture" no-caps @click="openCreate" data-testid="received-invoice-new-btn" />
     </div>
 
     <!-- KPI cards -->
@@ -76,7 +76,7 @@
     </q-card>
 
     <!-- Table -->
-    <q-card flat bordered>
+    <q-card flat bordered data-testid="received-invoices-table">
       <q-table :rows="invoices" :columns="columns" row-key="id" :loading="loading"
         :pagination="{ rowsPerPage: 20 }" flat @row-click="(_, row) => openDetail(row as ReceivedInvoice)">
 
@@ -151,37 +151,37 @@
               title="Historique des paiements"
               @click="openPaymentHistory(props.row)" />
             <q-btn flat round dense size="sm" icon="payments" color="positive"
-              title="Enregistrer paiement" @click="openPaymentDialog(props.row)" />
+              title="Enregistrer paiement" @click="openPaymentDialog(props.row)" data-testid="received-invoice-payment-btn" />
             <!-- Boutons workflow -->
             <q-btn
               v-if="props.row.status === 'draft'"
               flat round dense size="sm" icon="send" color="primary"
               title="Soumettre pour validation"
-              @click="confirmSubmit(props.row)" />
+              @click="confirmSubmit(props.row)" data-testid="received-invoice-submit-btn" />
             <q-btn
               v-if="props.row.status === 'pending_validation'"
               flat round dense size="sm" icon="thumb_up" color="teal-7"
               title="Approuver"
-              @click="confirmApprove(props.row)" />
+              @click="confirmApprove(props.row)" data-testid="received-invoice-approve-btn" />
             <q-btn
               v-if="props.row.status === 'approved'"
               flat round dense size="sm" icon="verified" color="positive"
               title="Valider définitivement"
-              @click="confirmValidate(props.row)" />
+              @click="confirmValidate(props.row)" data-testid="received-invoice-validate-btn" />
             <q-btn flat round dense size="sm" icon="edit" color="grey-7"
-              title="Voir / Modifier" @click="openEdit(props.row)" />
+              title="Voir / Modifier" @click="openEdit(props.row)" data-testid="received-invoice-edit-btn" />
             <!-- Annuler (visible si pas déjà annulé ou validé) -->
             <q-btn
               v-if="['draft','pending_validation','approved'].includes(props.row.status)"
               flat round dense size="sm" icon="cancel" color="orange-7"
               title="Annuler la facture"
-              @click="confirmCancel(props.row)" />
+              @click="confirmCancel(props.row)" data-testid="received-invoice-cancel-btn" />
             <!-- Supprimer (uniquement brouillon sans paiement) -->
             <q-btn
               v-if="props.row.status === 'draft' && props.row.paid_amount === 0 && props.row.payment_status === 'unpaid'"
               flat round dense size="sm" icon="delete_forever" color="negative"
               title="Supprimer la facture"
-              @click="confirmDelete(props.row)" />
+              @click="confirmDelete(props.row)" data-testid="received-invoice-delete-btn" />
           </q-td>
         </template>
 

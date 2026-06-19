@@ -37,17 +37,20 @@ export default defineConfig({
     /* Vidéo en cas d'échec */
     video: 'retain-on-failure',
 
+    /* Ignorer les erreurs HTTPS (certificat self-signed Appwrite) */
+    ignoreHTTPSErrors: true,
+
     /* Temps d'attente par défaut */
     actionTimeout: 15000,
     navigationTimeout: 15000,
   },
 
-  /* Projets : seulement Desktop Chrome pour l'instant */
+  /* Projets : Firefox pour contourner les restrictions de cookies tiers */
   projects: [
     {
-      name: 'chromium',
+      name: 'firefox',
       use: {
-        ...devices['Desktop Chrome'],
+        ...devices['Desktop Firefox'],
         viewport: { width: 1280, height: 720 },
       },
     },

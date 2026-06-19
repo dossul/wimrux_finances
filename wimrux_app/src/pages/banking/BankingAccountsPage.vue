@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="row items-center q-mb-md">
       <div class="text-h5">Comptes bancaires</div>
@@ -6,7 +6,7 @@
       <q-btn flat outline color="primary" icon="swap_horiz"      label="Virements"        no-caps :to="'/app/banking/transfers'" class="q-mr-sm" />
       <q-btn flat outline color="primary" icon="check_box"       label="Chèques"          no-caps :to="'/app/banking/checks'"    class="q-mr-sm" />
       <q-btn flat outline color="primary" icon="receipt_long"    label="Frais bancaires"  no-caps :to="'/app/banking/fees'"      class="q-mr-sm" />
-      <q-btn color="primary" icon="add" label="Nouveau compte" no-caps @click="openDialog()" />
+      <q-btn color="primary" icon="add" label="Nouveau compte" no-caps @click="openDialog()" data-testid="banking-new-account-btn" />
     </div>
 
     <!-- Stats rapides -->
@@ -37,7 +37,8 @@
 
     <!-- Liste des comptes -->
     <div class="row q-gutter-md">
-      <div class="col-12 col-sm-6 col-md-4" v-for="acc in accounts" :key="acc.id">
+      <div class="col-12 col-sm-6 col-md-4" v-for="acc in accounts" :key="acc.id"
+        data-testid="bank-account-card">
         <q-card flat bordered :class="acc.is_active ? '' : 'opacity-50'">
           <q-card-section>
             <div class="row items-start no-wrap">
@@ -107,7 +108,7 @@
     </div>
 
     <!-- Dialog création/édition -->
-    <q-dialog v-model="dialogOpen" persistent>
+    <q-dialog v-model="dialogOpen" persistent data-testid="banking-account-dialog">
       <q-card style="min-width: 480px; max-width: 560px">
         <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">{{ editTarget ? 'Modifier le compte' : 'Nouveau compte bancaire' }}</div>
@@ -124,6 +125,7 @@
               dense
               class="col-12"
               :rules="[v => !!v || 'Requis']"
+              data-testid="banking-account-bank-name"
             />
             <q-input
               v-model="form.bank_code"
@@ -131,6 +133,7 @@
               outlined
               dense
               class="col-5"
+              data-testid="banking-account-bank-code"
             />
             <q-input
               v-model="form.account_number"
@@ -139,6 +142,7 @@
               dense
               class="col-6"
               :rules="[v => !!v || 'Requis']"
+              data-testid="banking-account-number"
             />
             <q-input
               v-model="form.iban"
@@ -146,6 +150,7 @@
               outlined
               dense
               class="col-12"
+              data-testid="banking-account-iban"
             />
             <q-input
               v-model="form.bic"
@@ -153,6 +158,7 @@
               outlined
               dense
               class="col-5"
+              data-testid="banking-account-bic"
             />
             <q-input
               v-model="form.account_holder"
@@ -160,6 +166,7 @@
               outlined
               dense
               class="col-6"
+              data-testid="banking-account-holder"
             />
             <q-select
               v-model="form.currency"
@@ -168,6 +175,7 @@
               outlined
               dense
               class="col-4"
+              data-testid="banking-account-currency"
             />
             <q-input
               v-model.number="form.opening_balance"
@@ -177,6 +185,7 @@
               type="number"
               class="col-7"
               suffix="FCFA"
+              data-testid="banking-account-opening-balance"
             />
           </div>
         </q-card-section>
@@ -189,6 +198,7 @@
             no-caps
             :loading="saving"
             @click="saveAccount"
+            data-testid="banking-account-save-btn"
           />
         </q-card-actions>
       </q-card>
@@ -200,7 +210,7 @@
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useQuasar } from 'quasar';
 import { useBankAccounts } from 'src/composables/useBankAccounts';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import type { BankAccountFull } from 'src/types';
 
 const $q = useQuasar();

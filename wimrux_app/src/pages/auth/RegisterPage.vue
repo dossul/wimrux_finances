@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-card flat bordered>
     <q-card-section>
       <div class="text-h6 text-center">Inscription</div>
@@ -105,7 +105,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { useEmailService } from 'src/composables/useEmailService';
 import type { Company, UserRole } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';

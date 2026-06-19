@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <!-- Header -->
     <div class="row items-center q-mb-lg">
@@ -237,7 +237,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useTaxPayments, type TaxPayment, type TaxPaymentSource } from 'src/composables/useTaxPayments';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type { TaxPaymentCode } from 'src/utils/fiscalCompliance';
 
 const $q       = useQuasar();

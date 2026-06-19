@@ -17,9 +17,9 @@ export function useAiUsage() {
       let query = appwriteDb
         .from('ai_usage_logs')
         .select('*')
-        .order('created_at', { ascending: false });
-      if (from) query = query.gte('created_at', from);
-      if (to) query = query.lte('created_at', to);
+        .order('$createdAt', { ascending: false });
+      if (from) query = query.gte('$createdAt', from);
+      if (to) query = query.lte('$createdAt', to);
       const { data } = await query;
       logs.value = (data || []) as AiUsageLog[];
       aggregateByModel(logs.value);
@@ -37,10 +37,10 @@ export function useAiUsage() {
       let query = appwriteDb
         .from('ai_usage_logs')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('$createdAt', { ascending: false })
         .limit(5000);
-      if (from) query = query.gte('created_at', from);
-      if (to) query = query.lte('created_at', to);
+      if (from) query = query.gte('$createdAt', from);
+      if (to) query = query.lte('$createdAt', to);
       const { data, error } = await query;
       if (error) {
         console.warn('[useAiUsage] fetchAllUsage error:', error.message);

@@ -1,4 +1,4 @@
-import { useAuthStore } from 'src/stores/auth-store';
+﻿import { useAuthStore } from 'src/stores/auth-store-appwrite';
 
 const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string;
 

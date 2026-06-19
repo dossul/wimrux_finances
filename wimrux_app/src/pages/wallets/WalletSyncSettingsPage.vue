@@ -220,7 +220,8 @@ const apiStatusColor = computed(() => {
   return 'positive';
 });
 const lastSyncText = computed(() => wallet.value?.last_sync_at ? new Date(wallet.value.last_sync_at).toLocaleString('fr-FR') : 'Jamais');
-const webhookEndpoint = computed(() => `https://gfe4bd9y.eu-central.appwrite.benga.live/api/functions/ingest-webhook-${provider.value?.code || 'generic'}?wallet=${walletId.value}`);
+const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT as string || 'https://appwrite.benga.live/v1';
+const webhookEndpoint = computed(() => `${APPWRITE_ENDPOINT}/functions/ingest-webhook-${provider.value?.code || 'generic'}?wallet=${walletId.value}`);
 
 const providerCapabilities = computed(() => [
   { code: 'pull', label: 'API Pull (polling)', supported: provider.value?.supports_pull, icon: 'download' },

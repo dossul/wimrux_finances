@@ -1,18 +1,14 @@
 /**
- * Désactiver le 2FA via le SDK InsForge (même méthode que SettingsPage.vue)
- * 
- * Le SDK InsForge utilise POST /api/auth/sessions pour le login
- * et PATCH /api/database/records/user_profiles pour l'update.
- * 
+ * Désactiver le 2FA via l'API Appwrite (Admin API)
+ *
+ * Nécessite APPWRITE_API_KEY avec scope auth.users:write
  * Usage : node e2e/disable-2fa.mjs
  */
 
-import { createClient } from '@insforge/sdk';
-
-const insforge = createClient({
-  baseUrl: 'https://gfe4bd9y.eu-central.insforge.app',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NTAwNjN9.J71GoMBih3RietpuMmXLeLEU3664bu1jzI3KFZg3dPU',
-});
+const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT || 'https://appwrite.benga.live/v1';
+const APPWRITE_PROJECT  = process.env.APPWRITE_PROJECT || '6a29285200015cd421c7';
+const APPWRITE_API_KEY  = process.env.APPWRITE_API_KEY || '';
+const DATABASE_ID       = process.env.APPWRITE_DATABASE || 'wimrux_finances';
 
 const ACCOUNTS = [
   { email: 'admin@wimrux.app', password: 'WimruxAdmin2026!' },
@@ -20,47 +16,52 @@ const ACCOUNTS = [
   { email: 'test2@wimrux.app', password: 'WimruxAdmin2026!' },
 ];
 
-async function disableTwoFa(email, password) {
-  console.log(`\n🔑 Login ${email}...`);
+async function appwriteApi(method, path, body = null) {
+  const res = await fetch(`${APPWRITE_ENDPOINT}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Appwrite-Project': APPWRITE_PROJECT,
+      'X-Appwrite-Key': APPWRITE_API_KEY,
+    },
+    body: body ? JSON.stringify(body) : null,
+  });
+  if (res.status === 204) return null;
+  return res.json();
+}
 
-  // 1. Sign in via SDK
-  const { data, error: loginErr } = await insforge.auth.signInWithPassword({ email, password });
+async function disableTwoFa(email) {
+  console.log(`\n🔑 Traitement ${email}...`);
 
-  if (loginErr) {
-    console.error(`  ❌ Login échoué: ${loginErr.message}`);
+  // 1. Trouver l'utilisateur par email
+  const usersRes = await appwriteApi('GET', `/users?search=${encodeURIComponent(email)}`);
+  const user = usersRes?.users?.find(u => u.email === email);
+  if (!user) {
+    console.error(`  ❌ Utilisateur non trouvé: ${email}`);
     return false;
   }
 
-  const userId = data?.user?.id;
-  const accessToken = data?.accessToken;
-  console.log(`  ✅ Connecté (user_id: ${userId?.substring(0, 8)}...)`);
-
-  // 2. Update user_profiles via SDK database module
-  const { error: updateErr } = await insforge.database
-    .from('user_profiles')
-    .update({ two_fa_enabled: false })
-    .eq('user_id', userId);
-
-  if (updateErr) {
-    console.error(`  ❌ Update échoué: ${updateErr.message}`);
+  // 2. Désactiver 2FA (mfa: false sur Appwrite)
+  try {
+    await appwriteApi('PATCH', `/users/${user.$id}`, { mfa: false });
+    console.log(`  ✅ 2FA/MFA désactivé pour ${email}`);
+  } catch (err) {
+    console.error(`  ❌ Update MFA échoué: ${err.message}`);
     return false;
   }
 
-  console.log(`  ✅ 2FA désactivé pour ${email}`);
-
-  // Logout to clean session
-  await insforge.auth.signOut();
   return true;
 }
 
 async function main() {
   console.log('============================================');
   console.log('  WIMRUX® — Désactivation 2FA Comptes Test');
+  console.log('  (Appwrite Admin API)');
   console.log('============================================');
 
   let success = 0;
   for (const account of ACCOUNTS) {
-    const ok = await disableTwoFa(account.email, account.password);
+    const ok = await disableTwoFa(account.email);
     if (ok) success++;
   }
 

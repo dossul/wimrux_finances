@@ -1,8 +1,8 @@
-// =============================================================================
+﻿// =============================================================================
 // WIMRUX® FINANCES — Composable Company Theme (T18.1)
 // =============================================================================
 import { ref, computed } from 'vue';
-import { useCompanyStore } from 'src/stores/company-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { appwriteDb } from 'src/services/appwrite-db';
 
 export interface CompanyTheme {
