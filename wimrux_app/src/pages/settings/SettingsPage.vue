@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <q-page padding>
     <div class="text-h5 q-mb-md">Paramètres</div>
 
@@ -54,22 +54,25 @@
             <q-form @submit.prevent="saveCompany" class="q-gutter-sm">
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.name" label="Raison sociale" filled class="col" data-testid="company-name" :rules="[v => !!v || 'Requis']" />
-                <q-input v-model="companyForm.ifu" label="IFU (8 chiffres)" filled style="width: 200px" mask="########" data-testid="company-ifu" :rules="[v => !!v || 'Requis', v => isValidIFU(v) || 'IFU invalide (8 chiffres)']" />
+                <q-input v-model="companyForm.ifu" label="IFU" filled style="width: 200px" data-testid="company-ifu" :rules="[v => !!v || 'Requis', v => isValidIFU(v) || 'IFU invalide']" hint="Alphanumerique" />
               </div>
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.rccm" label="RCCM" filled class="col" data-testid="company-rccm" />
-                <q-input v-model="companyForm.tax_regime" label="Régime fiscal" filled data-testid="company-tax-rate" class="col" />
+                <q-select v-model="companyForm.tax_regime" :options="taxRegimeOptions" label="Régime fiscal" filled data-testid="company-tax-rate" class="col" emit-value map-options clearable />
                 <q-input v-model="companyForm.tax_office" label="Centre des impôts" filled class="col" data-testid="company-tax-office" />
+              </div>
+              <div class="text-subtitle2 text-grey-8 q-mt-xs">Adresse cadastrale</div>
+              <div class="row q-gutter-sm">
+                <q-input v-model="companyForm.cadastral_address.parcel" label="Parcelle" filled class="col" hint="Saisie libre" />
+                <q-input v-model="companyForm.cadastral_address.lot" label="Lot" filled class="col" />
+                <q-input v-model="companyForm.cadastral_address.section" label="Section" filled class="col" />
               </div>
               <q-input
                 v-model="companyForm.address_cadastral"
-                label="Adresse cadastrale (SSSS LLL PPPP)"
+                label="Adresse cadastrale (ancien format, texte libre)"
                 filled
-                mask="#### ### ####"
-                fill-mask="_"
-                reactive-rules
-                :rules="[v => !v || !v.replace(/[_ ]/g, '') || isValidCadastralAddress(v.replace(/_/g, '').trim()) ? true : 'Format invalide — 11 chiffres : Section (4) Ilot (3) Parcelle (4)']"
-                hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
+                clearable
+                hint="Ancien format — saisie libre"
                 bottom-slots
                 data-testid="company-address-cadastral"
               />
@@ -82,7 +85,35 @@
                 hint="Obligatoire si différente de l'adresse cadastrale"
                 bottom-slots
               />
+              <!-- Forme juridique -->
               <div class="row q-gutter-sm">
+                <q-select v-model="companyForm.legal_form" :options="legalFormOptions" label="Forme juridique" filled class="col" emit-value map-options clearable data-testid="company-legal-form" />
+                <q-input v-if="companyForm.legal_form === 'AUTRE'" v-model="companyForm.legal_form_other" label="Autre forme juridique" filled class="col" data-testid="company-legal-form-other" />
+              </div>
+
+              <!-- Adresse physique -->
+              <div class="text-subtitle2 text-grey-8 q-mt-md">Adresse physique</div>
+              <div class="row q-gutter-sm">
+                <q-input v-model="companyForm.physical_address.city" label="Ville" filled class="col" />
+                <q-input v-model="companyForm.physical_address.district" label="Quartier" filled class="col" />
+                <q-input v-model="companyForm.physical_address.sector" label="Secteur" filled class="col" />
+              </div>
+
+              <!-- Adresse postale structurée -->
+              <div class="text-subtitle2 text-grey-8 q-mt-xs">Adresse postale</div>
+              <div class="row q-gutter-sm">
+                <q-input v-model="companyForm.postal_address.post_office" label="Bureau postal" filled class="col" hint="Ex: 01, 02, CMS..." />
+                <q-input v-model="companyForm.postal_address.po_box" label="BP" filled class="col" />
+                <q-input v-model="companyForm.postal_address.postal_code" label="Code postal" filled class="col" />
+              </div>
+
+              <!-- Division fiscale -->
+              <div class="text-subtitle2 text-grey-8 q-mt-xs">Division fiscale</div>
+              <q-select v-model="companyTaxDivisionValue" :options="taxDivisionOptions" label="Division fiscale" filled emit-value map-options clearable data-testid="company-tax-division" @update:model-value="onTaxDivisionSelected" />
+
+              <!-- Indicatif pays + téléphone -->
+              <div class="row q-gutter-sm">
+                <q-input v-model="companyForm.phone_country_code" label="Indicatif pays" filled class="col-3" hint="Ex: +226" />
                 <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" data-testid="company-phone" />
                 <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" data-testid="company-email" />
               </div>
@@ -1274,16 +1305,17 @@ Body: { "message": "...", "conversation_id": "..." (optionnel) }
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { useCompanyStore } from 'src/stores/company-store';
-import { useAuthStore } from 'src/stores/auth-store';
+import { useCompanyStore } from 'src/stores/company-store-appwrite';
+import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import { usePermissions } from 'src/composables/usePermissions';
 import { AI_TASK_LABELS, getDefaultRouting } from 'src/composables/useAiAssistant';
 import { useAiUsage } from 'src/composables/useAiUsage';
 import { useCrypto } from 'src/composables/useCrypto';
 import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import { useChatbotSkill } from 'src/composables/useChatbotSkill';
-import { isValidIFU, isValidCadastralAddress } from 'src/utils/validators';
-import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission, BankAccount, InvoiceColors, FiscalProfile, FiscalConfig, TaxGroupConfig, TaxCategory, TaxSubRegime } from 'src/types';
+import { isValidIFU } from 'src/utils/validators';
+import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission, BankAccount, InvoiceColors, FiscalProfile, FiscalConfig, TaxGroupConfig, TaxCategory, TaxSubRegime, TaxRegimeBF, TaxDivision, LegalForm, PartnerContact, PhysicalAddress, CadastralAddress, PostalAddress } from 'src/types';
+import { LEGAL_FORM_LABELS, TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS } from 'src/types';
 import { DEFAULT_INVOICE_COLORS } from 'src/composables/useInvoicePdf';
 import { useFiscalProfile, DEFAULT_BF_FISCAL_CONFIG } from 'src/composables/useFiscalProfile';
 import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
@@ -1428,11 +1460,18 @@ const companyForm = ref<{
   name: string;
   ifu: string;
   rccm: string;
+  legal_form: LegalForm | null;
+  legal_form_other: string;
+  physical_address: PhysicalAddress;
+  cadastral_address: CadastralAddress;
+  postal_address: PostalAddress;
   address_cadastral: string;
   address: string;
+  phone_country_code: string;
   phone: string;
   email: string;
-  tax_regime: string;
+  tax_regime: TaxRegimeBF | null;
+  tax_division: TaxDivision | null;
   tax_office: string;
   qr_scan_base_url: string;
   bank_accounts: BankAccount[];
@@ -1440,11 +1479,18 @@ const companyForm = ref<{
   name: '',
   ifu: '',
   rccm: '',
+  legal_form: null,
+  legal_form_other: '',
+  physical_address: { city: '', district: '', sector: '' },
+  cadastral_address: { parcel: '', lot: '', section: '' },
+  postal_address: { post_office: '', po_box: '', postal_code: '' },
   address_cadastral: '',
   address: '',
+  phone_country_code: '+226',
   phone: '',
   email: '',
-  tax_regime: '',
+  tax_regime: null,
+  tax_division: null,
   tax_office: '',
   qr_scan_base_url: '',
   bank_accounts: [],
@@ -1455,6 +1501,17 @@ function addBankAccount() {
 }
 function removeBankAccount(idx: number) {
   companyForm.value.bank_accounts.splice(idx, 1);
+}
+
+const legalFormOptions = Object.entries(LEGAL_FORM_LABELS).map(([value, label]) => ({ label, value: value as LegalForm }));
+const taxRegimeOptions = Object.entries(TAX_REGIME_LABELS).map(([value, label]) => ({ label, value: value as TaxRegimeBF }));
+const taxDivisionOptions = TAX_DIVISION_OPTIONS.map(o => ({ label: o.label, value: `${o.type}:${o.sub || ''}:${o.type === 'DPI' ? '__PROVINCE__' : ''}` }));
+
+const companyTaxDivisionValue = ref('');
+function onTaxDivisionSelected(value: string) {
+  if (!value) { companyForm.value.tax_division = null; return; }
+  const [type, sub, province] = value.split(':');
+  companyForm.value.tax_division = { type: type as TaxDivision['type'], sub_division: sub || undefined, province: province || undefined };
 }
 
 const COLOR_FIELDS: { label: string; key: keyof InvoiceColors }[] = [
@@ -2224,15 +2281,26 @@ function loadCompanyForm() {
       name: c.name,
       ifu: c.ifu,
       rccm: c.rccm,
+      legal_form: c.legal_form || null,
+      legal_form_other: c.legal_form_other || '',
+      physical_address: c.physical_address || { city: '', district: '', sector: '' },
+      cadastral_address: c.cadastral_address || { parcel: '', lot: '', section: '' },
+      postal_address: c.postal_address || { post_office: '', po_box: '', postal_code: '' },
       qr_scan_base_url: c.qr_scan_base_url || '',
-      address_cadastral: c.address_cadastral,
+      address_cadastral: c.address_cadastral || '',
       address: c.address || '',
+      phone_country_code: c.phone_country_code || '+226',
       phone: c.phone,
       email: c.email,
-      tax_regime: '',
-      tax_office: c.tax_office,
+      tax_regime: c.tax_regime || null,
+      tax_division: c.tax_division || null,
+      tax_office: c.tax_office || '',
       bank_accounts: c.bank_accounts ? [...c.bank_accounts] : [],
     };
+    if (c.tax_division) {
+      const td = c.tax_division;
+      companyTaxDivisionValue.value = `${td.type}:${td.sub_division || ''}:${td.province || ''}`;
+    }
     const s = c.invoice_settings;
     invoiceSettingsForm.value = {
       show_logo: s?.show_logo ?? false,
@@ -2322,7 +2390,14 @@ async function saveCompany() {
   try {
     const cleaned = {
       ...companyForm.value,
-      address_cadastral: companyForm.value.address_cadastral?.replace(/_/g, '').trim() || '',
+      address_cadastral: companyForm.value.address_cadastral || '',
+      cadastral_address: companyForm.value.cadastral_address?.parcel || companyForm.value.cadastral_address?.lot || companyForm.value.cadastral_address?.section
+        ? companyForm.value.cadastral_address : null,
+      tax_regime: companyForm.value.tax_regime || null,
+      tax_division: companyForm.value.tax_division || null,
+      tax_office: companyForm.value.tax_office || null,
+      legal_form: companyForm.value.legal_form || null,
+      legal_form_other: companyForm.value.legal_form === 'AUTRE' ? (companyForm.value.legal_form_other || null) : null,
     };
     const result = await companyStore.updateCompany(cleaned);
     if (result?.error) {

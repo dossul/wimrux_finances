@@ -193,12 +193,21 @@ export interface Company {
   name: string;
   ifu: string;
   rccm: string;
-  address_cadastral: string;
+  legal_form?: LegalForm | null;
+  legal_form_other?: string | null;
+  physical_address?: PhysicalAddress | null;
+  cadastral_address?: CadastralAddress | null;
+  address_cadastral?: string | null;
+  postal_address?: PostalAddress | null;
   address?: string | null;
+  phone_country_code?: string | null;
   phone: string;
   email: string;
+  tax_regime?: TaxRegimeBF | null;
+  tax_division?: TaxDivision | null;
+  tax_office?: string | null;
   bank_accounts: BankAccount[];
-  tax_office: string;
+  contacts?: PartnerContact[] | undefined;
   fiscal_profile: FiscalProfile;
   fiscal_config: FiscalConfig | null;
   logo_url: string | null;
@@ -261,8 +270,8 @@ export interface AiUsageLog {
   funding_source?: string;
   langfuse_trace_id?: string;
   litellm_request_id?: string;
-  request_metadata?: Record<string, any>;
-  response_metadata?: Record<string, any>;
+  request_metadata?: Record<string, unknown>;
+  response_metadata?: Record<string, unknown>;
   pii_redacted?: boolean;
   pii_entities_count?: number;
 }
@@ -371,7 +380,9 @@ export type InvoiceStatus =
   | 'sent'
   | 'accepted'
   | 'rejected'
-  | 'cancelled';
+  | 'cancelled'
+  | 'overdue'
+  | 'paid';
 export type PriceMode = 'HT' | 'TTC';
 
 // --- Types d'articles ---
@@ -393,6 +404,115 @@ export interface Article {
 // --- Types de clients ---
 export type ClientType = 'CC' | 'PM' | 'PP' | 'PC';
 
+// ============================================================================
+// Champs obligatoires facture normalisée Burkina Faso
+// ============================================================================
+
+export type LegalForm =
+  | 'SA'
+  | 'SARL'
+  | 'SAS'
+  | 'SNC'
+  | 'PHYSIQUE'
+  | 'SCS'
+  | 'AUTRE';
+
+export const LEGAL_FORM_LABELS: Record<LegalForm, string> = {
+  SA: 'S.A. (Société anonyme)',
+  SARL: 'S.A.R.L. (Société à responsabilité limitée)',
+  SAS: 'S.A.S. (Société par actions simplifiées)',
+  SNC: 'S.N.C. (Société en nom collectif)',
+  PHYSIQUE: 'Personne physique',
+  SCS: 'S.C.S (Société en commandite simple)',
+  AUTRE: 'Autres (à spécifier)',
+};
+
+export interface PhysicalAddress {
+  city: string;
+  district: string;
+  sector: string;
+}
+
+export interface CadastralAddress {
+  parcel: string;
+  lot: string;
+  section: string;
+}
+
+export interface PostalAddress {
+  post_office: string;
+  po_box: string;
+  postal_code: string;
+}
+
+export type PartnerContactRole = 'sales' | 'accounting';
+
+export interface PartnerContact {
+  role: PartnerContactRole;
+  name: string;
+  function: string;
+  phone: string;
+  email: string;
+}
+
+export const PARTNER_CONTACT_ROLE_LABELS: Record<PartnerContactRole, string> = {
+  sales: 'Contact vente',
+  accounting: 'Contact comptabilité',
+};
+
+export type TaxRegimeBF = 'RNI' | 'RSI' | 'CME' | 'CME_DECLARATIF' | 'CSE' | 'RND';
+
+export const TAX_REGIME_LABELS: Record<TaxRegimeBF, string> = {
+  RNI: 'RNI (Régime normal d\'imposition)',
+  RSI: 'RSI (Régime simplifié d\'imposition)',
+  CME: 'CME (Contribution des micro-entreprises)',
+  CME_DECLARATIF: 'CME Déclaratif (Contribution des micro-entreprises, déclaratif)',
+  CSE: 'CSE (Contribution du secteur élevage)',
+  RND: 'RND (Régime non déterminé)',
+};
+
+export type TaxDivisionType = 'DGE' | 'DME' | 'DCI' | 'DPI';
+
+export interface TaxDivision {
+  type: TaxDivisionType;
+  sub_division?: string | undefined;
+  province?: string | undefined;
+}
+
+export const TAX_DIVISION_TYPE_LABELS: Record<TaxDivisionType, string> = {
+  DGE: 'DGE (Direction des grandes entreprises)',
+  DME: 'DME (Direction des moyennes entreprises)',
+  DCI: 'DCI (Direction du centre des impôts)',
+  DPI: 'DPI (Direction provinciale des impôts)',
+};
+
+export const TAX_DIVISION_OPTIONS: { type: TaxDivisionType; sub?: string; label: string }[] = [
+  { type: 'DGE', label: 'DGE (Direction des grandes entreprises)' },
+  { type: 'DME', sub: 'I', label: 'DME — I' },
+  { type: 'DME', sub: 'II', label: 'DME — II' },
+  { type: 'DME', sub: 'III', label: 'DME — III' },
+  { type: 'DME', sub: 'IV', label: 'DME — IV' },
+  { type: 'DME', sub: 'V', label: 'DME — V' },
+  { type: 'DCI', sub: 'I', label: 'DCI — I' },
+  { type: 'DCI', sub: 'II', label: 'DCI — II' },
+  { type: 'DCI', sub: 'III', label: 'DCI — III' },
+  { type: 'DCI', sub: 'IV', label: 'DCI — IV' },
+  { type: 'DCI', sub: 'V', label: 'DCI — V' },
+  { type: 'DCI', sub: 'VI', label: 'DCI — VI' },
+  { type: 'DCI', sub: 'VII', label: 'DCI — VII' },
+  { type: 'DCI', sub: 'VIII', label: 'DCI — VIII' },
+  { type: 'DCI', sub: 'IX', label: 'DCI — IX' },
+  { type: 'DPI', label: 'DPI (préciser la province)' },
+];
+
+export interface PartnerBankAccount {
+  bank_name: string;
+  account_number: string;
+  iban: string;
+  bic?: string;
+  is_default?: boolean;
+}
+
 // --- Groupes de taxation ---
 export type TaxGroup = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P';
 
@@ -405,12 +525,36 @@ export interface Client {
   company_id: string;
   type: ClientType;
   name: string;
-  ifu: string | null;
-  rccm: string | null;
-  address: string | null;
-  address_cadastral: string | null;
-  phone: string | null;
-  email: string | null;
+  legal_form?: LegalForm | null;
+  legal_form_other?: string | null;
+
+  physical_address?: PhysicalAddress | null;
+  cadastral_address?: CadastralAddress | null;
+  postal_address?: PostalAddress | null;
+
+  phone_country_code?: string | null;
+  phone?: string | null;
+  email?: string | null;
+
+  ifu?: string | null;
+  ifu_scan_file_id?: string | null;
+  rccm?: string | null;
+  rccm_scan_file_id?: string | null;
+
+  tax_regime?: TaxRegimeBF | null;
+  tax_division?: TaxDivision | null;
+
+  contacts?: PartnerContact[] | undefined;
+  bank_accounts?: PartnerBankAccount[] | undefined;
+  billing_email?: string | null;
+
+  charges_vat?: boolean;
+  vat_rate?: 0.18 | 0.10 | null | undefined;
+
+  // Legacy fields (kept for backward compatibility during migration)
+  address?: string | null;
+  address_cadastral?: string | null;
+
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -821,25 +965,49 @@ export interface Supplier {
   id: string;
   company_id: string;
   name: string;
-  ifu: string | null;
-  rccm: string | null;
-  address: string | null;
-  phone: string | null;
-  email: string | null;
-  country: string;                          // code ISO 2 lettres (BF, CI, SN…)
+  legal_form?: LegalForm | null;
+  legal_form_other?: string | null;
+
+  physical_address?: PhysicalAddress | null;
+  cadastral_address?: CadastralAddress | null;
+  postal_address?: PostalAddress | null;
+
+  phone_country_code?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  billing_email?: string | null;
+
+  ifu?: string | null;
+  ifu_scan_file_id?: string | null;
+  rccm?: string | null;
+  rccm_scan_file_id?: string | null;
+
+  tax_regime?: TaxRegimeBF | null;
+  tax_division?: TaxDivision | null;
+
+  contacts?: PartnerContact[] | undefined;
+  bank_accounts?: PartnerBankAccount[] | undefined;
+
+  charges_vat?: boolean;
+  vat_rate?: 0.18 | 0.10 | null | undefined;
+
+  country: string;
   payment_terms_days: number;
-  bank_name: string | null;
-  bank_iban: string | null;
-  bank_bic: string | null;
   notes: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  // ── Champs fiscaux (migration 2026-05-30) ───────────────────────────────────
-  regime_fiscal:    string | null;          // RNI, RSI, CME, CSE, RND
-  division_fiscale: string | null;          // DME-CV, DGE, DME-Centre…
-  supplier_code:    string | null;          // code interne optionnel
-  supplier_type:    'local' | 'foreign' | null; // Local / Étranger
+
+  supplier_code: string | null;
+  supplier_type: 'local' | 'foreign' | null;
+
+  // Legacy fields (kept for backward compatibility during migration)
+  address?: string | null;
+  regime_fiscal?: string | null;
+  division_fiscale?: string | null;
+  bank_name?: string | null;
+  bank_iban?: string | null;
+  bank_bic?: string | null;
 }
 
 export interface InvoicePayment {
