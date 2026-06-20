@@ -150,14 +150,19 @@
               <q-input v-model="form.ifu" label="IFU" outlined dense class="col" hint="Ex: 00014674A" data-testid="supplier-ifu">
                 <template v-slot:after v-if="form.ifu">
                   <q-btn
-                    v-if="form.country === 'BF'"
+                    v-if="form.country === 'BF' && !form.ifu_verified"
                     flat dense color="primary" icon="verified" label="Vérifier"
                     :loading="ifuVerifying"
                     data-testid="supplier-ifu-verify-btn"
                     @click="verifyIfuOnline"
                   />
+                  <q-btn
+                    v-if="form.country === 'BF' && form.ifu_verified"
+                    flat dense color="positive" icon="check_circle" label="Vérifié"
+                    data-testid="supplier-ifu-verified-badge"
+                  />
                   <q-toggle
-                    v-else
+                    v-if="form.country !== 'BF'"
                     v-model="form.ifu_verified"
                     label="Vérifié manuellement"
                     color="positive" dense
@@ -169,6 +174,9 @@
             </div>
             <div v-if="ifuVerifyStatus" class="q-mt-xs">
               <q-badge :color="ifuVerifyStatus.color" :label="ifuVerifyStatus.message" />
+            </div>
+            <div v-if="form.country === 'BF' && !form.ifu_verified" class="q-mt-xs">
+              <q-btn flat dense color="orange" icon="check_circle" label="J'ai vérifié manuellement sur dgi.bf" @click="markIfuManuallyVerified" />
             </div>
             <div class="row q-gutter-sm q-mt-xs">
               <div class="col">
@@ -513,17 +521,24 @@ async function verifyIfuOnline() {
       ifuVerifyStatus.value = { color: 'negative', message: result.online_message || result.format_message || 'IFU invalide' };
       return;
     }
+    // online_check pending/error : on demande une vérification manuelle
+    form.value.ifu_verified = false;
+    ifuVerifyStatus.value = { color: 'orange', message: 'Vérification automatique indisponible — vérifiez sur dgi.bf puis confirmez' };
+    window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
   } catch {
-    // service indisponible : on bascule en vérification manuelle
+    form.value.ifu_verified = false;
+    ifuVerifyStatus.value = { color: 'orange', message: 'Vérification automatique indisponible — vérifiez sur dgi.bf puis confirmez' };
+    window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
   } finally {
     ifuVerifying.value = false;
   }
-  // En cas d'erreur de permission/service, on permet quand même de valider manuellement
+}
+
+function markIfuManuallyVerified() {
   form.value.ifu_verified = true;
   form.value.ifu_verified_at = new Date().toISOString();
   form.value.ifu_verified_by = authStore.user?.id || null;
-  ifuVerifyStatus.value = { color: 'orange', message: 'Vérification en ligne indisponible — IFU marqué comme vérifié manuellement' };
-  window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
+  ifuVerifyStatus.value = { color: 'positive', message: 'IFU vérifié manuellement ✓' };
 }
 
 function onTaxDivisionSelected(value: string) {
