@@ -111,10 +111,13 @@
               <div class="text-subtitle2 text-grey-8 q-mt-xs">Division fiscale</div>
               <q-select v-model="companyTaxDivisionValue" :options="taxDivisionOptions" label="Division fiscale" filled emit-value map-options clearable data-testid="company-tax-division" @update:model-value="onTaxDivisionSelected" />
 
-              <!-- Indicatif pays + téléphone -->
+              <!-- Pays + téléphone -->
               <div class="row q-gutter-sm">
-                <q-input v-model="companyForm.phone_country_code" label="Indicatif pays" filled class="col-3" hint="Ex: +226" />
-                <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" data-testid="company-phone" />
+                <PhoneCountryInput
+                  v-model:country-code="companyForm.country"
+                  v-model:phone="companyForm.phone"
+                  phone-label="Téléphone"
+                />
                 <q-input v-model="companyForm.email" label="Email" filled type="email" class="col" data-testid="company-email" />
               </div>
               <q-input
@@ -1315,13 +1318,14 @@ import { useChatbotConfig } from 'src/composables/useChatbotConfig';
 import { useChatbotSkill } from 'src/composables/useChatbotSkill';
 import { isValidIFU } from 'src/utils/validators';
 import type { AiTaskType, AiRouting, AiTaskRoute, ChatbotApiKey, ChatbotAction, ChatbotChannel, ChatbotConversation, Company, Permission, BankAccount, InvoiceColors, FiscalProfile, FiscalConfig, TaxGroupConfig, TaxCategory, TaxSubRegime, TaxRegimeBF, TaxDivision, LegalForm, PartnerContact, PhysicalAddress, CadastralAddress, PostalAddress } from 'src/types';
-import { LEGAL_FORM_LABELS, TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS } from 'src/types';
+import { LEGAL_FORM_LABELS, TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS, getCountryByCode, getCountryByDial } from 'src/types';
 import { DEFAULT_INVOICE_COLORS } from 'src/composables/useInvoicePdf';
 import { useFiscalProfile, DEFAULT_BF_FISCAL_CONFIG } from 'src/composables/useFiscalProfile';
 import { CHATBOT_ACTION_LABELS, ALL_CHATBOT_ACTIONS, CHATBOT_CHANNELS, ALL_PERMISSIONS, PERMISSION_LABELS, PERMISSION_CATEGORIES, DEFAULT_ROLE_PERMISSIONS, SAAS_ROLE_LABELS } from 'src/types';
 import type { Permission as PermissionType } from 'src/types';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { appwriteAuth } from 'src/services/appwrite-auth';
+import PhoneCountryInput from 'src/components/common/PhoneCountryInput.vue';
 
 const $q = useQuasar();
 const companyStore = useCompanyStore();
@@ -1467,7 +1471,7 @@ const companyForm = ref<{
   postal_address: PostalAddress;
   address_cadastral: string;
   address: string;
-  phone_country_code: string;
+  country: string;
   phone: string;
   email: string;
   tax_regime: TaxRegimeBF | null;
@@ -1486,7 +1490,7 @@ const companyForm = ref<{
   postal_address: { post_office: '', po_box: '', postal_code: '' },
   address_cadastral: '',
   address: '',
-  phone_country_code: '+226',
+  country: 'BF',
   phone: '',
   email: '',
   tax_regime: null,
@@ -2289,7 +2293,7 @@ function loadCompanyForm() {
       qr_scan_base_url: c.qr_scan_base_url || '',
       address_cadastral: c.address_cadastral || '',
       address: c.address || '',
-      phone_country_code: c.phone_country_code || '+226',
+      country: c.country || getCountryByDial(c.phone_country_code)?.code || 'BF',
       phone: c.phone,
       email: c.email,
       tax_regime: c.tax_regime || null,
@@ -2390,6 +2394,7 @@ async function saveCompany() {
   try {
     const cleaned = {
       ...companyForm.value,
+      phone_country_code: getCountryByCode(companyForm.value.country)?.dial || null,
       address_cadastral: companyForm.value.address_cadastral || '',
       cadastral_address: companyForm.value.cadastral_address?.parcel || companyForm.value.cadastral_address?.lot || companyForm.value.cadastral_address?.section
         ? companyForm.value.cadastral_address : null,

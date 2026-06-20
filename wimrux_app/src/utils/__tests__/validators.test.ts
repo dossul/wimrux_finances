@@ -6,6 +6,7 @@ import {
   formatCadastralAddress,
   isValidIFU,
   isValidExportIFU,
+  isValidPhoneWithCountryCode,
   isValidNIM,
   isValidInvoiceReference,
 } from '../validators';
@@ -68,16 +69,22 @@ describe('formatCadastralAddress', () => {
 });
 
 describe('isValidIFU', () => {
-  it('accepts 8-digit IFU', () => {
+  it('accepts 1-20 alphanumeric characters', () => {
+    expect(isValidIFU('A')).toBe(true);
     expect(isValidIFU('00089946')).toBe(true);
-    expect(isValidIFU('12345678')).toBe(true);
+    expect(isValidIFU('00014674A')).toBe(true);
+    expect(isValidIFU('12345678901234567890')).toBe(true);
   });
 
-  it('rejects non-8-digit strings', () => {
-    expect(isValidIFU('1234567')).toBe(false);    // 7 digits
-    expect(isValidIFU('123456789')).toBe(false);   // 9 digits
-    expect(isValidIFU('0008994R')).toBe(false);    // letter
+  it('rejects empty or >20 char strings', () => {
     expect(isValidIFU('')).toBe(false);
+    expect(isValidIFU('   ')).toBe(false);
+    expect(isValidIFU('123456789012345678901')).toBe(false); // 21 chars
+  });
+
+  it('rejects special characters', () => {
+    expect(isValidIFU('0008994-')).toBe(false);
+    expect(isValidIFU('IFU 1234')).toBe(false);
   });
 
   it('trims whitespace', () => {
@@ -96,6 +103,42 @@ describe('isValidExportIFU', () => {
     expect(isValidExportIFU('')).toBe(false);
     expect(isValidExportIFU('   ')).toBe(false);
     expect(isValidExportIFU('123456789012345678901')).toBe(false); // 21 chars
+  });
+});
+
+describe('isValidPhoneWithCountryCode', () => {
+  it('accepts local number without country code', () => {
+    expect(isValidPhoneWithCountryCode('75757575', '+226')).toBe(true);
+  });
+
+  it('accepts full international number with plus and spaces', () => {
+    expect(isValidPhoneWithCountryCode('+226 65599195', '+226')).toBe(true);
+    expect(isValidPhoneWithCountryCode('+226 75 75 75 75', '+226')).toBe(true);
+  });
+
+  it('accepts full international number without plus', () => {
+    expect(isValidPhoneWithCountryCode('22675757575', '+226')).toBe(true);
+  });
+
+  it('accepts empty value', () => {
+    expect(isValidPhoneWithCountryCode('', '+226')).toBe(true);
+  });
+
+  it('rejects invalid characters', () => {
+    expect(isValidPhoneWithCountryCode('abcdefgh', '+226')).toBe(false);
+    expect(isValidPhoneWithCountryCode('+226-65599195', '+226')).toBe(false);
+  });
+
+  it('rejects too short numbers', () => {
+    expect(isValidPhoneWithCountryCode('12345', '+226')).toBe(false);
+  });
+
+  it('rejects numbers with too many digits', () => {
+    expect(isValidPhoneWithCountryCode('+226 1234567890123456', '+226')).toBe(false);
+  });
+
+  it('rejects numbers too long overall', () => {
+    expect(isValidPhoneWithCountryCode('+226 1234 5678 9012 3456', '+226')).toBe(false);
   });
 });
 

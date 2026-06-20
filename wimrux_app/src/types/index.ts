@@ -203,6 +203,10 @@ export interface Company {
   phone_country_code?: string | null;
   phone: string;
   email: string;
+  country?: string | null;
+  ifu_verified?: boolean | null;
+  ifu_verified_at?: string | null;
+  ifu_verified_by?: string | null;
   tax_regime?: TaxRegimeBF | null;
   tax_division?: TaxDivision | null;
   tax_office?: string | null;
@@ -519,6 +523,46 @@ export type TaxGroup = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J'
 // --- Modes de paiement ---
 export type PaymentType = 'ESPECES' | 'CHEQUES' | 'MOBILEMONEY' | 'CARTEBANCAIRE' | 'VIREMENT' | 'CREDIT' | 'AUTRE';
 
+// --- Options pays pour sélecteur téléphone ---
+export interface CountryOption {
+  code: string;
+  dial: string;
+  flag: string;
+  label: string;
+}
+
+export const COUNTRY_OPTIONS: CountryOption[] = [
+  { code: 'BF', dial: '+226', flag: '🇧🇫', label: 'Burkina Faso' },
+  { code: 'CI', dial: '+225', flag: '🇨🇮', label: 'Côte d\'Ivoire' },
+  { code: 'SN', dial: '+221', flag: '🇸🇳', label: 'Sénégal' },
+  { code: 'ML', dial: '+223', flag: '🇲🇱', label: 'Mali' },
+  { code: 'NE', dial: '+227', flag: '🇳🇪', label: 'Niger' },
+  { code: 'TG', dial: '+228', flag: '🇹🇬', label: 'Togo' },
+  { code: 'BJ', dial: '+229', flag: '🇧🇯', label: 'Bénin' },
+  { code: 'GH', dial: '+233', flag: '🇬🇭', label: 'Ghana' },
+  { code: 'FR', dial: '+33', flag: '🇫🇷', label: 'France' },
+  { code: 'CM', dial: '+237', flag: '🇨🇲', label: 'Cameroun' },
+  { code: 'CG', dial: '+242', flag: '🇨🇬', label: 'Congo' },
+  { code: 'CD', dial: '+243', flag: '🇨🇩', label: 'RD Congo' },
+  { code: 'MA', dial: '+212', flag: '🇲🇦', label: 'Maroc' },
+  { code: 'DZ', dial: '+213', flag: '🇩🇿', label: 'Algérie' },
+  { code: 'TN', dial: '+216', flag: '🇹🇳', label: 'Tunisie' },
+  { code: 'US', dial: '+1', flag: '🇺🇸', label: 'États-Unis' },
+  { code: 'CN', dial: '+86', flag: '🇨🇳', label: 'Chine' },
+  { code: 'IN', dial: '+91', flag: '🇮🇳', label: 'Inde' },
+  { code: 'AE', dial: '+971', flag: '🇦🇪', label: 'Émirats Arabes Unis' },
+  { code: 'OTHER', dial: '', flag: '🌐', label: 'Autre' },
+];
+
+export function getCountryByCode(code: string | null | undefined): CountryOption | undefined {
+  return COUNTRY_OPTIONS.find((c) => c.code === code);
+}
+
+export function getCountryByDial(dial: string | null | undefined): CountryOption | undefined {
+  if (!dial) return undefined;
+  return COUNTRY_OPTIONS.find((c) => c.dial === dial);
+}
+
 // --- Client ---
 export interface Client {
   id: string;
@@ -538,6 +582,9 @@ export interface Client {
 
   ifu?: string | null;
   ifu_scan_file_id?: string | null;
+  ifu_verified?: boolean | null;
+  ifu_verified_at?: string | null;
+  ifu_verified_by?: string | null;
   rccm?: string | null;
   rccm_scan_file_id?: string | null;
 
@@ -549,7 +596,8 @@ export interface Client {
   billing_email?: string | null;
 
   charges_vat?: boolean;
-  vat_rate?: 0.18 | 0.10 | null | undefined;
+  vat_rate?: number | null | undefined;
+  country?: string | null;
 
   // Legacy fields (kept for backward compatibility during migration)
   address?: string | null;
@@ -989,7 +1037,10 @@ export interface Supplier {
   bank_accounts?: PartnerBankAccount[] | undefined;
 
   charges_vat?: boolean;
-  vat_rate?: 0.18 | 0.10 | null | undefined;
+  vat_rate?: number | null | undefined;
+  ifu_verified?: boolean | null;
+  ifu_verified_at?: string | null;
+  ifu_verified_by?: string | null;
 
   country: string;
   payment_terms_days: number;

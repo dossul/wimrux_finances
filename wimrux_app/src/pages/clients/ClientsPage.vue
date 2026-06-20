@@ -60,14 +60,9 @@
               <q-input v-model="companyForm.rccm" label="RCCM" filled />
               <q-input
                 v-model="companyForm.address_cadastral"
-                label="Adresse cadastrale (SSSS LLL PPPP)"
+                label="Adresse cadastrale"
                 filled
-                mask="#### ### ####"
-                fill-mask="_"
-                reactive-rules
-                :rules="[v => !v || !v.replace(/[_ ]/g, '') || isValidLegacyCadastralAddress(v.replace(/_/g, '').trim()) ? true : 'Format invalide — 11 chiffres : Section (4) Ilot (3) Parcelle (4)']"
-                hint="Section (4 chiffres) Ilot (3 chiffres) Parcelle (4 chiffres)"
-                bottom-slots
+                hint="Saisie libre"
               />
               <div class="row q-gutter-sm">
                 <q-input v-model="companyForm.phone" label="Téléphone" filled class="col" />
@@ -296,10 +291,12 @@
             <!-- Coordonnées -->
             <q-separator class="q-my-xs" />
             <div class="text-subtitle2 text-grey-8">Coordonnées</div>
-            <div class="row q-gutter-sm">
-              <q-input v-model="form.phone_country_code" label="Indicatif pays" filled class="col-3" :rules="[countryCodeRule]" hint="Ex: +226" />
-              <q-input v-model="form.phone" label="Téléphone" filled class="col" data-testid="client-phone" :rules="[phoneRule]" />
-            </div>
+            <PhoneCountryInput
+              v-model:country-code="form.country"
+              v-model:phone="form.phone"
+              :phone-rules="[phoneRule]"
+              phone-label="Téléphone"
+            />
             <div class="row q-gutter-sm">
               <q-input v-model="form.email" label="E-mail" filled type="email" class="col" data-testid="client-email" :rules="[emailRule]" />
               <q-input v-model="form.billing_email" label="E-mail de facturation" filled type="email" class="col" :rules="[emailRule]" />
@@ -308,7 +305,7 @@
             <!-- IFU / RCCM -->
             <q-separator class="q-my-xs" />
             <div class="text-subtitle2 text-grey-8">Identification fiscale</div>
-            <div class="row q-gutter-sm">
+            <div class="row q-gutter-sm items-end">
               <q-input
                 v-model="form.ifu"
                 label="IFU"
@@ -316,8 +313,28 @@
                 data-testid="client-ifu"
                 :rules="ifuRules"
                 :hint="['PM', 'PC'].includes(form.type) ? 'Obligatoire pour PM et PC' : 'Optionnel'"
-              />
+              >
+                <template v-slot:after v-if="form.ifu">
+                  <q-btn
+                    v-if="form.country === 'BF'"
+                    flat dense color="primary" icon="verified" label="Vérifier"
+                    :loading="ifuVerifying"
+                    data-testid="client-ifu-verify-btn"
+                    @click="verifyIfuOnline"
+                  />
+                  <q-toggle
+                    v-else
+                    v-model="form.ifu_verified"
+                    label="Vérifié manuellement"
+                    color="positive" dense
+                    data-testid="client-ifu-manual-toggle"
+                  />
+                </template>
+              </q-input>
               <q-input v-model="form.rccm" label="RCCM" filled class="col" v-if="form.type === 'PM'" />
+            </div>
+            <div v-if="ifuVerifyStatus" class="q-mt-xs">
+              <q-badge :color="ifuVerifyStatus.color" :label="ifuVerifyStatus.message" />
             </div>
             <div class="row q-gutter-sm q-mt-sm">
               <div class="col">
@@ -369,8 +386,20 @@
             <div class="text-subtitle2 text-grey-8 q-mb-xs">TVA</div>
             <div class="row q-gutter-sm items-center">
               <q-toggle v-model="form.charges_vat" label="Charge la TVA" color="primary" data-testid="client-vat-toggle" />
-              <q-radio v-model="form.vat_rate" :val="0.18" label="18 %" :disable="!form.charges_vat" data-testid="client-vat-rate-18" />
-              <q-radio v-model="form.vat_rate" :val="0.10" label="10 %" :disable="!form.charges_vat" data-testid="client-vat-rate-10" />
+              <q-input
+                v-model="vatRateDisplay"
+                type="number"
+                suffix="%"
+                filled
+                dense
+                style="max-width: 140px"
+                :min="0"
+                :max="100"
+                :step="0.01"
+                :disable="!form.charges_vat"
+                :rules="[v => !form.charges_vat || (v > 0 && v <= 100) || 'Taux entre 0 et 100%']"
+                data-testid="client-vat-rate-input"
+              />
             </div>
 
             <!-- Contacts -->
@@ -425,20 +454,26 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar, copyToClipboard as qCopy } from 'quasar';
 import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import type { Client, ClientType, Company, UserRole, LegalForm, TaxRegimeBF, TaxDivision, PartnerContact, PartnerBankAccount } from 'src/types';
-import { LEGAL_FORM_LABELS, TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS } from 'src/types';
+import { LEGAL_FORM_LABELS, TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS, getCountryByCode, getCountryByDial } from 'src/types';
 import {
   isValidIFU,
   isValidExportIFU,
-  isValidLegacyCadastralAddress,
+  IFU_ERROR_MSG,
+  IFU_ERROR_MSG_BF,
+  IFU_ERROR_MSG_EXPORT,
   isValidCadastralAddressParts,
   isValidPostalAddress,
   isValidPhoneWithCountryCode,
   isValidEmail,
   isValidTaxDivision,
+  vatFractionToPercent,
+  vatPercentToFraction,
 } from 'src/utils/validators';
+import { verifyTaxIdOnline } from 'src/utils/fiscalCompliance';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { appwriteAuth } from 'src/services/appwrite-auth';
 import { appwriteStorage } from 'src/services/appwrite-storage';
+import PhoneCountryInput from 'src/components/common/PhoneCountryInput.vue';
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -507,13 +542,16 @@ const form = ref({
   cadastral_address: { parcel: '', lot: '', section: '' },
   postal_address: { post_office: '', po_box: '', postal_code: '' },
 
-  phone_country_code: '+226',
+  country: 'BF' as string,
   phone: '',
   email: '',
   billing_email: '',
 
   ifu: '',
   ifu_scan_file_id: null as string | null,
+  ifu_verified: false as boolean,
+  ifu_verified_at: null as string | null,
+  ifu_verified_by: null as string | null,
   rccm: '',
   rccm_scan_file_id: null as string | null,
 
@@ -528,7 +566,7 @@ const form = ref({
   bank_accounts: [] as PartnerBankAccount[],
 
   charges_vat: false,
-  vat_rate: null as 0.18 | 0.10 | null,
+  vat_rate: null as number | null,
 
   address: '',
   address_cadastral: '',
@@ -547,12 +585,15 @@ function emptyClientForm() {
     physical_address: { city: '', district: '', sector: '' },
     cadastral_address: { parcel: '', lot: '', section: '' },
     postal_address: { post_office: '', po_box: '', postal_code: '' },
-    phone_country_code: '+226',
+    country: 'BF',
     phone: '',
     email: '',
     billing_email: '',
     ifu: '',
     ifu_scan_file_id: null,
+    ifu_verified: false,
+    ifu_verified_at: null,
+    ifu_verified_by: null,
     rccm: '',
     rccm_scan_file_id: null,
     tax_regime: null,
@@ -580,12 +621,16 @@ function serializeClientForm(): Partial<Client> {
       : null,
     cadastral_address: isValidCadastralAddressParts(form.value.cadastral_address) ? form.value.cadastral_address : null,
     postal_address: isValidPostalAddress(form.value.postal_address) ? form.value.postal_address : null,
-    phone_country_code: form.value.phone_country_code || null,
+    phone_country_code: getCountryByCode(form.value.country)?.dial || null,
+    country: form.value.country || null,
     phone: form.value.phone || null,
     email: form.value.email || null,
     billing_email: form.value.billing_email || null,
     ifu: form.value.ifu || null,
     ifu_scan_file_id: form.value.ifu_scan_file_id,
+    ifu_verified: form.value.ifu_verified || false,
+    ifu_verified_at: form.value.ifu_verified_at || null,
+    ifu_verified_by: form.value.ifu_verified_by || null,
     rccm: form.value.rccm || null,
     rccm_scan_file_id: form.value.rccm_scan_file_id,
     tax_regime: form.value.tax_regime || null,
@@ -610,12 +655,15 @@ function deserializeClientForm(client: Client) {
     physical_address: client.physical_address || { city: '', district: '', sector: '' },
     cadastral_address: client.cadastral_address || { parcel: '', lot: '', section: '' },
     postal_address: client.postal_address || { post_office: '', po_box: '', postal_code: '' },
-    phone_country_code: client.phone_country_code || '+226',
+    country: client.country || getCountryByDial(client.phone_country_code)?.code || 'BF',
     phone: client.phone || '',
     email: client.email || '',
     billing_email: client.billing_email || '',
     ifu: client.ifu || '',
     ifu_scan_file_id: client.ifu_scan_file_id || null,
+    ifu_verified: client.ifu_verified || false,
+    ifu_verified_at: client.ifu_verified_at || null,
+    ifu_verified_by: client.ifu_verified_by || null,
     rccm: client.rccm || '',
     rccm_scan_file_id: client.rccm_scan_file_id || null,
     tax_regime: client.tax_regime || null,
@@ -634,9 +682,43 @@ function deserializeClientForm(client: Client) {
   };
 }
 
-const countryCodeRule = (val: string) => !val || /^\+?[0-9]{1,4}$/.test(val) || 'Indicatif invalide';
-const phoneRule = (val: string) => !val || isValidPhoneWithCountryCode(val, form.value.phone_country_code) || 'Téléphone invalide';
+const phoneRule = (val: string) => !val || isValidPhoneWithCountryCode(val, getCountryByCode(form.value.country)?.dial) || 'Téléphone invalide';
 const emailRule = (val: string) => !val || isValidEmail(val) || 'E-mail invalide';
+
+const vatRateDisplay = computed({
+  get: () => vatFractionToPercent(form.value.vat_rate) ?? 18,
+  set: (val: number) => { form.value.vat_rate = vatPercentToFraction(val); },
+});
+
+watch(() => form.value.charges_vat, (on) => {
+  if (on && !form.value.vat_rate) form.value.vat_rate = 0.18;
+});
+
+const ifuVerifying = ref(false);
+const ifuVerifyStatus = ref<{ color: string; message: string } | null>(null);
+
+async function verifyIfuOnline() {
+  if (!form.value.ifu) return;
+  ifuVerifying.value = true;
+  ifuVerifyStatus.value = null;
+  try {
+    const result = await verifyTaxIdOnline('BF', form.value.ifu);
+    if (result.online_check === 'valid' || (result.format_valid && result.online_check !== 'invalid' && result.online_check !== 'error')) {
+      form.value.ifu_verified = true;
+      form.value.ifu_verified_at = new Date().toISOString();
+      form.value.ifu_verified_by = authStore.user?.id || null;
+      ifuVerifyStatus.value = { color: 'positive', message: 'IFU vérifié ✓' };
+    } else {
+      form.value.ifu_verified = false;
+      ifuVerifyStatus.value = { color: 'negative', message: result.online_message || result.format_message || 'IFU invalide' };
+    }
+  } catch {
+    ifuVerifyStatus.value = { color: 'orange', message: 'Service indisponible — vérifiez sur dgi.bf' };
+    window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
+  } finally {
+    ifuVerifying.value = false;
+  }
+}
 
 function onTaxDivisionSelected(value: string) {
   const [type, sub, province] = value.split(':');
@@ -720,21 +802,18 @@ const filteredClients = computed(() => {
 
 const ifuRules = computed(() => {
   if (form.value.type === 'PC') {
-    // PC (étranger): IFU obligatoire mais format libre (§7 Types du client)
     return [
       (val: string) => !!val || 'IFU obligatoire pour PC',
-      (val: string) => !val || isValidExportIFU(val) || 'IFU export : 1 à 20 caractères',
+      (val: string) => !val || isValidExportIFU(val) || IFU_ERROR_MSG_EXPORT,
     ];
   }
   if (form.value.type === 'PM') {
-    // PM (local): IFU obligatoire, format DGI strict (8 chiffres)
     return [
       (val: string) => !!val || 'IFU obligatoire pour PM',
-      (val: string) => !val || isValidIFU(val) || 'IFU invalide (8 chiffres)',
+      (val: string) => !val || isValidIFU(val) || IFU_ERROR_MSG_BF,
     ];
   }
-  // PP/CC: IFU optionnel, format DGI si renseigné
-  return [(val: string) => !val || isValidIFU(val) || 'IFU invalide (8 chiffres)'];
+  return [(val: string) => !val || isValidIFU(val) || IFU_ERROR_MSG_BF];
 });
 
 async function toggleClientActive(client: Client, val: boolean) {
@@ -945,7 +1024,7 @@ async function saveCompany() {
   try {
     const payload = {
       ...companyForm.value,
-      address_cadastral: companyForm.value.address_cadastral?.replace(/_/g, '').trim() || null,
+      address_cadastral: companyForm.value.address_cadastral?.trim() || null,
     };
 
     if (editingCompany.value) {

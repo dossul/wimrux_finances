@@ -61,15 +61,11 @@ export function formatPostalAddress(parts: { post_office?: string; po_box?: stri
 // Téléphone
 // ============================================================================
 
-export function isValidPhoneWithCountryCode(phone: string, countryCode?: string): boolean {
-  const p = phone.replace(/\s/g, '').trim();
+export function isValidPhoneWithCountryCode(phone: string, _countryCode?: string): boolean {
+  const p = phone.trim();
   if (!p) return true;
-  if (countryCode) {
-    const cc = countryCode.replace(/[^0-9]/g, '');
-    if (!cc) return /^\+?[0-9]{6,15}$/.test(p);
-    return new RegExp(`^\\+?${cc}[0-9]{6,15}$`).test(p);
-  }
-  return /^\+?[0-9]{6,18}$/.test(p);
+  const digits = p.replace(/[^0-9]/g, '');
+  return /^[+\s\d]+$/.test(p) && digits.length >= 6 && digits.length <= 15 && p.length <= 20;
 }
 
 export function formatPhoneWithCountryCode(phone: string, countryCode?: string): string {
@@ -87,7 +83,7 @@ export function formatPhoneWithCountryCode(phone: string, countryCode?: string):
 // IFU
 // ============================================================================
 
-// IFU : exactement 8 chiffres (Burkina Faso)
+// IFU Burkina Faso : alphanumérique, 1-20 caractères (format DGI/SECeF accepté)
 const IFU_REGEX = /^[A-Za-z0-9]{1,20}$/;
 
 export function isValidIFU(ifu: string): boolean {
@@ -97,6 +93,28 @@ export function isValidIFU(ifu: string): boolean {
 // IFU export : format libre (non-résident)
 export function isValidExportIFU(ifu: string): boolean {
   return ifu.trim().length >= 1 && ifu.trim().length <= 20;
+}
+
+// IFU message d'erreur uniformisé
+export const IFU_ERROR_MSG = 'Format IFU invalide (alphanumérique, 1-20 caractères)';
+export const IFU_ERROR_MSG_BF = 'IFU invalide (alphanumérique, 1-20 caractères)';
+export const IFU_ERROR_MSG_EXPORT = 'IFU export : 1 à 20 caractères alphanumériques';
+
+// TVA : validation du taux en pourcentage (0-100)
+export function isValidVatRatePercent(percent: number): boolean {
+  return percent > 0 && percent <= 100;
+}
+
+// TVA : conversion pourcentage -> fraction (18 -> 0.18)
+export function vatPercentToFraction(percent: number | null | undefined): number | null {
+  if (percent == null || isNaN(percent)) return null;
+  return percent / 100;
+}
+
+// TVA : conversion fraction -> pourcentage (0.18 -> 18)
+export function vatFractionToPercent(fraction: number | null | undefined): number | null {
+  if (fraction == null || isNaN(fraction)) return null;
+  return fraction * 100;
 }
 
 // ============================================================================

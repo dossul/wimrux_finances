@@ -417,8 +417,8 @@
 
         <div class="row q-gutter-sm items-center q-mt-xs">
           <q-toggle v-model="newSup.charges_vat" label="Charge la TVA" color="primary" />
-          <q-radio v-model="newSup.vat_rate" :val="0.18" label="18 %" :disable="!newSup.charges_vat" />
-          <q-radio v-model="newSup.vat_rate" :val="0.10" label="10 %" :disable="!newSup.charges_vat" />
+          <q-input v-model="vatRateDisplay" type="number" suffix="%" outlined dense style="max-width: 140px" :min="0" :max="100" :step="0.01" :disable="!newSup.charges_vat" :rules="[v => !newSup.charges_vat || (v > 0 && v <= 100) || 'Taux entre 0 et 100%']" data-testid="wizard-supplier-vat-rate-input" />
+
         </div>
 
         <div class="text-subtitle2 text-grey-8 q-mt-sm">Adresse physique</div>
@@ -434,10 +434,13 @@
           <q-input v-model="newSup.postal_address.postal_code" label="Code postal" outlined dense class="col" />
         </div>
 
-        <div class="row q-gutter-sm q-mt-xs">
-          <q-input v-model="newSup.phone_country_code" label="Indicatif" outlined dense class="col-3" />
-          <q-input v-model="newSup.phone" label="Téléphone" outlined dense class="col" data-testid="wizard-supplier-phone" />
-        </div>
+        <PhoneCountryInput
+          v-model:country-code="newSup.country"
+          v-model:phone="newSup.phone"
+          phone-label="Téléphone"
+          outlined
+          dense
+        />
         <div class="row q-gutter-sm">
           <q-input v-model="newSup.email" label="E-mail" outlined dense class="col" type="email" data-testid="wizard-supplier-email" />
           <q-input v-model="newSup.billing_email" label="E-mail de facturation" outlined dense class="col" type="email" />
@@ -486,11 +489,12 @@ import { useCompanyStore } from 'src/stores/company-store-appwrite';
 import { useSuppliers } from 'src/composables/useSuppliers';
 import { useReceivedInvoices, type ReceivedInvoice } from 'src/composables/useReceivedInvoices';
 import type { FiscalComplianceStatus, TaxRegimeBF, TaxDivision, LegalForm, PartnerContact, PartnerBankAccount } from 'src/types';
-import { TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS, LEGAL_FORM_LABELS } from 'src/types';
+import { TAX_REGIME_LABELS, TAX_DIVISION_OPTIONS, LEGAL_FORM_LABELS, getCountryByCode } from 'src/types';
 import { verifyTaxIdOnline } from 'src/utils/fiscalCompliance';
-import { isValidTaxDivision } from 'src/utils/validators';
+import { isValidTaxDivision, vatFractionToPercent, vatPercentToFraction } from 'src/utils/validators';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { appwriteStorage } from 'src/services/appwrite-storage';
+import PhoneCountryInput from 'src/components/common/PhoneCountryInput.vue';
 
 const BUCKET = 'invoices-scans';
 const window = globalThis as unknown as Window & typeof globalThis;
@@ -709,7 +713,7 @@ async function onFileDrop(e: DragEvent) {
     physical_address: { city: '', district: '', sector: '' },
     cadastral_address: { parcel: '', lot: '', section: '' },
     postal_address: { post_office: '', po_box: '', postal_code: '' },
-    phone_country_code: '+226',
+    country: 'BF',
     phone: '',
     email: '',
     billing_email: '',
@@ -725,12 +729,21 @@ async function onFileDrop(e: DragEvent) {
     ] as PartnerContact[],
     bank_accounts: [] as PartnerBankAccount[],
     charges_vat: false,
-    vat_rate: null as 0.18 | 0.10 | null,
+    vat_rate: null as number | null,
     address: '',
     bank_name: '',
     bank_iban: '',
     bank_bic: '',
     notes: '',
+  });
+
+  const vatRateDisplay = computed({
+    get: () => vatFractionToPercent(newSup.value.vat_rate) ?? 18,
+    set: (val: number) => { newSup.value.vat_rate = vatPercentToFraction(val); },
+  });
+
+  watch(() => newSup.value.charges_vat, (on) => {
+    if (on && !newSup.value.vat_rate) newSup.value.vat_rate = 0.18;
   });
 
   const newSupLegalFormOptions = Object.entries(LEGAL_FORM_LABELS).map(([value, label]) => ({ label, value }));
@@ -796,7 +809,7 @@ async function onFileDrop(e: DragEvent) {
         postal_address: newSup.value.postal_address.post_office || newSup.value.postal_address.po_box || newSup.value.postal_address.postal_code
           ? newSup.value.postal_address
           : null,
-        phone_country_code: newSup.value.phone_country_code || null,
+        phone_country_code: getCountryByCode(newSup.value.country)?.dial || null,
         phone: newSup.value.phone || null,
         email: newSup.value.email || null,
         billing_email: newSup.value.billing_email || null,
@@ -831,7 +844,7 @@ async function onFileDrop(e: DragEvent) {
         physical_address: { city: '', district: '', sector: '' },
         cadastral_address: { parcel: '', lot: '', section: '' },
         postal_address: { post_office: '', po_box: '', postal_code: '' },
-        phone_country_code: '+226',
+        country: 'BF',
         phone: '',
         email: '',
         billing_email: '',
