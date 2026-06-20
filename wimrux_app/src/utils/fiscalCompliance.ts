@@ -106,11 +106,14 @@ export async function verifyTaxIdOnline(
   const { data, error } = await (async () => { try { const r = await functions.createExecution('verify-tax-id', JSON.stringify({ country_code: countryCode, tax_id: taxId })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
 
   if (error || !data?.data) {
+    const isPermissionError = error?.message?.includes("No permissions provided for action 'execute'") ?? false;
     return {
       format_valid: false,
       format_message: 'Erreur de connexion au service de vérification',
       online_check: 'error',
-      online_message: error?.message ?? 'Timeout',
+      online_message: isPermissionError
+        ? "Permission Appwrite manquante : la fonction verify-tax-id n'autorise pas l'exécution par les utilisateurs."
+        : (error?.message ?? 'Timeout'),
       manual_required: true,
       fiscal_platform_name: config?.fiscal_platform_name ?? null,
       fiscal_platform_url: config?.fiscal_platform_url ?? null,
