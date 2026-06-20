@@ -149,35 +149,17 @@
             <div class="row q-gutter-sm items-end">
               <q-input v-model="form.ifu" label="IFU" outlined dense class="col" hint="Ex: 00014674A" data-testid="supplier-ifu">
                 <template v-slot:after v-if="form.ifu">
-                  <q-btn
-                    v-if="form.country === 'BF' && !form.ifu_verified"
-                    flat dense color="primary" icon="verified" label="Vérifier"
-                    :loading="ifuVerifying"
-                    data-testid="supplier-ifu-verify-btn"
-                    @click="verifyIfuOnline"
-                  />
-                  <q-btn
-                    v-if="form.country === 'BF' && form.ifu_verified"
-                    flat dense color="positive" icon="check_circle" label="Vérifié"
-                    data-testid="supplier-ifu-verified-badge"
-                  />
-                  <q-toggle
-                    v-if="form.country !== 'BF'"
-                    v-model="form.ifu_verified"
-                    label="Vérifié manuellement"
-                    color="positive" dense
-                    data-testid="supplier-ifu-manual-toggle"
+                  <IfuVerifier
+                    :ifu="form.ifu"
+                    :country="form.country"
+                    :user-id="authStore.user?.id"
+                    :verified="form.ifu_verified"
+                    dense
+                    outlined
+                    @update="onIfuVerificationUpdate"
                   />
                 </template>
               </q-input>
-              <q-input v-model="form.rccm" label="RCCM" outlined dense class="col" data-testid="supplier-rccm" />
-            </div>
-            <div v-if="ifuVerifyStatus" class="q-mt-xs">
-              <q-badge :color="ifuVerifyStatus.color" :label="ifuVerifyStatus.message" />
-            </div>
-            <div v-if="form.country === 'BF' && !form.ifu_verified" class="q-mt-xs">
-              <q-btn flat dense color="orange" icon="check_circle" label="J'ai vérifié manuellement sur dgi.bf" @click="markIfuManuallyVerified" />
-            </div>
             <div class="row q-gutter-sm q-mt-xs">
               <div class="col">
                 <q-file v-model="ifuFile" label="Scan IFU" outlined dense clearable accept=".pdf,.jpg,.jpeg,.png">
@@ -324,11 +306,11 @@ import {
   vatFractionToPercent,
   vatPercentToFraction,
 } from 'src/utils/validators';
-import { verifyTaxIdOnline } from 'src/utils/fiscalCompliance';
 import { appwriteStorage } from 'src/services/appwrite-storage';
 import { appwriteDb } from 'src/services/appwrite-db';
 import { useAuthStore } from 'src/stores/auth-store-appwrite';
 import PhoneCountryInput from 'src/components/common/PhoneCountryInput.vue';
+import IfuVerifier from 'src/components/common/IfuVerifier.vue';
 
 const $q = useQuasar();
 const { suppliers, loading, error, loadSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
@@ -500,45 +482,10 @@ watch(() => form.value.charges_vat, (on) => {
   if (on && !form.value.vat_rate) form.value.vat_rate = 0.18;
 });
 
-const ifuVerifying = ref(false);
-const ifuVerifyStatus = ref<{ color: string; message: string } | null>(null);
-
-async function verifyIfuOnline() {
-  if (!form.value.ifu) return;
-  ifuVerifying.value = true;
-  ifuVerifyStatus.value = null;
-  try {
-    const result = await verifyTaxIdOnline('BF', form.value.ifu);
-    if (result.online_check === 'valid') {
-      form.value.ifu_verified = true;
-      form.value.ifu_verified_at = new Date().toISOString();
-      form.value.ifu_verified_by = authStore.user?.id || null;
-      ifuVerifyStatus.value = { color: 'positive', message: 'IFU vérifié en ligne ✓' };
-      return;
-    }
-    if (result.online_check === 'invalid') {
-      form.value.ifu_verified = false;
-      ifuVerifyStatus.value = { color: 'negative', message: result.online_message || result.format_message || 'IFU invalide' };
-      return;
-    }
-    // online_check pending/error : on demande une vérification manuelle
-    form.value.ifu_verified = false;
-    ifuVerifyStatus.value = { color: 'orange', message: 'Vérification automatique indisponible — vérifiez sur dgi.bf puis confirmez' };
-    window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
-  } catch {
-    form.value.ifu_verified = false;
-    ifuVerifyStatus.value = { color: 'orange', message: 'Vérification automatique indisponible — vérifiez sur dgi.bf puis confirmez' };
-    window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
-  } finally {
-    ifuVerifying.value = false;
-  }
-}
-
-function markIfuManuallyVerified() {
-  form.value.ifu_verified = true;
-  form.value.ifu_verified_at = new Date().toISOString();
-  form.value.ifu_verified_by = authStore.user?.id || null;
-  ifuVerifyStatus.value = { color: 'positive', message: 'IFU vérifié manuellement ✓' };
+function onIfuVerificationUpdate(payload: { verified: boolean; verifiedAt: string | null; verifiedBy: string | null }) {
+  form.value.ifu_verified = payload.verified;
+  form.value.ifu_verified_at = payload.verifiedAt;
+  form.value.ifu_verified_by = payload.verifiedBy;
 }
 
 function onTaxDivisionSelected(value: string) {
