@@ -324,6 +324,8 @@
                   />
                 </template>
               </q-input>
+              <q-input v-model="form.rccm" label="RCCM" filled class="col" v-if="form.type === 'PM'" />
+            </div>
             <div class="row q-gutter-sm q-mt-sm">
               <div class="col">
                 <q-file v-model="ifuFile" label="Scan IFU" filled dense clearable accept=".pdf,.jpg,.jpeg,.png">

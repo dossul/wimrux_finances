@@ -160,6 +160,8 @@
                   />
                 </template>
               </q-input>
+              <q-input v-model="form.rccm" label="RCCM" outlined dense class="col" data-testid="supplier-rccm" />
+            </div>
             <div class="row q-gutter-sm q-mt-xs">
               <div class="col">
                 <q-file v-model="ifuFile" label="Scan IFU" outlined dense clearable accept=".pdf,.jpg,.jpeg,.png">
