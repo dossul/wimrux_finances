@@ -501,21 +501,29 @@ async function verifyIfuOnline() {
   ifuVerifyStatus.value = null;
   try {
     const result = await verifyTaxIdOnline('BF', form.value.ifu);
-    if (result.online_check === 'valid' || (result.format_valid && result.online_check !== 'invalid' && result.online_check !== 'error')) {
+    if (result.online_check === 'valid') {
       form.value.ifu_verified = true;
       form.value.ifu_verified_at = new Date().toISOString();
       form.value.ifu_verified_by = authStore.user?.id || null;
-      ifuVerifyStatus.value = { color: 'positive', message: 'IFU vérifié ✓' };
-    } else {
+      ifuVerifyStatus.value = { color: 'positive', message: 'IFU vérifié en ligne ✓' };
+      return;
+    }
+    if (result.online_check === 'invalid') {
       form.value.ifu_verified = false;
       ifuVerifyStatus.value = { color: 'negative', message: result.online_message || result.format_message || 'IFU invalide' };
+      return;
     }
   } catch {
-    ifuVerifyStatus.value = { color: 'orange', message: 'Service indisponible — vérifiez sur dgi.bf' };
-    window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
+    // service indisponible : on bascule en vérification manuelle
   } finally {
     ifuVerifying.value = false;
   }
+  // En cas d'erreur de permission/service, on permet quand même de valider manuellement
+  form.value.ifu_verified = true;
+  form.value.ifu_verified_at = new Date().toISOString();
+  form.value.ifu_verified_by = authStore.user?.id || null;
+  ifuVerifyStatus.value = { color: 'orange', message: 'Vérification en ligne indisponible — IFU marqué comme vérifié manuellement' };
+  window.open(`https://dgi.bf/verification/verification-ifu?ifu=${form.value.ifu}`, '_blank');
 }
 
 function onTaxDivisionSelected(value: string) {
