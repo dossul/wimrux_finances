@@ -36,6 +36,20 @@ export interface OnlineVerifyResult {
   manual_required: boolean;
   fiscal_platform_name: string | null;
   fiscal_platform_url: string | null;
+  // Données enrichies retournées par le scraper Browserless (ifucheck.ulia.site)
+  details?: {
+    nom?: string;
+    etat?: string;
+    rccm?: string;
+    regime?: string;
+    direction?: string;
+    siege?: string;
+    forme_jur?: string;
+    telephone?: string;
+    mail?: string;
+    adresse?: string;
+    champs?: { label: string; valeur: string; actif: boolean }[];
+  };
 }
 
 // Cache en mémoire pour éviter de recharger la même config
@@ -47,16 +61,20 @@ export async function getCountryFiscalConfig(
   const code = countryCode.toUpperCase();
   if (configCache.has(code)) return configCache.get(code)!;
 
-  const { data, error } = await appwriteDb
-    .from('country_fiscal_configs')
-    .select('*')
-    .eq('country_code', code)
-    .eq('is_active', true)
-    .single();
+  try {
+    const { data, error } = await appwriteDb
+      .from('country_fiscal_configs')
+      .select('*')
+      .eq('country_code', code)
+      .eq('is_active', true)
+      .single();
 
-  if (error || !data) return null;
-  configCache.set(code, data as CountryFiscalConfig);
-  return data as CountryFiscalConfig;
+    if (error || !data) return null;
+    configCache.set(code, data as CountryFiscalConfig);
+    return data as CountryFiscalConfig;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -67,60 +85,107 @@ export async function verifyTaxIdOnline(
   countryCode: string,
   taxId: string
 ): Promise<OnlineVerifyResult> {
-  const config = await getCountryFiscalConfig(countryCode);
+  // Charge la config pays en silence (ne loggue pas l'erreur si la collection n'existe pas)
+  let config: CountryFiscalConfig | null = null;
+  try {
+    config = await getCountryFiscalConfig(countryCode);
+  } catch {
+    config = null;
+  }
 
-  // Pays avec workflow Dify dédié (ex: BF → verify-ifu-bf)
+  // Cas 0 (prioritaire) : scraper Browserless dédié (ifucheck.ulia.site)
+  // Actif pour BF tant que VITE_IFU_SCRAPER_URL est défini.
+  const scraperUrl = (import.meta.env.VITE_IFU_SCRAPER_URL as string | undefined)?.trim();
+  if (scraperUrl && countryCode.toUpperCase() === 'BF') {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 45000);
+      const resp = await fetch(`${scraperUrl.replace(/\/$/, '')}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ifu: taxId }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (resp.ok) {
+        const payload = await resp.json() as {
+          statut?: string;
+          message?: string;
+          resultat?: {
+            etat?: string;
+            nom?: string; rccm?: string; regime?: string;
+            direction?: string; siege?: string; forme_jur?: string;
+            telephone?: string; mail?: string; adresse?: string;
+            champs?: { label: string; valeur: string; actif: boolean }[];
+          };
+        };
+        if (payload?.statut === 'ok' && payload.resultat) {
+          const etat = (payload.resultat.etat || '').toUpperCase();
+          const isActif = etat === 'ACTIF';
+          const isInvalide = etat === 'INVALIDE' || etat === 'DESACTIVE';
+          return {
+            format_valid: true,
+            format_message: 'Format valide',
+            online_check: isActif ? 'valid' : isInvalide ? 'invalid' : 'pending',
+            online_message: payload.resultat.nom || etat || 'Réponse DGI reçue',
+            manual_required: !isActif && !isInvalide,
+            fiscal_platform_name: config?.fiscal_platform_name ?? 'DGI Burkina Faso',
+            fiscal_platform_url: config?.fiscal_platform_url ?? 'https://dgi.bf/verification/verification-ifu',
+            details: payload.resultat,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[IFU] scraper unavailable, fallback:', e);
+    }
+  }
+
+  // Cas 1 : workflow Dify configuré → tentative de vérification automatique via ai-router
   if (config?.verification_type === 'dify_workflow' && config.dify_workflow_id) {
-    const { data, error } = await (async () => { try { const r = await functions.createExecution('ai-router', JSON.stringify({
+    try {
+      const r = await functions.createExecution('ai-router', JSON.stringify({
         task_code: 'verify_ifu_bf',
         input: { text: taxId, country_code: countryCode },
         options: { workflow_id: config.dify_workflow_id },
-      })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
-    if (error || !data?.success) {
-      return {
-        format_valid: true,
-        format_message: 'Format valide (vérification Dify échouée)',
-        online_check: 'error',
-        online_message: error?.message ?? 'ai-router indisponible — credentials IA requis',
-        manual_required: true,
-        fiscal_platform_name: config.fiscal_platform_name,
-        fiscal_platform_url: config.fiscal_platform_url,
-      };
+      }));
+      const data = (() => { try { return JSON.parse(r.responseBody); } catch { return null; } })();
+      if (data?.success) {
+        const content: string = data.data?.content ?? '';
+        const isValid   = /valid|valide|trouvé|contribuable/i.test(content);
+        const isInvalid = /invalide|introuvable|inexistant|not found/i.test(content);
+        return {
+          format_valid: true,
+          format_message: 'Format valide',
+          online_check: isValid ? 'valid' : isInvalid ? 'invalid' : 'pending',
+          online_message: content || 'Résultat Dify reçu',
+          manual_required: !isValid && !isInvalid,
+          fiscal_platform_name: config.fiscal_platform_name,
+          fiscal_platform_url: config.fiscal_platform_url,
+        };
+      }
+    } catch {
+      // Ignore et bascule en fallback manuel
     }
-    // ai-router retourne { data: { content, ... } }
-    const content: string = data.data?.content ?? '';
-    const isValid   = /valid|valide|trouvé|contribuable/i.test(content);
-    const isInvalid = /invalide|introuvable|inexistant|not found/i.test(content);
-    return {
-      format_valid: true,
-      format_message: 'Format valide',
-      online_check: isValid ? 'valid' : isInvalid ? 'invalid' : 'pending',
-      online_message: content || 'Résultat Dify reçu',
-      manual_required: !isValid && !isInvalid,
-      fiscal_platform_name: config.fiscal_platform_name,
-      fiscal_platform_url: config.fiscal_platform_url,
-    };
   }
 
-  // Fallback : Edge Function verify-tax-id (scraping direct)
-  const { data, error } = await (async () => { try { const r = await functions.createExecution('verify-tax-id', JSON.stringify({ country_code: countryCode, tax_id: taxId })); return { data: (() => { try { return JSON.parse(r.responseBody); } catch { return r.responseBody; } })(), error: null }; } catch(e) { return { data: null, error: e as Error }; } })();
+  // Cas 2 : aucun workflow automatique disponible → mode manuel via dgi.bf
+  // (l'UI ouvre dgi.bf et propose le bouton "J'ai vérifié manuellement")
+  const platformName = config?.fiscal_platform_name
+    ?? (countryCode === 'BF' ? 'DGI Burkina Faso' : null);
+  const platformUrl = config?.fiscal_platform_url
+    ?? (countryCode === 'BF' ? 'https://dgi.bf/verification/verification-ifu' : null);
 
-  if (error || !data?.data) {
-    const isPermissionError = error?.message?.includes("No permissions provided for action 'execute'") ?? false;
-    return {
-      format_valid: false,
-      format_message: 'Erreur de connexion au service de vérification',
-      online_check: 'error',
-      online_message: isPermissionError
-        ? "Permission Appwrite manquante : la fonction verify-tax-id n'autorise pas l'exécution par les utilisateurs."
-        : (error?.message ?? 'Timeout'),
-      manual_required: true,
-      fiscal_platform_name: config?.fiscal_platform_name ?? null,
-      fiscal_platform_url: config?.fiscal_platform_url ?? null,
-    };
-  }
-
-  return data.data as OnlineVerifyResult;
+  return {
+    format_valid: true,
+    format_message: 'Format valide',
+    online_check: 'not_available',
+    online_message: platformUrl
+      ? `Vérification automatique non configurée — utilisez ${platformName}`
+      : 'Vérification manuelle requise',
+    manual_required: true,
+    fiscal_platform_name: platformName,
+    fiscal_platform_url: platformUrl,
+  };
 }
 
 export interface ComplianceCheck {

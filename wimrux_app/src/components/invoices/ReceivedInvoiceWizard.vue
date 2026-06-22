@@ -1067,22 +1067,35 @@ async function verifierIfuDgi() {
 
   try {
     const result = await verifyTaxIdOnline('BF', ifu);
+    const d = result.details ?? {};
     if (result.online_check === 'valid') {
       ifuResult.value = {
-        nom: result.online_message || ifu, etat: 'ACTIF',
-        rccm: '', regime: '', adresse: '', tel: '', email: ''
+        nom: d.nom || result.online_message || ifu,
+        etat: d.etat || 'ACTIF',
+        rccm: d.rccm || '',
+        regime: d.regime || '',
+        adresse: d.adresse || d.siege || '',
+        tel: d.telephone || '',
+        email: d.mail || '',
+        ...(d.champs ? { champs: d.champs } : {}),
       };
       form.value.ifu_verified = true;
       form.value.fiscal_compliance_status = 'valid';
       $q.notify({ type: 'positive', icon: 'verified_user',
-        message: `IFU vérifié ✓ — ${ifu}`, timeout: 5000 });
+        message: `IFU vérifié ✓ — ${d.nom || ifu}`, timeout: 5000 });
     } else if (result.online_check === 'invalid') {
       ifuResult.value = {
-        nom: ifu, etat: 'INVALIDE',
-        rccm: '', regime: '', adresse: '', tel: '', email: ''
+        nom: d.nom || ifu,
+        etat: d.etat || 'INVALIDE',
+        rccm: d.rccm || '',
+        regime: d.regime || '',
+        adresse: d.adresse || d.siege || '',
+        tel: d.telephone || '',
+        email: d.mail || '',
+        ...(d.champs ? { champs: d.champs } : {}),
       };
       $q.notify({ type: 'warning', icon: 'warning',
-        message: 'IFU introuvable dans la base DGI', timeout: 5000 });
+        message: 'IFU introuvable ou désactivé dans la base DGI', timeout: 5000 });
     } else {
       $q.notify({ type: 'info', icon: 'help_outline',
         message: result.online_message || 'Vérification ambiguë — page DGI ouverte', timeout: 5000 });

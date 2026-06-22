@@ -147,23 +147,36 @@ async function verifyOnline() {
   status.value = 'loading';
   onlineMessage.value = null;
 
+  // Ouvre l'onglet DGI immédiatement (geste utilisateur synchrone)
+  // pour contourner le blocage des popups navigateur
+  const dgiWindow = globalThis.open(
+    `https://dgi.bf/verification/verification-ifu?ifu=${encodeURIComponent(props.ifu)}`,
+    '_blank'
+  );
+
   try {
     const result = await verifyTaxIdOnline('BF', props.ifu);
     onlineMessage.value = result.online_message;
 
     if (result.online_check === 'valid') {
+      // Ferme l'onglet DGI si on a eu une réponse automatique
+      dgiWindow?.close();
       status.value = 'online_valid';
       emitVerified(true);
     } else if (result.online_check === 'invalid') {
+      dgiWindow?.close();
       status.value = 'online_invalid';
       emitVerified(false);
     } else {
+      // error / not_available / pending → on garde l'onglet DGI ouvert
+      // (l'utilisateur doit confirmer manuellement via le bouton)
       status.value = 'fallback';
-      openDgiTab();
+      if (!onlineMessage.value) {
+        onlineMessage.value = result.online_message;
+      }
     }
   } catch {
     status.value = 'fallback';
-    openDgiTab();
   }
 }
 
